@@ -74,7 +74,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: Literal[False] = False,
-        _transformer_2_float32: bool = False,
+        _force_output_block_float32: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor: ...
@@ -88,7 +88,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: Literal[True],
-        _transformer_2_float32: bool = False,
+        _force_output_block_float32: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> tuple[Tensor, KVCacheEntry]: ...
@@ -102,7 +102,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: bool,
-        _transformer_2_float32: bool = False,
+        _force_output_block_float32: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]: ...
@@ -115,7 +115,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,  # [..., KV]
         *,
         return_key_value: bool = False,
-        _transformer_2_float32: bool = False,
+        _force_output_block_float32: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
@@ -157,7 +157,7 @@ class InducedTransformerBlock(torch.nn.Module):
                 attn_mask=attn_mask,  # [..., 1, KV]
                 batch_size_limit=batch_size_limit,
             )  # [..., M, C]
-        if _transformer_2_float32:
+        if _force_output_block_float32:
             if self.output_block.attn.qkv_lin.weight.dtype != torch.float32:
                 raise RuntimeError(
                     "Full-precision transformer execution requires "
