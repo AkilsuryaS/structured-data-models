@@ -15,6 +15,7 @@ from sdm._kernels.fp8_attention import fp8_attention, supports_fp8
 from sdm._memory import chunk_memory_limit
 from sdm.cache import KVCacheEntry, QuantizedKVCacheEntry
 from sdm.nn import QueryScaling
+from sdm.optimization import _attention_quantization
 
 
 class SDPA(torch.nn.Module):
@@ -262,7 +263,7 @@ class Attention(torch.nn.Module):
         self.q_dim = num_query_heads * self.head_dim  # == channels
         self.kv_dim = num_key_value_heads * self.head_dim
 
-        self.attention_quantization: Literal["fp8"] | None = None
+        self._supports_quantized_attention = False
 
         self.qkv_lin = Linear(
             channels, self.q_dim + 2 * self.kv_dim, bias=bias, **factory_kwargs
@@ -372,6 +373,14 @@ class Attention(torch.nn.Module):
 
         if key_value is None and key_pos is None:
             key_pos = query_pos
+        if (
+            isinstance(key_value, QuantizedKVCacheEntry)
+            and _attention_quantization.get() != "fp8"
+        ):
+            raise RuntimeError(
+                'This cache requires sdm.optimize(attention="fp8"). '
+                "Re-enter that scope, or clear the model and refit."
+            )
 
         if isinstance(key_value, KVCacheEntry):
             query = F.linear(
@@ -437,7 +446,8 @@ class Attention(torch.nn.Module):
             key_value if isinstance(key_value, QuantizedKVCacheEntry) else None
         )
         use_fp8 = (
-            self.attention_quantization == "fp8"
+            _attention_quantization.get() == "fp8"
+            and self._supports_quantized_attention
             and not isinstance(key_value, KVCacheEntry)
             and query.numel() > 0
             and key.size(-3) > 8192
