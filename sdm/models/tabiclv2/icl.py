@@ -193,6 +193,7 @@ class ICLBlock(torch.nn.Module):
         # Start at the input precision so autocast cannot make the output
         # dtype depend on which nodes are singletons.
         log_probs = x.new_zeros((*x.size()[:-2], test_size, num_classes))
+        output_ids = torch.arange(self.num_classes, device=x.device)
         # Add child probabilities before parent probabilities, preserving the
         # recursive evaluation order in reduced precision.
         for depth in range(len(levels) - 1, -1, -1):
@@ -215,7 +216,6 @@ class ICLBlock(torch.nn.Module):
                 cache_prefix=f"icl_block.level{depth}",
                 attn_mask=mask.unsqueeze(-2),
             )
-            output_ids = torch.arange(self.num_classes, device=x.device)
             logits = (
                 logits[..., : self.num_classes] / self.temperature
             ).masked_fill(output_ids >= sizes[..., None, None], -torch.inf)
