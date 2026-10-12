@@ -17,7 +17,7 @@ class _LinearModel(ICLModel):
     supported_feature_stypes = frozenset({Stype.numerical})
     supported_target_stypes = frozenset({Stype.numerical})
     supports_multi_target = False
-    supports_context_only_features = False
+    supports_context_only_columns = False
     supports_related_tables = True
 
     def __init__(self) -> None:
@@ -29,6 +29,7 @@ class _LinearModel(ICLModel):
         x_context: TableTensor | None,
         y_context: TableTensor | None,
         x_query: TableTensor | None,
+        x_context_only: TableTensor | None,
         related_context_tables: RelatedTables | None,
         related_query_tables: RelatedTables | None,
         cache: Cache | None,

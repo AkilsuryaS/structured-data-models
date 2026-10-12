@@ -33,7 +33,7 @@ class _RecordingModel(ICLModel):
     supported_feature_stypes = frozenset({Stype.numerical})
     supported_target_stypes = frozenset({Stype.numerical, Stype.categorical})
     supports_multi_target = False
-    supports_context_only_features = False
+    supports_context_only_columns = False
     supports_related_tables = True
 
     def __init__(self) -> None:
@@ -46,6 +46,7 @@ class _RecordingModel(ICLModel):
         x_context: TableTensor | None,
         y_context: TableTensor | None,
         x_query: TableTensor | None,
+        x_context_only: TableTensor | None,
         related_context_tables: RelatedTables | None,
         related_query_tables: RelatedTables | None,
         cache: Cache | None,
@@ -75,7 +76,7 @@ class _ClassFrequencyModel(ICLModel):
     supported_feature_stypes = frozenset({Stype.numerical})
     supported_target_stypes = frozenset({Stype.categorical})
     supports_multi_target = False
-    supports_context_only_features = False
+    supports_context_only_columns = False
     supports_related_tables = False
 
     def __init__(self) -> None:
@@ -88,6 +89,7 @@ class _ClassFrequencyModel(ICLModel):
         x_context: TableTensor | None,
         y_context: TableTensor | None,
         x_query: TableTensor | None,
+        x_context_only: TableTensor | None,
         related_context_tables: RelatedTables | None,
         related_query_tables: RelatedTables | None,
         cache: Cache | None,
@@ -122,7 +124,7 @@ class _UnsupportedRecordingModel(_RecordingModel):
     supported_feature_stypes = frozenset({Stype.numerical})
     supported_target_stypes = frozenset({Stype.numerical, Stype.categorical})
     supports_multi_target = False
-    supports_context_only_features = False
+    supports_context_only_columns = False
     supports_related_tables = False
 
 
@@ -149,10 +151,13 @@ class MyCallback(Callback):
         model: torch.nn.Module,
         x: TableTensor,
         y: TableTensor,
+        x_context_only: TableTensor | None,
         related_tables: RelatedTables[TableTensor] | None,
-    ) -> tuple[TableTensor, TableTensor, RelatedTables | None]:
+    ) -> tuple[
+        TableTensor, TableTensor, TableTensor | None, RelatedTables | None
+    ]:
         self._record("context_preprocessing_end")
-        return x, y, related_tables
+        return x, y, x_context_only, related_tables
 
     def on_query_preprocessing_end(
         self,
