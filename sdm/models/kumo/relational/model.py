@@ -28,7 +28,8 @@ from sdm.models.kumo.relational.recipe import default_recipe
 from sdm.models.kumo.relational.task import TaskGraph
 from sdm.models.tabiclv2.icl import ICLBlock
 from sdm.models.tabiclv2.row_embedding import RowEmbedding
-from sdm.processing import Recipe, Standardize
+from sdm.processing import Recipe
+from sdm.processing.numerical._stats import _standardize_stats
 
 
 class KumoRelational(ICLModel):
@@ -216,16 +217,6 @@ class KumoRelational(ICLModel):
         elif cache is not None:
             classes = cast(Tensor | None, cache["classes"])
 
-        related_tables = (
-            related_context_tables
-            if x_context is not None
-            else related_query_tables
-        )
-        standardizers = (
-            {name: Standardize() for name in related_tables.tables}
-            if related_tables is not None
-            else {}
-        )
         task = Task.classification if classes is not None else Task.regression
         out = self.models[task](
             x_context=x_context,
@@ -233,7 +224,6 @@ class KumoRelational(ICLModel):
             x_query=x_query,
             related_context_tables=related_context_tables,
             related_query_tables=related_query_tables,
-            standardizers=standardizers,
             cache=cache,
             generator=generator,
             num_hops=kwargs.get("num_hops"),
@@ -315,7 +305,6 @@ class _KumoRelational(torch.nn.Module):
         related_context_tables: RelatedTables[TableTensor] | None,
         related_query_tables: RelatedTables[TableTensor] | None,
         *,
-        standardizers: dict[str, Standardize],
         cache: Cache | None = None,
         generator: torch.Generator | None = None,
         num_hops: int | None = None,
@@ -392,7 +381,7 @@ class _KumoRelational(torch.nn.Module):
         xs_context: dict[str, Tensor] = {}
         xs_query: dict[str, Tensor] = {}
         for name in table_names:
-            standardizer = standardizers[name]
+            time_stats: list[Tensor] = []
             x_context_i = context_task_row_i = None
             if context is not None:
                 assert x_context is not None
@@ -405,12 +394,12 @@ class _KumoRelational(torch.nn.Module):
                         readout_index=context.readout_index,
                     )
                 if cache is not None and cache.is_recording:
-                    cache[f"table_{name}.standardizer"] = standardizer
+                    cache[f"table_{name}.time_stats"] = time_stats
                 rel_time_i = self._get_rel_time(  # Inject relative time:
                     datetime=context.related_tables.tables[name].datetime,
                     seed_datetime=x_context.datetime,
                     task_row=context_task_row_i,
-                    standardizer=standardizer,
+                    stats=time_stats,
                 )
                 if rel_time_i is not None:
                     rel_time_i = rel_time_i.to(x_context_i.dtype)
@@ -431,11 +420,9 @@ class _KumoRelational(torch.nn.Module):
                     datetime=query.related_tables.tables[name].datetime,
                     seed_datetime=x_query.datetime,
                     task_row=query_task_row_i,
-                    standardizer=cast(
-                        Standardize, cache[f"table_{name}.standardizer"]
-                    )
+                    stats=cast(list[Tensor], cache[f"table_{name}.time_stats"])
                     if cache is not None and cache.is_replaying
-                    else standardizer,
+                    else time_stats,
                 )
                 if rel_time_i is not None:
                     rel_time_i = rel_time_i.to(x_query_i.dtype)
@@ -575,12 +562,12 @@ class _KumoRelational(torch.nn.Module):
         x[..., readout_index, -task.size(-1) :] = task
         return x
 
+    @staticmethod
     def _get_rel_time(
-        self,
         datetime: Tensor,
         seed_datetime: Tensor,
         task_row: Tensor,
-        standardizer: Standardize,
+        stats: list[Tensor],
     ) -> Tensor | None:
 
         if datetime.size(-1) == 0 or seed_datetime.size(-1) == 0:
@@ -596,20 +583,19 @@ class _KumoRelational(torch.nn.Module):
         rel_time = rel_time.flatten(-2) / (24 * 60 * 60 * 1_000_000)
         rel_time = rel_time.sign() * rel_time.abs().log1p()
 
-        if not standardizer.is_fitted:
+        if not stats:
             rel_time[na_mask] = float("NaN")
             rel_time = torch.where(
                 na_mask,
                 rel_time.nanmean(dim=-2, keepdim=True).nan_to_num(0.0),
                 rel_time,
             )
-            rel_time = standardizer.fit_transform(
-                TableTensor.from_tensor(rel_time)
-            ).numerical
+            stats.extend(_standardize_stats(rel_time))
+            mean, scale = stats
+            rel_time = (rel_time - mean).div_(scale)
         else:
-            rel_time = standardizer.transform(
-                TableTensor.from_tensor(rel_time)
-            ).numerical
+            mean, scale = stats
+            rel_time = (rel_time - mean).div_(scale)
             rel_time[na_mask] = 0.0
 
         return rel_time

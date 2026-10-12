@@ -8,6 +8,7 @@ import torch
 from sdm import (
     CategoricalTensor,
     ColumnarTensor,
+    NaT,
     RelatedTables,
     RelationalData,
     Stype,
@@ -20,7 +21,6 @@ from sdm.models.kumo.relational.invariant_gnn import InvariantGNN
 from sdm.models.kumo.relational.model import (
     _KumoRelational,
 )
-from sdm.processing import Standardize
 from sdm.testing import withCUDA
 
 
@@ -310,7 +310,6 @@ def test_many_classes_forward_and_cache(
         x_query=task[:2],
         related_context_tables=related_tables,
         related_query_tables=related_tables,
-        standardizers={name: Standardize() for name in related_tables.tables},
         num_hops=0,
     )
     assert expected.size() == (2, num_classes)
@@ -327,7 +326,6 @@ def test_many_classes_forward_and_cache(
         x_query=None,
         related_context_tables=related_tables,
         related_query_tables=None,
-        standardizers={name: Standardize() for name in related_tables.tables},
         cache=cache,
         num_hops=0,
     )
@@ -339,7 +337,30 @@ def test_many_classes_forward_and_cache(
         x_query=task[:2],
         related_context_tables=None,
         related_query_tables=related_tables,
-        standardizers={name: Standardize() for name in related_tables.tables},
         cache=cache.freeze(),
     )
     torch.testing.assert_close(predicted, expected)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_relative_time_compile_fit_and_replay(missing: bool) -> None:
+    day = 24 * 60 * 60 * 1_000_000
+    datetime = torch.tensor([[0], [day], [2 * day]])
+    seed = torch.tensor([[3 * day], [6 * day], [9 * day]])
+    if missing:
+        datetime[1] = NaT
+    rows = torch.arange(3)
+    relative_time = _KumoRelational._get_rel_time
+    compiled = torch.compile(
+        relative_time, backend="eager", fullgraph=True, dynamic=True
+    )
+    expected_stats: list[torch.Tensor] = []
+    stats: list[torch.Tensor] = []
+    expected = relative_time(datetime, seed, rows, expected_stats)
+    actual = compiled(datetime, seed, rows, stats)
+    torch.testing.assert_close(actual, expected)
+    assert len(stats) == 2
+    torch.testing.assert_close(
+        compiled(datetime, seed + day, rows, stats),
+        relative_time(datetime, seed + day, rows, expected_stats),
+    )
