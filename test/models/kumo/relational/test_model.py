@@ -20,6 +20,7 @@ from sdm.models.kumo.relational.invariant_gnn import InvariantGNN
 from sdm.models.kumo.relational.model import (
     _KumoRelational,
 )
+from sdm.processing import Standardize
 from sdm.testing import withCUDA
 
 
@@ -309,6 +310,7 @@ def test_many_classes_forward_and_cache(
         x_query=task[:2],
         related_context_tables=related_tables,
         related_query_tables=related_tables,
+        standardizers={name: Standardize() for name in related_tables.tables},
         num_hops=0,
     )
     assert expected.size() == (2, num_classes)
@@ -325,6 +327,7 @@ def test_many_classes_forward_and_cache(
         x_query=None,
         related_context_tables=related_tables,
         related_query_tables=None,
+        standardizers={name: Standardize() for name in related_tables.tables},
         cache=cache,
         num_hops=0,
     )
@@ -336,6 +339,7 @@ def test_many_classes_forward_and_cache(
         x_query=task[:2],
         related_context_tables=None,
         related_query_tables=related_tables,
+        standardizers={name: Standardize() for name in related_tables.tables},
         cache=cache.freeze(),
     )
     torch.testing.assert_close(predicted, expected)

@@ -216,6 +216,16 @@ class KumoRelational(ICLModel):
         elif cache is not None:
             classes = cast(Tensor | None, cache["classes"])
 
+        related_tables = (
+            related_context_tables
+            if x_context is not None
+            else related_query_tables
+        )
+        standardizers = (
+            {name: Standardize() for name in related_tables.tables}
+            if related_tables is not None
+            else {}
+        )
         task = Task.classification if classes is not None else Task.regression
         out = self.models[task](
             x_context=x_context,
@@ -223,6 +233,7 @@ class KumoRelational(ICLModel):
             x_query=x_query,
             related_context_tables=related_context_tables,
             related_query_tables=related_query_tables,
+            standardizers=standardizers,
             cache=cache,
             generator=generator,
             num_hops=kwargs.get("num_hops"),
@@ -304,6 +315,7 @@ class _KumoRelational(torch.nn.Module):
         related_context_tables: RelatedTables[TableTensor] | None,
         related_query_tables: RelatedTables[TableTensor] | None,
         *,
+        standardizers: dict[str, Standardize],
         cache: Cache | None = None,
         generator: torch.Generator | None = None,
         num_hops: int | None = None,
@@ -380,7 +392,7 @@ class _KumoRelational(torch.nn.Module):
         xs_context: dict[str, Tensor] = {}
         xs_query: dict[str, Tensor] = {}
         for name in table_names:
-            standardizer = Standardize()  # Relative time standardization.
+            standardizer = standardizers[name]
             x_context_i = context_task_row_i = None
             if context is not None:
                 assert x_context is not None
