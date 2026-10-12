@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Benchmark full-graph TabICLv2 hierarchical classification on CUDA.
+"""Benchmark full-graph TabICLv2 classification on CUDA.
 
 Run from the repository root, for example::
 
@@ -12,6 +12,7 @@ First-call timing includes compilation; disk compiler caches may be warm.
 Warm timings synchronize each measurement.
 The ICL-only mode isolates hierarchical routing from row embedding costs.
 Architecture options apply to synthetic models; pretrained uses its defaults.
+Results identify whether the class count selects hierarchical routing.
 """
 
 import argparse
@@ -80,6 +81,7 @@ def main() -> None:
     torch.manual_seed(0)
     torch.set_float32_matmul_precision("highest")
     dtype = getattr(torch, args.dtype)
+    capacity = args.capacity
     model: torch.nn.Module
     if args.pretrained:
         model = (
@@ -87,6 +89,7 @@ def main() -> None:
             .models["classification"]
             .to(dtype=dtype)
         )
+        capacity = model.icl_block.num_classes
     elif args.icl_only:
         model = ICLBlock(
             num_classes=args.capacity,
@@ -135,6 +138,8 @@ def main() -> None:
     )
     result: dict[str, object] = {
         "arguments": vars(args),
+        "capacity": capacity,
+        "hierarchical": args.classes > capacity,
         "torch": torch.__version__,
         "cuda": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(),

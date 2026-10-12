@@ -72,6 +72,17 @@ class ICLBlock(torch.nn.Module):
         num_classes: int | None = None,
         cache: Cache | None = None,
     ) -> Tensor:  # [..., R_test, out_channels or num_classes]
+        if (
+            cache is not None
+            and cache.is_replaying
+            and "icl_block.levels" in cache
+        ):
+            levels = cast("list[_Level]", cache["icl_block.levels"])
+            if levels[0][0].size(-1) != num_classes:
+                raise RuntimeError(
+                    "Cached hierarchy class count does not match"
+                )
+
         if num_classes is None or num_classes <= self.num_classes:
             return self._forward(
                 x=x,

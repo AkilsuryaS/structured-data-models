@@ -243,22 +243,38 @@ def test_icl_block_hierarchical_changing_labels(device: torch.device) -> None:
             torch.testing.assert_close(actual, expected.expand(2, -1))
 
 
-def test_icl_block_hierarchical_cache_batch_shape() -> None:
-    block = _block(device=torch.device("cpu"))
+@withCUDA
+@pytest.mark.parametrize(
+    ("batch_size", "num_classes", "message"),
+    [
+        (1, 5, "Cached hierarchy batch shape"),
+        (2, None, "Cached hierarchy class count"),
+        (2, 2, "Cached hierarchy class count"),
+        (2, 4, "Cached hierarchy class count"),
+        (2, 6, "Cached hierarchy class count"),
+    ],
+)
+def test_icl_block_hierarchical_cache_shape(
+    device: torch.device,
+    batch_size: int,
+    num_classes: int | None,
+    message: str,
+) -> None:
+    block = _block(device=device)
     compiled = torch.compile(block, backend="eager", fullgraph=True)
     cache = Cache()
     with torch.no_grad():
         compiled(
-            torch.randn(2, 3, 8),
-            torch.arange(3).expand(2, -1),
-            num_classes=3,
+            torch.randn(2, 5, 8, device=device),
+            torch.arange(5, device=device).expand(2, -1),
+            num_classes=5,
             cache=cache,
         )
-        with pytest.raises(RuntimeError, match="Cached hierarchy batch shape"):
+        with pytest.raises(RuntimeError, match=message):
             block(
-                torch.randn(1, 2, 8),
-                torch.empty(1, 0, dtype=torch.long),
-                num_classes=3,
+                torch.randn(batch_size, 2, 8, device=device),
+                torch.empty(batch_size, 0, dtype=torch.long, device=device),
+                num_classes=num_classes,
                 cache=cache.freeze(),
             )
 
