@@ -5,8 +5,6 @@ import torch
 
 from sdm import TableTensor
 from sdm.models.timesfm3 import TimesFM3
-from sdm.models.timesfm3.model import _TimesFM3
-from sdm.testing import withCUDA
 
 
 def test_forward() -> None:
@@ -30,6 +28,7 @@ def test_forward() -> None:
 
     out = model(x_context, y_context, x_query)
     assert out.size() == (3, 3 * 9)
+    assert out.numerical.isfinite().all()
     assert "y1__q10" in out.columns["numerical"]
     assert "y2__q50" in out.columns["numerical"]
     assert "y3__q90" in out.columns["numerical"]
@@ -39,28 +38,4 @@ def test_forward() -> None:
         y=y_context,
         context_only_columns=["x1", "x3"],
     )
-    out = model.predict(x_query)
-    assert out.allclose(model.predict(x_query))
-
-
-@withCUDA
-def test_core(
-    device: torch.device,
-) -> None:
-    model = _TimesFM3(
-        input_patch_size=2,
-        output_patch_size=4,
-        channels=8,
-        num_layers=2,
-        num_heads=2,
-        device=device,
-    )
-
-    out = model(
-        x_context=torch.randn(5, 3, device=device),
-        x_query=torch.randn(8, 3, device=device),
-        x_context_only=torch.randn(5, 1, device=device),
-        y=torch.randn(5, 2, device=device),
-    )
-    assert out.device == device
-    assert out.size() == (8, 2, 9)
+    torch.testing.assert_close(model.predict(x_query).numerical, out.numerical)

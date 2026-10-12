@@ -162,30 +162,48 @@ class TimesFM3(ICLModel):
         **kwargs: Any,
     ) -> TableTensor:  # [..., R_query, Y * 9]
 
-        if y_context is not None:
-            columns = y_context.columns[Stype.numerical]
-        else:
-            assert cache is not None
-            y_schema = cast(TableSchema, cache["y_schema"])
-            columns = y_schema.columns[Stype.numerical]
-
-        if x_query is not None:
-            size = x_query.size()[:-1]
-        else:
+        if cache is None or cache.is_recording:
             assert x_context is not None
-            size = (*x_context.size()[:-2], 0)
+            x_context: Tensor = x_context.numerical
+            assert y_context is not None
+            y = y_context.numerical
+            if x_context_only is not None:
+                x_context_only: Tensor = x_context_only.numerical
+            else:
+                x_context_only: Tensor = y.new_empty((*y.size()[:-1], 0))
+            y_schema = y_context.schema
+        else:
+            x_context: Tensor = cast(Tensor, cache["x_context"])
+            y = cast(Tensor, cache["y"])
+            x_context_only: Tensor = cast(Tensor, cache["x_context_only"])
+            y_schema = cast(TableSchema, cache["y_schema"])
+
+        if cache is not None and cache.is_recording:
+            cache["x_context"] = x_context
+            cache["x_context_only"] = x_context_only
+            cache["y"] = y
+
+        if x_query is None:
+            out = y.new_empty((*y.size()[:-2], 0, y.size(-1) * 9))
+        else:
+            out = self.model(
+                x_context=x_context,
+                x_query=x_query.numerical,
+                x_context_only=x_context_only,
+                y=y,
+            ).flatten(-2)  # [..., R_query, Y * 9]
 
         return TableTensor(
             columns={
                 Stype.numerical: [
                     f"{name}__q{i}"
-                    for name, i in product(columns, range(10, 100, 10))
+                    for name, i in product(
+                        y_schema.columns[Stype.numerical],
+                        range(10, 100, 10),
+                    )
                 ]
             },
-            numerical=torch.zeros(
-                (*size, len(columns) * 9),
-                device=next(self.parameters()).device,
-            ),
+            numerical=out,
         )
 
 
@@ -227,7 +245,7 @@ class _TimesFM3(torch.nn.Module):
         x_query: Tensor,  # [..., R_test, C]
         x_context_only: Tensor,  # [..., R_train, *]
         y: Tensor,  # [..., R_train, *]
-    ) -> Tensor:  # [..., R_test, out_channels or num_classes]
+    ) -> Tensor:  # [..., R_test, Y, num_quantiles]
 
         *B, R_test, C = x_query.size()
         *_, R_train, C_only = x_context_only.size()
