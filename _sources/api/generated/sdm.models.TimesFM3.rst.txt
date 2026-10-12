@@ -36,5 +36,8 @@ Default Recipe
    Recipe(
      features=Identity(),
      target=Identity(),
-     output=AverageEstimators(),
+     output=Sequential(
+       SortQuantiles(num_quantiles=9),
+       AverageEstimators(),
+     ),
    )
