@@ -66,6 +66,8 @@ class SDPA(torch.nn.Module):
         value: Tensor,  # [..., KV, Hkv, C]
         seqused_key_value: Tensor | None = None,  # [...]
         attn_mask: Tensor | None = None,  # [..., Q, KV]
+        *,
+        is_causal: bool = False,
     ) -> Tensor:  # [..., Q, Hq, C]
         r"""The forward pass.
 
@@ -82,6 +84,7 @@ class SDPA(torch.nn.Module):
                 :external+torch:ref:`torch.int32 <dtype-doc>` dtype.
             attn_mask: Boolean attention mask with shape ``[..., Q, KV]``.
                 Entries set to ``True`` participate in attention.
+            is_causal: Apply an upper-left causal attention mask.
 
         Returns:
             Tensor with shape ``[..., Q, Hq, C]``.
@@ -162,6 +165,7 @@ class SDPA(torch.nn.Module):
             if attn_mask is not None
             else None,
             enable_gqa=enable_gqa,
+            is_causal=is_causal,
             scale=self.scale,
         ).transpose(-3, -2)  # [B, Q, Hq, C]
 
@@ -254,6 +258,7 @@ class Attention(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: Literal[False] = False,
     ) -> Tensor: ...
 
@@ -265,6 +270,7 @@ class Attention(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: Literal[True],
     ) -> tuple[Tensor, KVCacheEntry]: ...
 
@@ -276,6 +282,7 @@ class Attention(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: bool,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]: ...
 
@@ -286,6 +293,7 @@ class Attention(torch.nn.Module):
         seqused_key_value: Tensor | None = None,  # [...]
         attn_mask: Tensor | None = None,  # [..., Q, KV]
         *,
+        is_causal: bool = False,
         return_key_value: bool = False,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
         r"""The forward pass.
@@ -303,6 +311,7 @@ class Attention(torch.nn.Module):
                 :external+torch:ref:`torch.int32 <dtype-doc>` dtype.
             attn_mask: Boolean attention mask with shape ``[..., Q, KV]``.
                 Entries set to ``True`` participate in attention.
+            is_causal: Apply an upper-left causal attention mask.
             return_key_value: Whether to return the computed key and value
                 projections alongside the attention output.
 
@@ -366,6 +375,7 @@ class Attention(torch.nn.Module):
             value=value,  # [..., KV, Hkv, C // Hq]
             seqused_key_value=seqused_key_value,  # [...]
             attn_mask=attn_mask,  # [..., Q, KV]
+            is_causal=is_causal,
         )  # [..., Q, Hq, C // Hq]
 
         out = out.flatten(-2, -1)  # [..., Q, C]
@@ -412,7 +422,7 @@ class TransformerBlock(torch.nn.Module):
         self,
         channels: int,
         num_query_heads: int,
-        mlp: torch.nn.Module,
+        mlp: torch.nn.Module | None,
         num_key_value_heads: int | None = None,
         query_norm: torch.nn.Module | None = None,
         key_value_norm: torch.nn.Module | None = None,
@@ -464,6 +474,7 @@ class TransformerBlock(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: Literal[False] = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
@@ -477,6 +488,7 @@ class TransformerBlock(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: Literal[True],
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
@@ -490,6 +502,7 @@ class TransformerBlock(torch.nn.Module):
         seqused_key_value: Tensor | None = None,
         attn_mask: Tensor | None = None,
         *,
+        is_causal: bool = False,
         return_key_value: bool,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
@@ -502,6 +515,7 @@ class TransformerBlock(torch.nn.Module):
         seqused_key_value: Tensor | None = None,  # [...]
         attn_mask: Tensor | None = None,  # [..., Q, KV]
         *,
+        is_causal: bool = False,
         return_key_value: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
@@ -521,6 +535,7 @@ class TransformerBlock(torch.nn.Module):
                 :external+torch:ref:`torch.int32 <dtype-doc>` dtype.
             attn_mask: Boolean attention mask with shape ``[..., Q, KV]``.
                 Entries set to ``True`` participate in attention.
+            is_causal: Apply an upper-left causal attention mask.
             return_key_value: Whether to return the computed key and value
                 projections alongside the block output.
             batch_size_limit: Maximum number of batch elements processed at
@@ -551,6 +566,7 @@ class TransformerBlock(torch.nn.Module):
                 key_value=key_value,
                 seqused_key_value=seqused_key_value,
                 attn_mask=attn_mask,
+                is_causal=is_causal,
                 return_key_value=return_key_value,
                 out=out,
             )
@@ -601,6 +617,7 @@ class TransformerBlock(torch.nn.Module):
                 key_value=key_value,
                 seqused_key_value=seqused_key_value,
                 attn_mask=attn_mask,
+                is_causal=is_causal,
                 return_key_value=return_key_value,
                 out=out,
             )
@@ -632,6 +649,7 @@ class TransformerBlock(torch.nn.Module):
                     start=start,
                     end=end,
                 ),
+                is_causal=is_causal,
                 return_key_value=return_key_value,
                 out=flat_out[start:end] if flat_out is not None else None,
             )
@@ -691,6 +709,7 @@ class TransformerBlock(torch.nn.Module):
         seqused_key_value: Tensor | None = None,  # [...]
         attn_mask: Tensor | None = None,  # [..., Q, KV]
         *,
+        is_causal: bool = False,
         return_key_value: bool = False,
         out: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
@@ -707,6 +726,7 @@ class TransformerBlock(torch.nn.Module):
             key_value=key_value,
             seqused_key_value=seqused_key_value,
             attn_mask=attn_mask,
+            is_causal=is_causal,
             return_key_value=return_key_value,
         )
         del key_value
@@ -724,12 +744,15 @@ class TransformerBlock(torch.nn.Module):
             and torch.compiler.is_compiling()
             and not out.is_contiguous()
         ):
-            # Match eager out= rounding before the MLP.
             tmp = (attn_out + query).to(out.dtype)
-            out.copy_(tmp + self.mlp(tmp))
+            if self.mlp is not None:
+                tmp += self.mlp(tmp)
+            out.copy_(tmp)
         else:
             tmp = torch.add(attn_out, query, out=out)
-            out = torch.add(tmp, self.mlp(tmp), out=out)
+            if self.mlp is not None:
+                tmp = torch.add(tmp, self.mlp(tmp), out=out)
+            out = tmp
 
         return (out, kv) if return_key_value else out
 
