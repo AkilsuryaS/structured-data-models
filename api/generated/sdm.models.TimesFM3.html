@@ -131,6 +131,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PCA.html">PCA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
@@ -308,13 +309,21 @@ v1.0</a> without showing the interactive license prompt.</p></li>
 <section id="default-recipe">
 <h2>Default Recipe<a class="headerlink" href="#default-recipe" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">Recipe</span><span class="p">(</span>
-</span><span data-line="2">  <span class="n">features</span><span class="o">=</span><span class="n">Detrend</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
-</span><span data-line="3">  <span class="n">target</span><span class="o">=</span><span class="n">Detrend</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
-</span><span data-line="4">  <span class="n">output</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
-</span><span data-line="5">    <span class="n">SortQuantiles</span><span class="p">(</span><span class="n">num_quantiles</span><span class="o">=</span><span class="mi">9</span><span class="p">),</span>
-</span><span data-line="6">    <span class="n">AverageEstimators</span><span class="p">(),</span>
-</span><span data-line="7">  <span class="p">),</span>
-</span><span data-line="8"><span class="p">)</span>
+</span><span data-line="2">  <span class="n">features</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span data-line="3">    <span class="n">Interpolate</span><span class="p">(),</span>
+</span><span data-line="4">    <span class="n">Detrend</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
+</span><span data-line="5">    <span class="n">Clip</span><span class="p">(</span><span class="o">-</span><span class="mf">1e+20</span><span class="p">,</span> <span class="mf">1e+20</span><span class="p">),</span>
+</span><span data-line="6">  <span class="p">),</span>
+</span><span data-line="7">  <span class="n">target</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span data-line="8">    <span class="n">Interpolate</span><span class="p">(),</span>
+</span><span data-line="9">    <span class="n">Detrend</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
+</span><span data-line="10">    <span class="n">Clip</span><span class="p">(</span><span class="o">-</span><span class="mf">1e+20</span><span class="p">,</span> <span class="mf">1e+20</span><span class="p">),</span>
+</span><span data-line="11">  <span class="p">),</span>
+</span><span data-line="12">  <span class="n">output</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span data-line="13">    <span class="n">SortQuantiles</span><span class="p">(</span><span class="n">num_quantiles</span><span class="o">=</span><span class="mi">9</span><span class="p">),</span>
+</span><span data-line="14">    <span class="n">AverageEstimators</span><span class="p">(),</span>
+</span><span data-line="15">  <span class="p">),</span>
+</span><span data-line="16"><span class="p">)</span>
 </span></pre></div>
 </div>
 </section>
@@ -344,7 +353,7 @@ v1.0</a> without showing the interactive license prompt.</p></li>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=42ec50be"></script>
+      <script src="../../_static/documentation_options.js?v=72d55684"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

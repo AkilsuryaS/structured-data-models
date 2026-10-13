@@ -131,6 +131,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.numerical.PCA.html">PCA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
@@ -321,7 +322,7 @@ data-aria-dark="Switch to auto color mode">
 <td><p>Soft-clip numerical values toward <code class="docutils literal notranslate"><span class="pre">±max_absolute_value</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.processing.numerical.ImputeMean.html#sdm.processing.numerical.ImputeMean" title="sdm.processing.numerical.ImputeMean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ImputeMean</span></code></a></p></td>
-<td><p>Replace NaN feature values with fitted per-column means.</p></td>
+<td><p>Replace missing feature values with fitted per-column means.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.processing.numerical.PowerTransform.html#sdm.processing.numerical.PowerTransform" title="sdm.processing.numerical.PowerTransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PowerTransform</span></code></a></p></td>
 <td><p>Apply a feature-wise Yeo-Johnson power transform.</p></td>
@@ -352,6 +353,9 @@ data-aria-dark="Switch to auto color mode">
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.processing.numerical.Detrend.html#sdm.processing.numerical.Detrend" title="sdm.processing.numerical.Detrend"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Detrend</span></code></a></p></td>
 <td><p>Remove a per-column linear trend over step coordinates.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.processing.numerical.Interpolate.html#sdm.processing.numerical.Interpolate" title="sdm.processing.numerical.Interpolate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Interpolate</span></code></a></p></td>
+<td><p>Interpolate missing feature values along the row dimension.</p></td>
 </tr>
 </tbody>
 </table>
@@ -449,7 +453,7 @@ data-aria-dark="Switch to auto color mode">
   </main>
 </div>
 
-      <script src="../_static/documentation_options.js?v=42ec50be"></script>
+      <script src="../_static/documentation_options.js?v=72d55684"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -131,6 +131,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PCA.html">PCA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
@@ -230,11 +231,11 @@ data-aria-dark="Switch to auto color mode">
 <dl class="py class">
 <dt class="sig sig-object py" id="sdm.processing.numerical.Clip">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sdm.processing.numerical.</span></span><span class="sig-name descname"><span class="pre">Clip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sdm.processing.numerical.Clip" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="sdm.processing.base.Processor.html#sdm.processing.base.Processor" title="sdm.processing.base.Processor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Processor</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="sdm.processing.base.Processor.html#sdm.processing.base.Processor" title="sdm.processing.base.Processor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Processor</span></code></a>, <a class="reference internal" href="sdm.processing.base.InvertibleMixin.html#sdm.processing.base.InvertibleMixin" title="sdm.processing.base.InvertibleMixin"><code class="xref py py-class docutils literal notranslate"><span class="pre">InvertibleMixin</span></code></a></p>
 <p>Clamp numerical values to a fixed interval.</p>
 <p>Values below <code class="docutils literal notranslate"><span class="pre">min_value</span></code> are set to <code class="docutils literal notranslate"><span class="pre">min_value</span></code>, and values above
 <code class="docutils literal notranslate"><span class="pre">max_value</span></code> are set to <code class="docutils literal notranslate"><span class="pre">max_value</span></code>. Values within the interval are
-unchanged.</p>
+unchanged. Inverse transformation leaves values unchanged.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -286,7 +287,7 @@ unchanged.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=42ec50be"></script>
+      <script src="../../_static/documentation_options.js?v=72d55684"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

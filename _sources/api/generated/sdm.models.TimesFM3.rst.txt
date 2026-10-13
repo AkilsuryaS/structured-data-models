@@ -34,8 +34,16 @@ Default Recipe
 .. code-block:: python
 
    Recipe(
-     features=Detrend(threshold=0.5),
-     target=Detrend(threshold=0.5),
+     features=Sequential(
+       Interpolate(),
+       Detrend(threshold=0.5),
+       Clip(-1e+20, 1e+20),
+     ),
+     target=Sequential(
+       Interpolate(),
+       Detrend(threshold=0.5),
+       Clip(-1e+20, 1e+20),
+     ),
      output=Sequential(
        SortQuantiles(num_quantiles=9),
        AverageEstimators(),
