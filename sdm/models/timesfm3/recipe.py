@@ -6,8 +6,16 @@ import sdm.processing as sp
 
 def default_recipe() -> sp.Recipe:  # noqa: D103
     return sp.Recipe(
-        features=sp.Detrend(threshold=0.5),
-        target=sp.Detrend(threshold=0.5),
+        features=[
+            sp.Interpolate(),
+            sp.Detrend(threshold=0.5),
+            sp.Clip(-1e20, 1e20),
+        ],
+        target=[
+            sp.Interpolate(),
+            sp.Detrend(threshold=0.5),
+            sp.Clip(-1e20, 1e20),
+        ],
         output=sp.Sequential(
             sp.SortQuantiles(num_quantiles=9),
             sp.AverageEstimators(),

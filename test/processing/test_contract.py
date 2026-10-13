@@ -116,7 +116,7 @@ PROCESSOR_CASES = (
     ProcessorCase(sp.SelectColumns(2)),
     ProcessorCase(sp.TFIDF(ngram_range=(2, 2))),
     ProcessorCase(sp.Cast(torch.float64)),
-    ProcessorCase(sp.Clip(-2.0, 6.0)),
+    ProcessorCase(sp.Clip(-2.0, 20.0)),
     ProcessorCase(sp.ClipQuantiles()),
     ProcessorCase(sp.ClipSigma()),
     ProcessorCase(sp.ClipSoft(3.0)),
