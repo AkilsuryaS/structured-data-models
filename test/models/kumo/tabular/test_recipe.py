@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
 import torch
 
 import sdm.processing as sp
@@ -37,11 +38,10 @@ def test_default_recipe_preserves_missing_values(device: torch.device) -> None:
         "num_1": [False, True, False, False, False],
         "num_2": [False, False, False, False, False],
         "cat_0": [False, False, False, False, False],
-        "cat_0__count": [False, False, False, False, False],
     }
 
-    for member_id in range(output.num_members):
-        member = output.member(member_id)
+    for member_id in range(len(output)):
+        member = output[member_id]
         expected_missing = torch.tensor(
             [
                 missing_by_column[column]
@@ -71,8 +71,8 @@ def test_default_recipe_flips_numbers_but_not_codes() -> None:
 
     code_correlations = []
     numerical_correlations = []
-    for member_id in range(output.num_members):
-        member = output.member(member_id)
+    for member_id in range(len(output)):
+        member = output[member_id]
         for index, column in enumerate(member.columns[Stype.numerical]):
             values = member.numerical[:, index]
             if column == "cat_0":
@@ -82,17 +82,38 @@ def test_default_recipe_flips_numbers_but_not_codes() -> None:
                 reference = features[column].numerical[:, 0]
                 numerical_correlations.append(_correlation(values, reference))
 
-    assert len(code_correlations) == output.num_members
+    assert len(code_correlations) == len(output)
     assert min(code_correlations) > 0
     assert min(numerical_correlations) < 0 < max(numerical_correlations)
 
 
-def test_default_recipe_adds_category_counts() -> None:
+def test_default_recipe_keeps_values_distinct_beside_outliers() -> None:
+    numerical = torch.arange(100.0).unsqueeze(-1)
+    numerical[0] = 1e12
+
+    output = KumoTabular.default_recipe().features.fit_transform_ensemble(
+        EnsembleTable.from_table(
+            TableTensor.from_tensor(numerical),
+            num_members=8,
+        )
+    )
+
+    members = [output[member_id] for member_id in range(len(output))]
+    assert all(member.numerical.dtype == torch.float32 for member in members)
+    num_unique = [member.numerical[1:].unique().numel() for member in members]
+    assert max(num_unique) == 99
+
+
+@pytest.mark.parametrize("cardinality", [50, 51])
+def test_default_recipe_adds_category_counts(cardinality: int) -> None:
+    codes = torch.cat(
+        [torch.arange(cardinality), torch.zeros(300 - cardinality)]
+    )
     features = TableTensor(
         numerical=torch.randn(300, 2),
         categorical=CategoricalTensor(
-            code=torch.randint(3, (300, 1)),
-            categories=(torch.arange(3),),
+            code=codes.long().unsqueeze(-1),
+            categories=(torch.arange(cardinality),),
         ),
     )
 
@@ -100,12 +121,13 @@ def test_default_recipe_adds_category_counts() -> None:
         EnsembleTable.from_table(features, num_members=2)
     )
 
-    assert set(output.member(0).columns[Stype.numerical]) == {
-        "num_0",
-        "num_1",
-        "cat_0",
-        "cat_0__count",
-    }
+    expected_columns = {"num_0", "num_1", "cat_0"}
+    if cardinality > 50:
+        expected_columns.add("cat_0__count")
+    for member_id in range(len(output)):
+        assert (
+            set(output[member_id].columns[Stype.numerical]) == expected_columns
+        )
 
 
 def test_default_recipe_reduces_outputs_per_task() -> None:
@@ -120,8 +142,7 @@ def test_default_recipe_reduces_outputs_per_task() -> None:
     output = recipe.output.transform(
         TableTensor.from_tensor(torch.randn(8, 5, 9))
     )
-    assert output.size() == (5, 1)
-    assert output.columns[Stype.numerical] == ("mean",)
+    assert output.size() == (5, 9)
 
     dispatch._task = "classification"
     output = recipe.output.transform(

@@ -6,7 +6,7 @@ from __future__ import annotations
 import abc
 import copy
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from typing import Generic, Self, TypeVar, cast
+from typing import Generic, Self, TypeVar, cast, overload
 
 import torch
 from torch import Tensor
@@ -38,26 +38,33 @@ class EnsembleData(abc.ABC, Generic[T]):
         self._groups = tuple(groups)
         self._locations = tuple(locations)
 
-    @property
-    def num_members(self) -> int:
-        """Return the number of ensemble members."""
+    def __len__(self) -> int:
         return len(self._locations)
 
-    def __getitem__(self, member_id: int) -> T:
-        group_id, position = self._locations[member_id]
-        return self._select_member(self._groups[group_id], position)
+    @overload
+    def __getitem__(self, index: int) -> T: ...
 
-    def member(self, member_id: int) -> T:
-        """Return the value associated with one ensemble member.
+    @overload
+    def __getitem__(self, index: slice | Sequence[int]) -> Self: ...
 
-        Args:
-            member_id: Zero-based ensemble member index.
-        """
-        return self[member_id]
+    def __getitem__(self, index: int | slice | Sequence[int]) -> T | Self:
+        if isinstance(index, int):
+            group_id, position = self._locations[index]
+            return self._select_member(self._groups[group_id], position)
+        if isinstance(index, slice):
+            index = range(*index.indices(len(self)))
+        return self._select_members(index)
+
+    def _iter_groups(self) -> Iterator[T]:
+        return iter(self._groups)
 
     @staticmethod
     @abc.abstractmethod
     def _select_member(group: T, position: int) -> T:
+        pass
+
+    @abc.abstractmethod
+    def _select_members(self, member_ids: Sequence[int]) -> Self:
         pass
 
 
@@ -201,17 +208,9 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
 
         return tuple(groups), tuple(locations)
 
-    def select_members(self, member_ids: Sequence[int]) -> Self:
-        """Return the selected ensemble members in the requested order.
-
-        Args:
-            member_ids: Logical member positions to select.
-
-        Returns:
-            An ensemble table containing the selected members.
-        """
+    def _select_members(self, member_ids: Sequence[int]) -> Self:
         member_ids = tuple(member_ids)
-        if member_ids == tuple(range(self.num_members)):
+        if member_ids == tuple(range(len(self))):
             return self
 
         locations = tuple(
@@ -230,15 +229,20 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
             group = self._groups[group_id]
             selected_positions = tuple(positions)
             group_ids[group_id] = new_group_id
+            start = selected_positions[0]
+            step = (
+                selected_positions[1] - start
+                if len(selected_positions) > 1
+                else 1
+            )
+            stop = start + step * len(selected_positions)
             if selected_positions == tuple(range(group.size(0))):
                 groups.append(group)
-            elif len(selected_positions) == 1:
-                groups.append(
-                    cast(
-                        TableTensor,
-                        group.narrow(0, selected_positions[0], 1),
-                    )
-                )
+            elif step > 0 and selected_positions == tuple(
+                range(start, stop, step)
+            ):
+                # Evenly spaced members are selected as a view, not a copy.
+                groups.append(group[start:stop:step])
             else:
                 groups.append(
                     cast(
@@ -268,7 +272,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
     ) -> Self:
         """Gather members from multiple ensemble tables.
 
-        ``tables[i].member(member_ids[i])`` supplies output member ``i``.
+        ``tables[i][member_ids[i]]`` supplies output member ``i``.
 
         Args:
             tables: Source ensemble table for each output member.
@@ -290,7 +294,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
             if output_id is None:
                 output_id = len(outputs)
                 output_id_by_source[key] = output_id
-                outputs.append(table.member(member_id))
+                outputs.append(table[member_id])
             member_table_ids.append(output_id)
 
         return self.replace_tables(
@@ -331,10 +335,6 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
         index = torch.tensor(positions, device=group.device)
         return cast(TableTensor, group.index_select(0, index))
 
-    def __iter__(self) -> Iterator[TableTensor]:
-        """Iterate over table groups."""
-        return iter(self._groups)
-
     def _tensors(self) -> Iterator[Tensor]:
         yield from self._groups
 
@@ -361,10 +361,10 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
 
         if len(stypes) == 0:
             return self.replace_groups(
-                [group.select_columns(()) for group in self]
+                [group.select_columns(()) for group in self._groups]
             )
         return self.replace_groups(
-            [group.select_stypes(stypes) for group in self]
+            [group.select_stypes(stypes) for group in self._groups]
         )
 
     @classmethod
@@ -381,7 +381,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
             raise ValueError("Expected at least one ensemble table")
 
         first = tables[0]
-        if any(table.num_members != first.num_members for table in tables[1:]):
+        if any(len(table) != len(first) for table in tables[1:]):
             raise ValueError(
                 "Cannot concatenate ensemble tables with different member "
                 "counts"
@@ -390,7 +390,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
         nonempty_tables = tuple(
             table
             for table in tables
-            if any(group.size(-1) > 0 for group in table)
+            if any(group.size(-1) > 0 for group in table._groups)
         )
         if len(nonempty_tables) > 0:
             tables = nonempty_tables
@@ -402,7 +402,10 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
             return first.replace_groups(
                 [
                     cast(TableTensor, torch.cat(groups, dim=-1))
-                    for groups in zip(*tables, strict=True)
+                    for groups in zip(
+                        *(table._groups for table in tables),
+                        strict=True,
+                    )
                 ]
             )
 
@@ -411,7 +414,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
         outputs: list[TableTensor] = []
         output_id_by_locations: dict[tuple[tuple[int, int], ...], int] = {}
         member_table_ids = []
-        for member_id in range(first.num_members):
+        for member_id in range(len(first)):
             locations = tuple(table._locations[member_id] for table in tables)
             output_id = output_id_by_locations.get(locations)
             if output_id is None:
@@ -421,7 +424,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
                     cast(
                         TableTensor,
                         torch.cat(
-                            tuple(table.member(member_id) for table in tables),
+                            tuple(table[member_id] for table in tables),
                             dim=-1,
                         ),
                     )
@@ -447,7 +450,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
         Returns:
             An ensemble table preserving existing group boundaries.
         """
-        if len(member_table_ids) != self.num_members:
+        if len(member_table_ids) != len(self):
             raise ValueError("Expected one replacement table per member")
 
         member_ids_by_group: list[list[int]] = [
@@ -457,7 +460,7 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
             member_ids_by_group[group_id].append(member_id)
 
         groups: list[TableTensor] = []
-        locations = [(-1, -1)] * self.num_members
+        locations = [(-1, -1)] * len(self)
         for member_ids in member_ids_by_group:
             table_ids = tuple(
                 dict.fromkeys(
@@ -504,5 +507,5 @@ class EnsembleTable(DeviceMixin, EnsembleTensor[TableTensor]):
     def __repr__(self, *, indent: int = 0) -> str:
         return (
             f"{' ' * indent}{self.__class__.__name__}("
-            f"num_members={self.num_members}, num_groups={self.num_groups})"
+            f"num_members={len(self)}, num_groups={self.num_groups})"
         )
