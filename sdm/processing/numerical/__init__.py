@@ -18,6 +18,7 @@ from sdm.processing.numerical.flip_sign import FlipSign
 from sdm.processing.numerical.constant import DropConstantColumns
 from sdm.processing.numerical.pca import PCA
 from sdm.processing.numerical.random_projection import RandomProjection
+from sdm.processing.numerical.detrend import Detrend
 
 __all__ = [
     "Cast",
@@ -35,4 +36,5 @@ __all__ = [
     "DropConstantColumns",
     "PCA",
     "RandomProjection",
+    "Detrend",
 ]
