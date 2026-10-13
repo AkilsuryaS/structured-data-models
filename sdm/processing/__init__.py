@@ -41,6 +41,7 @@ from sdm.processing.numerical import (
     PCA,
     RandomProjection,
     Detrend,
+    Interpolate,
 )
 from sdm.processing.categorical import (
     AlignCategories,
@@ -88,6 +89,7 @@ __all__ = [
     "PCA",
     "RandomProjection",
     "Detrend",
+    "Interpolate",
     "AlignCategories",
     "ShuffleCategories",
     "ImputeMode",
