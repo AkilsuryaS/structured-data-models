@@ -8,7 +8,7 @@ from sdm.processing.ensemble import (
     EnsembleProcessor,
     EnsembleInvertibleMixin,
 )
-from sdm.processing.series import SeriesProcessor
+from sdm.processing.series import SeriesEnsembleProcessor
 from sdm.processing.common import (
     Identity,
     Callable,
@@ -35,12 +35,12 @@ from sdm.processing.numerical import (
     QuantileTransform,
     RankGaussian,
     Standardize,
-    LinearDetrend,
     RobustScale,
     FlipSign,
     DropConstantColumns,
     PCA,
     RandomProjection,
+    Detrend,
 )
 from sdm.processing.categorical import (
     AlignCategories,
@@ -57,7 +57,7 @@ __all__ = [
     "InvertibleMixin",
     "EnsembleProcessor",
     "EnsembleInvertibleMixin",
-    "SeriesProcessor",
+    "SeriesEnsembleProcessor",
     "EnsembleProcessorAdapter",
     "Identity",
     "Callable",
@@ -82,12 +82,12 @@ __all__ = [
     "QuantileTransform",
     "RankGaussian",
     "Standardize",
-    "LinearDetrend",
     "RobustScale",
     "FlipSign",
     "DropConstantColumns",
     "PCA",
     "RandomProjection",
+    "Detrend",
     "AlignCategories",
     "ShuffleCategories",
     "ImputeMode",
