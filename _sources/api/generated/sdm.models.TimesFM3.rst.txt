@@ -34,8 +34,8 @@ Default Recipe
 .. code-block:: python
 
    Recipe(
-     features=Identity(),
-     target=Identity(),
+     features=Detrend(threshold=0.5),
+     target=Detrend(threshold=0.5),
      output=Sequential(
        SortQuantiles(num_quantiles=9),
        AverageEstimators(),

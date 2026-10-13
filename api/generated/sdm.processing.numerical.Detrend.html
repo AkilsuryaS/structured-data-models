@@ -2,7 +2,7 @@
 <html lang="en" data-accent-color="green" data-content_root="../../">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>SeriesProcessor - Structured Data Models</title><link rel="shortcut icon" href="../../_static/nvidia.svg"/><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="Recipe" href="sdm.processing.recipe.Recipe.html" /><link rel="prev" title="EnsembleInvertibleMixin" href="sdm.processing.ensemble.EnsembleInvertibleMixin.html" /><script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Detrend - Structured Data Models</title><link rel="shortcut icon" href="../../_static/nvidia.svg"/><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="AlignCategories" href="sdm.processing.categorical.AlignCategories.html" /><link rel="prev" title="RandomProjection" href="sdm.processing.numerical.RandomProjection.html" /><script>
     function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
     setColorMode(localStorage._theme||"auto");
   </script><link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=e1a1ceaf" />
@@ -20,7 +20,7 @@
 }
 </style>
     
-  <meta property="og:type" content="website"/><meta property="og:title" content="SeriesProcessor"/>
+  <meta property="og:type" content="website"/><meta property="og:title" content="Detrend"/>
     <meta name="twitter:card" content="summary"/>
   </head>
 <body><div class="sy-head">
@@ -101,7 +101,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.base.InvertibleMixin.html">InvertibleMixin</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.ensemble.EnsembleProcessor.html">EnsembleProcessor</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.ensemble.EnsembleInvertibleMixin.html">EnsembleInvertibleMixin</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">SeriesProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdm.processing.series.SeriesEnsembleProcessor.html">SeriesEnsembleProcessor</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.recipe.Recipe.html">Recipe</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.common.Identity.html">Identity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.common.Callable.html">Callable</a></li>
@@ -130,6 +130,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.DropConstantColumns.html">DropConstantColumns</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PCA.html">PCA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Detrend</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
@@ -188,7 +189,8 @@ data-aria-dark="Switch to auto color mode">
       <i class="i-lucide close"></i>
     </button>
     <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
-<li><a class="reference internal" href="#sdm.processing.series.SeriesProcessor"><code class="docutils literal notranslate"><span class="pre">SeriesProcessor</span></code></a></li>
+<li><a class="reference internal" href="#sdm.processing.numerical.Detrend"><code class="docutils literal notranslate"><span class="pre">Detrend</span></code></a></li>
+<li><a class="reference internal" href="#capabilities">Capabilities</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
   </aside>
@@ -210,7 +212,7 @@ data-aria-dark="Switch to auto color mode">
         <span>/</span>
         <meta itemprop="position" content="2" />
       </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
-        <strong itemprop="name">SeriesProcessor</strong>
+        <strong itemprop="name">Detrend</strong>
         <meta itemprop="position" content="3" />
       </li></ol>
     <div class="xl:hidden ml-1">
@@ -223,17 +225,37 @@ data-aria-dark="Switch to auto color mode">
 </div><div class="flex flex-col break-words justify-between">
       <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
   <article class="yue" role="main">
-          <section id="seriesprocessor">
-<h1>SeriesProcessor<a class="headerlink" href="#seriesprocessor" title="Link to this heading">#</a></h1>
+          <section id="detrend">
+<h1>Detrend<a class="headerlink" href="#detrend" title="Link to this heading">#</a></h1>
 <dl class="py class">
-<dt class="sig sig-object py" id="sdm.processing.series.SeriesProcessor">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sdm.processing.series.</span></span><span class="sig-name descname"><span class="pre">SeriesProcessor</span></span><a class="headerlink" href="#sdm.processing.series.SeriesProcessor" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="sdm.processing.ensemble.EnsembleProcessor.html#sdm.processing.ensemble.EnsembleProcessor" title="sdm.processing.ensemble.EnsembleProcessor"><code class="xref py py-class docutils literal notranslate"><span class="pre">EnsembleProcessor</span></code></a></p>
-<p>Base processor for consecutive, equally spaced time-series data.</p>
+<dt class="sig sig-object py" id="sdm.processing.numerical.Detrend">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sdm.processing.numerical.</span></span><span class="sig-name descname"><span class="pre">Detrend</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sdm.processing.numerical.Detrend" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="sdm.processing.series.SeriesEnsembleProcessor.html#sdm.processing.series.SeriesEnsembleProcessor" title="sdm.processing.series.SeriesEnsembleProcessor"><code class="xref py py-class docutils literal notranslate"><span class="pre">SeriesEnsembleProcessor</span></code></a>, <a class="reference internal" href="sdm.processing.ensemble.EnsembleInvertibleMixin.html#sdm.processing.ensemble.EnsembleInvertibleMixin" title="sdm.processing.ensemble.EnsembleInvertibleMixin"><code class="xref py py-class docutils literal notranslate"><span class="pre">EnsembleInvertibleMixin</span></code></a></p>
+<p>Remove a per-column linear trend over step coordinates.</p>
 <dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>threshold</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> | </em><em>None</em>) – If set, detrend a column only when the standard deviation
+after detrending is less than <code class="docutils literal notranslate"><span class="pre">threshold</span></code> times the standard
+deviation before detrending.</p>
+</dd>
 </dl>
 </dd></dl>
 
+<section id="capabilities">
+<h2>Capabilities<a class="headerlink" href="#capabilities" title="Link to this heading">#</a></h2>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><strong>Handled Semantic Types</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">numerical</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Requires Fitting</strong></p></td>
+<td><p>✅</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 </section>
 
         </article><button class="back-to-top" type="button">
@@ -242,16 +264,16 @@ data-aria-dark="Switch to auto color mode">
   </svg>
   <span>Back to top</span>
 </button><div class="navigation flex print:hidden"><div class="navigation-prev">
-    <a href="sdm.processing.ensemble.EnsembleInvertibleMixin.html">
+    <a href="sdm.processing.numerical.RandomProjection.html">
       <i class="i-lucide chevron-left"></i>
       <div class="page-info">
-        <span>Previous</span><div class="title">EnsembleInvertibleMixin</div></div>
+        <span>Previous</span><div class="title">RandomProjection</div></div>
     </a>
   </div><div class="navigation-next">
-    <a href="sdm.processing.recipe.Recipe.html">
+    <a href="sdm.processing.categorical.AlignCategories.html">
       <div class="page-info">
         <span>Next</span>
-        <div class="title">Recipe</div>
+        <div class="title">AlignCategories</div>
       </div>
       <i class="i-lucide chevron-right"></i>
     </a>
@@ -260,7 +282,7 @@ data-aria-dark="Switch to auto color mode">
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=1fc1762d"></script>
+      <script src="../../_static/documentation_options.js?v=42ec50be"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

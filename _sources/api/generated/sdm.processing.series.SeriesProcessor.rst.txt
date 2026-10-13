@@ -1,8 +1,0 @@
-﻿SeriesProcessor
-===============
-
-.. currentmodule:: sdm.processing.series
-
-.. autoclass:: SeriesProcessor
-   :members:
-   :show-inheritance:

@@ -1,0 +1,8 @@
+﻿SeriesEnsembleProcessor
+=======================
+
+.. currentmodule:: sdm.processing.series
+
+.. autoclass:: SeriesEnsembleProcessor
+   :members:
+   :show-inheritance:
