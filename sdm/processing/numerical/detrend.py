@@ -16,7 +16,7 @@ class Detrend(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
     Args:
         threshold: If set, detrend a column only when the standard deviation
             after detrending is less than ``threshold`` times the standard
-            deviation before detrending.
+            deviation before detrending and all its values are finite.
     """
 
     handles_stypes = frozenset({Stype.numerical})
@@ -58,6 +58,7 @@ class Detrend(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             if self.threshold is not None:
                 var = centered.square().sum(dim=-2, keepdim=True) / count
                 keep = var - slope * cov < self.threshold**2 * var
+                keep &= valid.all(dim=-2, keepdim=True)
                 slope = slope.where(keep, 0.0)
                 mean = mean.where(keep, 0.0)
 
