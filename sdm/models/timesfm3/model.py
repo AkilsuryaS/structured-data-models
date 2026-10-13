@@ -300,6 +300,7 @@ class _TimesFM3(torch.nn.Module):
         out = self.icl_block(x)  # [..., C, N, O * Q]
         out = out.unflatten(-1, (self.output_patch_size, -1))
         out = revin(out, mean, std, reverse=True)
+        out = out.clamp(-1e20, 1e20)
 
         # Narrow target output patches:
         first = mid // P - 1

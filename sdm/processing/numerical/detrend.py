@@ -58,6 +58,7 @@ class Detrend(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             if self.threshold is not None:
                 var = centered.square().sum(dim=-2, keepdim=True) / count
                 keep = var - slope * cov < self.threshold**2 * var
+                keep &= valid.all(dim=-2, keepdim=True)
                 slope = slope.where(keep, 0.0)
                 mean = mean.where(keep, 0.0)
 
