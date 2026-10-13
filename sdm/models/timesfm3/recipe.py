@@ -7,11 +7,21 @@ import sdm.processing as sp
 def default_recipe() -> sp.Recipe:  # noqa: D103
     return sp.Recipe(
         features=[
+            sp.Choice(
+                sp.Identity(),
+                sp.FlipSign(probability=1.0),
+                method="round_robin",
+            ),
             sp.Interpolate(),
             sp.Detrend(threshold=0.5),
             sp.Clip(-1e20, 1e20),
         ],
         target=[
+            sp.Choice(
+                sp.Identity(),
+                sp.FlipSign(probability=1.0),
+                method="round_robin",
+            ),
             sp.Interpolate(),
             sp.Detrend(threshold=0.5),
             sp.Clip(-1e20, 1e20),

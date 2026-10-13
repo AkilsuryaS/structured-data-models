@@ -12,6 +12,9 @@ from sdm.processing import EnsembleInvertibleMixin, EnsembleProcessor
 class FlipSign(EnsembleProcessor, EnsembleInvertibleMixin):
     """Randomly negate numerical columns.
 
+    Inverse transformation also supports consecutive prediction columns per
+    fitted numerical column.
+
     Args:
         probability: Probability of negating each numerical column.
     """
@@ -58,7 +61,13 @@ class FlipSign(EnsembleProcessor, EnsembleInvertibleMixin):
         for group_id, member_ids in enumerate(member_ids_by_group):
             group = ensemble_table.expanded_group(group_id)
             sign = torch.stack([self._signs[i] for i in member_ids], dim=0)
-            group = group.replace_blocks(numerical=group.numerical * sign)
+            numerical = group.numerical
+            if numerical.size(-1) == sign.size(-1):
+                numerical = numerical * sign
+            else:
+                numerical = numerical.unflatten(-1, (sign.size(-1), -1))
+                numerical = (numerical * sign.unsqueeze(-1)).flatten(-2)
+            group = group.replace_blocks(numerical=numerical)
             groups.append(group)
             for position, member_id in enumerate(member_ids):
                 locations[member_id] = (group_id, position)
