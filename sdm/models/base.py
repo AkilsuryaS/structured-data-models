@@ -33,8 +33,8 @@ from sdm.processing.execution import (
     MemberContext,
     MemberQuery,
     RecipeExecution,
-    _ContextGroups,
-    _QueryGroups,
+    _ProcessedContext,
+    _ProcessedQuery,
 )
 from sdm.relational.task import RelatedTablesSchema
 from sdm.tensor.table import TableSchema
@@ -291,7 +291,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
             torch.amp.autocast(x.device.type, enabled=False),
             inference_mode("no_grad"),
         ):
-            context_groups = recipe_execution.fit_transform(
+            processed_context = recipe_execution.fit_transform(
                 x=x,
                 y=y,
                 related_tables=related_tables,
@@ -302,7 +302,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
         contexts = [
             self._prepare_context(context, callbacks)
-            for context in context_groups.members
+            for context in processed_context.members
         ]
         class_values = _class_values(contexts, estimator_batch_size)
         batches = _batch_slices(
@@ -319,9 +319,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
         for i, batch in enumerate(batches):
             with inference_mode("no_grad"):
                 context = _stack_context(
-                    context_groups.select(batch)
-                    if not callbacks
-                    else contexts[batch]
+                    processed_context if not callbacks else contexts,
+                    batch=batch,
                 )
                 categorical_mask = _categorical_mask(contexts[batch])
                 batch_cache = Cache(
@@ -446,7 +445,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 torch.amp.autocast(x.device.type, enabled=False),
                 inference_mode("no_grad" if requires_grad else "inference"),
             ):
-                query_groups = recipe_execution.transform(
+                processed_query = recipe_execution.transform(
                     x=x, related_tables=related_tables
                 )
 
@@ -462,9 +461,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 assert cache is not None
 
                 x_schemas = cast(tuple[TableSchema, ...], cache["x_schemas"])
-                grouped_queries = query_groups.select(
-                    slice(start, start + len(x_schemas))
-                )
+                batch = slice(start, start + len(x_schemas))
                 batch_queries = [
                     self._prepare_query(
                         query=query,
@@ -476,7 +473,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                         callbacks=callbacks,
                     )
                     for query, x_schema in zip(
-                        grouped_queries.members,
+                        processed_query.members[batch],
                         x_schemas,
                         strict=True,
                     )
@@ -492,9 +489,10 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
                 outs += self._run_estimators(
                     contexts=None,
-                    queries=grouped_queries
+                    queries=processed_query
                     if not callbacks
                     else batch_queries,
+                    batch=batch if not callbacks else slice(None),
                     cache=cache,
                     categorical_mask=cast(Tensor, cache["categorical_mask"]),
                     class_values=cast(
@@ -619,8 +617,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
     def _forward_members(
         self,
-        contexts: Sequence[MemberContext] | _ContextGroups,
-        queries: Sequence[MemberQuery] | _QueryGroups,
+        contexts: Sequence[MemberContext] | _ProcessedContext,
+        queries: Sequence[MemberQuery] | _ProcessedQuery,
         *,
         estimator_batch_size: int | None = 1,
         callbacks: Sequence[Callback] | None = None,
@@ -636,13 +634,13 @@ class ICLModel(torch.nn.Module, abc.ABC):
         requires_grad = self.training
         requires_grad |= any(callback.requires_grad for callback in callbacks)
 
-        context_groups: _ContextGroups | None = None
-        query_groups: _QueryGroups | None = None
-        if isinstance(contexts, _ContextGroups):
-            context_groups = contexts
+        processed_context: _ProcessedContext | None = None
+        processed_query: _ProcessedQuery | None = None
+        if isinstance(contexts, _ProcessedContext):
+            processed_context = contexts
             contexts = contexts.members
-        if isinstance(queries, _QueryGroups):
-            query_groups = queries
+        if isinstance(queries, _ProcessedQuery):
+            processed_query = queries
             queries = queries.members
 
         if estimator_batch_size == 1 and len(contexts) > 1:
@@ -683,12 +681,13 @@ class ICLModel(torch.nn.Module, abc.ABC):
             estimator_batch_size=estimator_batch_size,
         ):
             outs += self._run_estimators(
-                contexts=context_groups.select(batch)
-                if context_groups is not None and not callbacks
-                else contexts[batch],
-                queries=query_groups.select(batch)
-                if query_groups is not None and not callbacks
-                else queries[batch],
+                contexts=processed_context
+                if processed_context is not None and not callbacks
+                else contexts,
+                queries=processed_query
+                if processed_query is not None and not callbacks
+                else queries,
+                batch=batch,
                 cache=None,
                 categorical_mask=None,
                 class_values=class_values[batch],
@@ -744,9 +743,10 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
     def _run_estimators(
         self,
-        contexts: Sequence[MemberContext] | _ContextGroups | None,
-        queries: Sequence[MemberQuery] | _QueryGroups,
+        contexts: Sequence[MemberContext] | _ProcessedContext | None,
+        queries: Sequence[MemberQuery] | _ProcessedQuery,
         *,
+        batch: slice,
         cache: Cache | None,
         categorical_mask: Tensor | None,
         class_values: Sequence[tuple[Any, ...] | None] | None,
@@ -760,14 +760,17 @@ class ICLModel(torch.nn.Module, abc.ABC):
         with inference_mode("grad" if requires_grad else "inference"):
             context_members = (
                 contexts.members
-                if isinstance(contexts, _ContextGroups)
+                if isinstance(contexts, _ProcessedContext)
                 else contexts
             )
             query_members = (
                 queries.members
-                if isinstance(queries, _QueryGroups)
+                if isinstance(queries, _ProcessedQuery)
                 else queries
             )
+            if context_members is not None:
+                context_members = context_members[batch]
+            query_members = query_members[batch]
             if len(query_members) == 1:
                 context = (
                     None if context_members is None else context_members[0]
@@ -775,9 +778,11 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 query = query_members[0]
             else:
                 context = (
-                    None if contexts is None else _stack_context(contexts)
+                    None
+                    if contexts is None
+                    else _stack_context(contexts, batch=batch)
                 )
-                query = _stack_query(queries)
+                query = _stack_query(queries, batch=batch)
 
             if categorical_mask is None:
                 assert context_members is not None

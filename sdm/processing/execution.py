@@ -33,32 +33,20 @@ class MemberQuery(NamedTuple):
     related_tables: RelatedTables[TableTensor] | None
 
 
-class _ContextGroups(NamedTuple):
-    """Transformed members together with their grouped source tables."""
+class _ProcessedContext(NamedTuple):
+    """Preprocessed context for the full ensemble."""
 
     members: tuple[MemberContext, ...]
     x: EnsembleTable
     y: EnsembleTable
     x_context_only: EnsembleTable | None
-    member_ids: range
-
-    def select(self, batch: slice) -> _ContextGroups:
-        return self._replace(
-            members=self.members[batch], member_ids=self.member_ids[batch]
-        )
 
 
-class _QueryGroups(NamedTuple):
-    """Transformed queries together with their grouped source table."""
+class _ProcessedQuery(NamedTuple):
+    """Preprocessed queries for the full ensemble."""
 
     members: tuple[MemberQuery, ...]
     x: EnsembleTable
-    member_ids: range
-
-    def select(self, batch: slice) -> _QueryGroups:
-        return self._replace(
-            members=self.members[batch], member_ids=self.member_ids[batch]
-        )
 
 
 class RecipeExecution:
@@ -89,7 +77,7 @@ class RecipeExecution:
         num_members: int | None = None,
         context_only_columns: Sequence[str] | Sequence[int] | None = None,
         generator: torch.Generator | None = None,
-    ) -> _ContextGroups:
+    ) -> _ProcessedContext:
         """Fit and transform context data."""
         # Transform target first to be able to resolve task type. Inverse
         # target transforms require distinct member assignment:
@@ -239,19 +227,18 @@ class RecipeExecution:
                 )
             )
 
-        return _ContextGroups(
+        return _ProcessedContext(
             members=tuple(members),
             x=x,
             y=y,
             x_context_only=x_context_only,
-            member_ids=range(self.num_members),
         )
 
     def transform(
         self,
         x: Tensor | TableTensor,
         related_tables: RelatedTables | None,
-    ) -> _QueryGroups:
+    ) -> _ProcessedQuery:
         """Transform query data."""
         x: EnsembleTable = _to_ensemble_table(x, self._num_estimators)
         x = self.recipe.features.transform_ensemble(x)
@@ -298,9 +285,7 @@ class RecipeExecution:
                 MemberQuery(x=x[member_id], related_tables=related_tables_i)
             )
 
-        return _QueryGroups(
-            members=tuple(members), x=x, member_ids=range(self.num_members)
-        )
+        return _ProcessedQuery(members=tuple(members), x=x)
 
     def inverse_transform_target(
         self,

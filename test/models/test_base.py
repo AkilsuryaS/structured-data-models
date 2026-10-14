@@ -848,12 +848,12 @@ def test_estimator_batching_reuses_grouped_inputs(
                 query.untyped_storage().data_ptr()
             )
 
-    groups = RecipeExecution(sp.Recipe()).fit_transform(
+    context = RecipeExecution(sp.Recipe()).fit_transform(
         x=x, y=y, related_tables=None, context_only_columns=("0",)
     )
-    batch = _stack_context(groups.select(slice(1, 3)))
-    assert batch.x_context_only is not None
-    torch.testing.assert_close(batch.x_context_only.numerical, x[1:3, :, :1])
+    inputs = _stack_context(context, batch=slice(1, 3))
+    assert inputs.x_context_only is not None
+    torch.testing.assert_close(inputs.x_context_only.numerical, x[1:3, :, :1])
 
 
 def test_estimator_batching_aligns_independent_group_locations() -> None:
@@ -875,7 +875,7 @@ def test_estimator_batching_aligns_independent_group_locations() -> None:
     for table in (x, y, query):
         expected = torch.stack([table[i].numerical for i in range(4)])
         torch.testing.assert_close(
-            _stack_ensemble(table, range(4)).numerical, expected
+            _stack_ensemble(table, batch=slice(None)).numerical, expected
         )
 
 

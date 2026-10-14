@@ -11,8 +11,8 @@ from sdm import EnsembleTable, Stype, StypeLike, TableTensor
 from sdm.processing.execution import (
     MemberContext,
     MemberQuery,
-    _ContextGroups,
-    _QueryGroups,
+    _ProcessedContext,
+    _ProcessedQuery,
 )
 
 
@@ -94,9 +94,8 @@ def _stack(tables: Sequence[TableTensor]) -> TableTensor:
     return cast(TableTensor, torch.stack(renamed))
 
 
-def _stack_ensemble(
-    table: EnsembleTable, member_ids: Sequence[int]
-) -> TableTensor:
+def _stack_ensemble(table: EnsembleTable, *, batch: slice) -> TableTensor:
+    member_ids = range(*batch.indices(len(table)))
     group_ids = tuple(table._locations[i][0] for i in member_ids)
     if all(group_id == group_ids[0] for group_id in group_ids):
         selected = table[member_ids]
@@ -112,21 +111,25 @@ def _stack_ensemble(
 
 
 def _stack_context(
-    members: Sequence[MemberContext] | _ContextGroups,
+    context: Sequence[MemberContext] | _ProcessedContext,
+    *,
+    batch: slice,
 ) -> MemberContext:
-    groups: _ContextGroups | None = None
-    if isinstance(members, _ContextGroups):
-        groups = members
-        members = members.members
+    processed: _ProcessedContext | None = None
+    if isinstance(context, _ProcessedContext):
+        processed = context
+        members = context.members[batch]
+    else:
+        members = context[batch]
     if len(members) == 1:
         return members[0]
-    if groups is not None:
+    if processed is not None:
         return MemberContext(
-            x=_stack_ensemble(groups.x, groups.member_ids),
-            y=_stack_ensemble(groups.y, groups.member_ids),
+            x=_stack_ensemble(processed.x, batch=batch),
+            y=_stack_ensemble(processed.y, batch=batch),
             x_context_only=None
-            if groups.x_context_only is None
-            else _stack_ensemble(groups.x_context_only, groups.member_ids),
+            if processed.x_context_only is None
+            else _stack_ensemble(processed.x_context_only, batch=batch),
             related_tables=None,
             input_stypes=members[0].input_stypes,
         )
@@ -143,16 +146,20 @@ def _stack_context(
     )
 
 
-def _stack_query(members: Sequence[MemberQuery] | _QueryGroups) -> MemberQuery:
-    groups: _QueryGroups | None = None
-    if isinstance(members, _QueryGroups):
-        groups = members
-        members = members.members
+def _stack_query(
+    query: Sequence[MemberQuery] | _ProcessedQuery, *, batch: slice
+) -> MemberQuery:
+    processed: _ProcessedQuery | None = None
+    if isinstance(query, _ProcessedQuery):
+        processed = query
+        members = query.members[batch]
+    else:
+        members = query[batch]
     if len(members) == 1:
         return members[0]
-    if groups is not None:
+    if processed is not None:
         return MemberQuery(
-            x=_stack_ensemble(groups.x, groups.member_ids),
+            x=_stack_ensemble(processed.x, batch=batch),
             related_tables=None,
         )
     return MemberQuery(
