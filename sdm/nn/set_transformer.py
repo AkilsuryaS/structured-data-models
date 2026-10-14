@@ -74,7 +74,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: Literal[False] = False,
-        _force_output_block_float32: bool = False,
+        output_dtype: torch.dtype | None = None,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor: ...
@@ -88,7 +88,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: Literal[True],
-        _force_output_block_float32: bool = False,
+        output_dtype: torch.dtype | None = None,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> tuple[Tensor, KVCacheEntry]: ...
@@ -102,7 +102,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,
         *,
         return_key_value: bool,
-        _force_output_block_float32: bool = False,
+        output_dtype: torch.dtype | None = None,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]: ...
@@ -115,7 +115,7 @@ class InducedTransformerBlock(torch.nn.Module):
         attn_mask: Tensor | None = None,  # [..., KV]
         *,
         return_key_value: bool = False,
-        _force_output_block_float32: bool = False,
+        output_dtype: torch.dtype | None = None,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
@@ -136,6 +136,11 @@ class InducedTransformerBlock(torch.nn.Module):
                 Entries set to ``True`` participate in attention.
             return_key_value: Whether to return the computed key and value
                 projections for the final attention site alongside the output.
+            output_dtype: Compute the output block outside autocast in this
+                dtype, including returned key/value projections. Output-block
+                parameters and ``out`` must have the same dtype. The inducing
+                block keeps the ambient autocast policy. If ``None``, both
+                blocks use the ambient policy.
             batch_size_limit: Maximum number of batch elements processed at
                 once.
             out: The output tensor.
@@ -157,22 +162,21 @@ class InducedTransformerBlock(torch.nn.Module):
                 attn_mask=attn_mask,  # [..., 1, KV]
                 batch_size_limit=batch_size_limit,
             )  # [..., M, C]
-        if _force_output_block_float32:
-            if self.output_block.attn.qkv_lin.weight.dtype != torch.float32:
-                raise RuntimeError(
-                    "Full-precision transformer execution requires "
-                    "float32 parameters"
+        if output_dtype is not None:
+            if out is not None and out.dtype != output_dtype:
+                raise ValueError(
+                    f"'out' has dtype {out.dtype}, expected {output_dtype}"
                 )
             if isinstance(key_value, KVCacheEntry):
                 key_value = KVCacheEntry(
-                    key=key_value.key.float(),
-                    value=key_value.value.float(),
+                    key=key_value.key.to(dtype=output_dtype),
+                    value=key_value.value.to(dtype=output_dtype),
                 )
             else:
-                key_value = key_value.float()
+                key_value = key_value.to(dtype=output_dtype)
             with torch.amp.autocast(query.device.type, enabled=False):
                 return self.output_block(
-                    query=query.float(),  # [..., Q, C]
+                    query=query.to(dtype=output_dtype),  # [..., Q, C]
                     key_value=key_value,  # [..., M, C]
                     return_key_value=return_key_value,
                     batch_size_limit=batch_size_limit,
