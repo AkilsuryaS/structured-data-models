@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en" data-accent-color="green" data-content_root="./">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>NIM Inference - Structured Data Models</title><link rel="shortcut icon" href="_static/nvidia.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="sdm" href="api/sdm.html" /><link rel="prev" title="Data Processing" href="processing.html" /><script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode(localStorage._theme||"auto");
+  </script><link rel="stylesheet" type="text/css" href="_static/pygments.css?v=e1a1ceaf" />
+    <link rel="stylesheet" type="text/css" href="_static/shibuya.css?v=2ceb65ce" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link media="print" rel="stylesheet" type="text/css" href="_static/print.css?v=20ff2c19" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=29e2959f" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sy-f-text: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+  --sy-f-heading: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+}
+</style>
+    
+  <meta property="og:type" content="website"/><meta property="og:title" content="NIM Inference"/>
+    <meta name="twitter:card" content="summary"/>
+  </head>
+<body><div class="sy-head">
+  <div class="sy-head-blur"></div>
+  <div class="sy-head-inner sy-container mx-auto">
+    <a class="sy-head-brand" href="index.html">
+      <img class="light-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <img class="dark-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <strong>Structured Data Models</strong>
+    </a>
+    <div class="sy-head-nav" id="head-nav">
+      <nav class="sy-head-links"></nav>
+      <div class="sy-head-extra flex items-center print:hidden"><form class="searchbox flex items-center" action="search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <kbd>/</kbd>
+</form><div class="sy-head-socials">
+  <a href="https://github.com/NVIDIA/structured-data-models" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div></div>
+    </div>
+    <div class="sy-head-actions flex items-center shrink-0 print:hidden"><button class="js-theme theme-switch flex items-center"
+data-aria-auto="Switch to light color mode"
+data-aria-light="Switch to dark color mode"
+data-aria-dark="Switch to auto color mode">
+<i class="i-lucide theme-icon"></i>
+</button><button class="md:hidden flex items-center js-menu" aria-label="Menu" type="button" aria-controls="head-nav" aria-expanded="false">
+        <div class="hamburger">
+          <span class="hamburger_1"></span>
+          <span class="hamburger_2"></span>
+          <span class="hamburger_3"></span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        <div class="globaltoc" data-expand-depth="0"><p class="caption" role="heading" aria-level="3"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">Guides</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tensor.html">Table Semantics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="icl.html">In-Context Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="processing.html">Data Processing</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">NIM Inference</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/sdm.html">sdm</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Stype.html">Stype</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.infer_stypes.html">infer_stypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Task.html">Task</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/tensor.html">sdm.tensor</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.VarLenTensor.html">VarLenTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.StringTensor.html">StringTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.NullableTensor.html">NullableTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.CategoricalTensor.html">CategoricalTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.ColumnarTensor.html">ColumnarTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html">TableTensor</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/relational.html">sdm.relational</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.Relationship.html">Relationship</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalData.html">RelationalData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.TaskLink.html">TaskLink</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html">RelatedTables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalSampler.html">RelationalSampler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/processing.html">sdm.processing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.Processor.html">Processor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.InvertibleMixin.html">InvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleProcessor.html">EnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleInvertibleMixin.html">EnsembleInvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.series.SeriesEnsembleProcessor.html">SeriesEnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.recipe.Recipe.html">Recipe</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Identity.html">Identity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Callable.html">Callable</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Sequential.html">Sequential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.DropStypes.html">DropStypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.StypeDispatch.html">StypeDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TaskDispatch.html">TaskDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TableDispatch.html">TableDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.EnsembleProcessorAdapter.html">EnsembleProcessorAdapter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Choice.html">Choice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ToNumerical.html">ToNumerical</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ShuffleColumns.html">ShuffleColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.SelectColumns.html">SelectColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Cast.html">Cast</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Clip.html">Clip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipSoft.html">ClipSoft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RankGaussian.html">RankGaussian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Standardize.html">Standardize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RobustScale.html">RobustScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.FlipSign.html">FlipSign</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.DropConstantColumns.html">DropConstantColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PCA.html">PCA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AddCategoryCounts.html">AddCategoryCounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.TFIDF.html">TFIDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.SentenceTransformer.html">SentenceTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.datetime.AddCalendarFields.html">AddCalendarFields</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.AverageEstimators.html">AverageEstimators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.Softmax.html">Softmax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.SortQuantiles.html">SortQuantiles</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/nn.html">sdm.nn</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RotaryEmbedding.html">RotaryEmbedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SwiGLU.html">SwiGLU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SoftplusScale.html">SoftplusScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RMSNorm.html">RMSNorm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QueryScaling.html">QueryScaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QASSMax.html">QASSMax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.LogScale.html">LogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.GatedLogScale.html">GatedLogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SDPA.html">SDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.Attention.html">Attention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html">TransformerBlock</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.InducedTransformerBlock.html">InducedTransformerBlock</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/models.html">sdm.models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.ICLModel.html">ICLModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabICLv2.html">TabICLv2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabFM.html">TabFM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoTabular.html">KumoTabular</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoRelational.html">KumoRelational</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TimesFM3.html">TimesFM3</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/explain.html">sdm.explain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.ICLExplainer.html">ICLExplainer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.GradientExplainer.html">GradientExplainer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/evaluation.html">sdm.evaluation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_class_indices.html">to_class_indices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_binary_class.html">to_binary_class</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <aside id="rside" class="sy-rside pb-3 w-64 shrink-0 order-last">
+    <button class="rside-close js-menu xl:hidden" aria-label="Close Table of Contents" type="button" aria-controls="rside" aria-expanded="false">
+      <i class="i-lucide close"></i>
+    </button>
+    <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
+<li><a class="reference internal" href="#installation">Installation</a><ul>
+<li><a class="reference internal" href="#databricks-notebooks">Databricks notebooks</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#connect-to-a-nim">Connect to a NIM</a><ul>
+<li><a class="reference internal" href="#authentication">Authentication</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#predict-with-kumo-tabular">Predict with Kumo Tabular</a></li>
+<li><a class="reference internal" href="#predict-with-kumo-relational">Predict with Kumo Relational</a></li>
+<li><a class="reference internal" href="#data-connectors">Data Connectors</a><ul>
+<li><a class="reference internal" href="#databricks-and-snowflake">Databricks and Snowflake</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#databricks-model-serving">Databricks Model Serving</a></li>
+<li><a class="reference internal" href="#snowflake-model-serving">Snowflake Model Serving</a></li>
+<li><a class="reference internal" href="#reuse-context-with-a-session">Reuse Context with a Session</a></li>
+<li><a class="reference internal" href="#prediction-results">Prediction Results</a></li>
+</ul>
+</div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
+  </aside>
+  <div class="rside-overlay js-menu" role="button" aria-label="Close Table of Contents" aria-controls="rside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+<div class="sy-breadcrumbs" role="navigation">
+  <div class="sy-breadcrumbs-inner flex items-center">
+    <div class="md:hidden mr-3">
+      <button class="js-menu" aria-label="Menu" type="button" aria-controls="lside" aria-expanded="false">
+        <i class="i-lucide menu"></i>
+      </button>
+    </div>
+    <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="index.html"><span itemprop="name">Structured Data Models</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">NIM Inference</strong>
+        <meta itemprop="position" content="2" />
+      </li></ol>
+    <div class="xl:hidden ml-1">
+      <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
+        aria-expanded="false">
+        <i class="i-lucide outdent"></i>
+      </button>
+    </div>
+  </div>
+</div><div class="flex flex-col break-words justify-between">
+      <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+  <article class="yue" role="main">
+          <section id="nim-inference">
+<h1>NIM Inference<a class="headerlink" href="#nim-inference" title="Link to this heading">#</a></h1>
+<p>NVIDIA NIM runs Kumo Tabular and Kumo Relational as inference services on a GPU host.
+This guide shows how to call a deployed NIM from Python and use data connectors to read input tables from a database or warehouse.
+Your Python process prepares the data and receives predictions; it does not need model weights or a local GPU.</p>
+<p>Start with installation and a NIM connection, then follow the example for your model.
+The later sections cover data connectors, Databricks Model Serving, and reuse of context across prediction calls.
+For models that run directly in your Python process, see <a class="reference internal" href="icl.html"><span class="doc std std-doc">In-Context Learning</span></a>.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<p>Install the lightweight client package from PyPI.
+It runs independently of the PyTorch library described in <a class="reference internal" href="install.html"><span class="doc std std-doc">Installation</span></a>; that library is not needed to call a NIM:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"structured-data-models-client"</span>
+</span></pre></div>
+</div>
+<p>For Kumo Relational, include the <code class="docutils literal notranslate"><span class="pre">relational</span></code> extra:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"structured-data-models-client[relational]"</span>
+</span></pre></div>
+</div>
+<p>Use Python 3.10 through 3.14 for Tabular inference.
+The relational-engine wheels are built for CPython 3.10 through 3.13 on Linux with glibc 2.28 or newer, on x86-64 and aarch64.
+Tabular inference can be called from Linux, macOS, or Windows; the relational-engine wheels require Linux.
+The GPU is needed on the NIM host.</p>
+<section id="databricks-notebooks">
+<span id="nim-databricks-notebooks"></span><h3>Databricks notebooks<a class="headerlink" href="#databricks-notebooks" title="Link to this heading">#</a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">%pip</span></code> to install into a Databricks notebook while preserving the runtime’s NumPy version.
+Run each of these steps in its own cell, before running the prediction examples.
+The extras below cover both warehouse access and Databricks Model Serving.</p>
+<p>First, capture the installed NumPy version:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="n">keep_numpy</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"numpy==</span><span class="si">{</span><span class="n">numpy</span><span class="o">.</span><span class="n">__version__</span><span class="si">}</span><span class="s2">"</span>
+</span></pre></div>
+</div>
+<p>Then install the Python package and platform dependencies:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><span data-line="1">%pip install --only-binary=:all: "structured-data-models-client[relational,databricks,databricks-serving]" $keep_numpy
+</span></pre></div>
+</div>
+<p>Finally, restart Python so the notebook loads the installed packages:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">dbutils</span><span class="o">.</span><span class="n">library</span><span class="o">.</span><span class="n">restartPython</span><span class="p">()</span>
+</span></pre></div>
+</div>
+</section>
+</section>
+<section id="connect-to-a-nim">
+<h2>Connect to a NIM<a class="headerlink" href="#connect-to-a-nim" title="Link to this heading">#</a></h2>
+<p>Choose a model and follow its deployment instructions on a Linux GPU host with Docker and the NVIDIA Container Toolkit:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Model ID</p></th>
+<th class="head"><p>Data</p></th>
+<th class="head"><p>Deployment instructions</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kumo-tabular</span></code></p></td>
+<td><p>One table; classification and regression</p></td>
+<td><p><a class="reference external" href="https://build.nvidia.com/nvidia/kumo-tabular">Kumo Tabular on NVIDIA Build</a></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kumo-relational</span></code></p></td>
+<td><p>Related tables and temporal prediction tasks</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nim/nvidia/containers/kumo-relational/-/tags">Kumo Relational tags on NGC</a>, <a class="reference external" href="https://build.nvidia.com/nvidia/kumo-relational">NVIDIA Build</a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Check the deployment pages for available tags, supported hardware, access requirements, and the terms for the selected artifact.
+For example, authenticate to the registry with an NGC API key as the password:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">docker<span class="w"> </span>login<span class="w"> </span>nvcr.io<span class="w"> </span>--username<span class="w"> </span><span class="s1">'$oauthtoken'</span>
+</span></pre></div>
+</div>
+<p>Then run the Relational NIM in one terminal, mapping host port 8001 to the container’s port 8000:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--shm-size<span class="o">=</span>16GB<span class="w"> </span>-p<span class="w"> </span><span class="m">8001</span>:8000<span class="w"> </span><span class="se">\</span>
+</span><span data-line="2"><span class="w">    </span>nvcr.io/nim/nvidia/kumo-relational:1.0.1
+</span></pre></div>
+</div>
+<p>For the Tabular example, follow its deployment page and expose the service on host port 8000.
+The Python examples use <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code> for Tabular and <code class="docutils literal notranslate"><span class="pre">http://localhost:8001</span></code> for Relational.
+When the service runs on another machine, replace these addresses with the deployment’s reachable base URLs.</p>
+<p>Wait for the service to finish starting, then check readiness and the model IDs it advertises:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">SDMClient</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="k">with</span> <span class="n">SDMClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"http://localhost:8001"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="4">    <span class="n">ready</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">health_ready</span><span class="p">()</span>
+</span><span data-line="5">    <span class="nb">print</span><span class="p">(</span><span class="n">ready</span><span class="p">)</span>
+</span><span data-line="6">    <span class="k">if</span> <span class="n">ready</span><span class="p">:</span>
+</span><span data-line="7">        <span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">models</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">health_ready()</span></code> returns <code class="docutils literal notranslate"><span class="pre">False</span></code> for a non-200 response and raises <code class="docutils literal notranslate"><span class="pre">StructuredDataError</span></code> with code <code class="docutils literal notranslate"><span class="pre">TRANSPORT_ERROR</span></code> if the service cannot be reached yet.
+Retry the check while the container starts, and call <code class="docutils literal notranslate"><span class="pre">models()</span></code> only after readiness is <code class="docutils literal notranslate"><span class="pre">True</span></code>.
+Continue when the endpoint advertises the model you intend to use.
+Pass the <strong>base URL</strong>, such as <code class="docutils literal notranslate"><span class="pre">http://localhost:8001</span></code>; <code class="docutils literal notranslate"><span class="pre">SDMClient</span></code> adds the <code class="docutils literal notranslate"><span class="pre">/v1/...</span></code> routes.
+<code class="docutils literal notranslate"><span class="pre">KumoTabular()</span></code> and <code class="docutils literal notranslate"><span class="pre">KumoRelational()</span></code> select the model to call on that endpoint.
+These selectors are distinct from the in-process model implementations in <code class="docutils literal notranslate"><span class="pre">sdm.models</span></code>.
+They do not start a model or connect to a different deployment.</p>
+<section id="authentication">
+<span id="nim-authentication"></span><h3>Authentication<a class="headerlink" href="#authentication" title="Link to this heading">#</a></h3>
+<p>Registry authentication grants access to the container image.
+Inference authentication is configured separately by the deployment operator.
+If an authenticating gateway accepts <code class="docutils literal notranslate"><span class="pre">X-API-Key</span></code>, supply its key explicitly with <code class="docutils literal notranslate"><span class="pre">SDMClient(url=&quot;https://your-nim-host&quot;,</span> <span class="pre">api_key=...)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">SDMClient</span></code> sends that value as <code class="docutils literal notranslate"><span class="pre">X-API-Key</span></code> and requires HTTPS when sending credentials to a non-local host.</p>
+<p>NVIDIA’s hosted API Catalog uses model-specific URLs and Bearer authentication.
+<code class="docutils literal notranslate"><span class="pre">SDMClient</span></code> cannot call that hosted API.
+The connection shown here is for a deployed NIM.
+To call NVIDIA’s hosted API, follow the model’s API example on NVIDIA Build.</p>
+</section>
+</section>
+<section id="predict-with-kumo-tabular">
+<h2>Predict with Kumo Tabular<a class="headerlink" href="#predict-with-kumo-tabular" title="Link to this heading">#</a></h2>
+<p>Supply labeled context rows and query rows with the same feature columns.
+Leave the target out of the query rows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+</span><span data-line="2"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">KumoTabular</span><span class="p">,</span> <span class="n">Request</span><span class="p">,</span> <span class="n">SDMClient</span>
+</span><span data-line="3">
+</span><span data-line="4"><span class="n">context</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+</span><span data-line="5">    <span class="p">{</span>
+</span><span data-line="6">        <span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mf">31.0</span><span class="p">,</span> <span class="mf">44.5</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">,</span> <span class="mf">51.0</span><span class="p">,</span> <span class="mf">39.0</span><span class="p">,</span> <span class="mf">57.0</span><span class="p">],</span>
+</span><span data-line="7">        <span class="s2">"spend"</span><span class="p">:</span> <span class="p">[</span><span class="mf">120.0</span><span class="p">,</span> <span class="mf">430.0</span><span class="p">,</span> <span class="mf">90.0</span><span class="p">,</span> <span class="mf">510.0</span><span class="p">,</span> <span class="mf">260.0</span><span class="p">,</span> <span class="mf">600.0</span><span class="p">],</span>
+</span><span data-line="8">        <span class="s2">"churn"</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+</span><span data-line="9">    <span class="p">}</span>
+</span><span data-line="10"><span class="p">)</span>
+</span><span data-line="11"><span class="n">to_score</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"age"</span><span class="p">:</span> <span class="p">[</span><span class="mf">33.0</span><span class="p">,</span> <span class="mf">47.0</span><span class="p">],</span> <span class="s2">"spend"</span><span class="p">:</span> <span class="p">[</span><span class="mf">150.0</span><span class="p">,</span> <span class="mf">480.0</span><span class="p">]})</span>
+</span><span data-line="12"><span class="n">tabular_request</span> <span class="o">=</span> <span class="n">Request</span><span class="p">(</span>
+</span><span data-line="13">    <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+</span><span data-line="14">    <span class="n">predict</span><span class="o">=</span><span class="n">to_score</span><span class="p">,</span>
+</span><span data-line="15">    <span class="n">target</span><span class="o">=</span><span class="s2">"churn"</span><span class="p">,</span>
+</span><span data-line="16">    <span class="n">task</span><span class="o">=</span><span class="s2">"classification"</span><span class="p">,</span>
+</span><span data-line="17"><span class="p">)</span>
+</span><span data-line="18">
+</span><span data-line="19"><span class="k">with</span> <span class="n">SDMClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"http://localhost:8000"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="20">    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">tabular_request</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">KumoTabular</span><span class="p">())</span>
+</span><span data-line="21">    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p>The context teaches the prediction task at inference time, without updating model weights.
+Classification returns predictions and class probabilities by default.
+For a numerical target, use <code class="docutils literal notranslate"><span class="pre">task=&quot;regression&quot;</span></code>.</p>
+</section>
+<section id="predict-with-kumo-relational">
+<h2>Predict with Kumo Relational<a class="headerlink" href="#predict-with-kumo-relational" title="Link to this heading">#</a></h2>
+<p>Describe the tables, their keys, their relationships, and their time columns.
+Then express the prediction with the Predictive Query Language (PQL).
+This example asks for each user’s spending over the next 30 days:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+</span><span data-line="2"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span data-line="3">    <span class="n">KumoRelational</span><span class="p">,</span>
+</span><span data-line="4">    <span class="n">PredictiveQuery</span><span class="p">,</span>
+</span><span data-line="5">    <span class="n">Relationship</span><span class="p">,</span>
+</span><span data-line="6">    <span class="n">Schema</span><span class="p">,</span>
+</span><span data-line="7">    <span class="n">SDMClient</span><span class="p">,</span>
+</span><span data-line="8"><span class="p">)</span>
+</span><span data-line="9">
+</span><span data-line="10"><span class="n">users</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"user_id"</span><span class="p">:</span> <span class="nb">range</span><span class="p">(</span><span class="mi">20</span><span class="p">)})</span>
+</span><span data-line="11"><span class="n">orders</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+</span><span data-line="12">    <span class="p">{</span>
+</span><span data-line="13">        <span class="s2">"order_id"</span><span class="p">:</span> <span class="nb">range</span><span class="p">(</span><span class="mi">240</span><span class="p">),</span>
+</span><span data-line="14">        <span class="s2">"user_id"</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="mi">20</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">240</span><span class="p">)],</span>
+</span><span data-line="15">        <span class="s2">"amount"</span><span class="p">:</span> <span class="p">[</span><span class="mf">10.0</span> <span class="o">+</span> <span class="n">i</span> <span class="o">%</span> <span class="mi">17</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">240</span><span class="p">)],</span>
+</span><span data-line="16">        <span class="s2">"ordered_at"</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="s2">"2025-01-01"</span><span class="p">,</span> <span class="n">periods</span><span class="o">=</span><span class="mi">240</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="s2">"D"</span><span class="p">),</span>
+</span><span data-line="17">    <span class="p">}</span>
+</span><span data-line="18"><span class="p">)</span>
+</span><span data-line="19"><span class="n">schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="o">.</span><span class="n">from_data</span><span class="p">(</span>
+</span><span data-line="20">    <span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="n">users</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="n">orders</span><span class="p">},</span>
+</span><span data-line="21">    <span class="n">primary_keys</span><span class="o">=</span><span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="s2">"order_id"</span><span class="p">},</span>
+</span><span data-line="22">    <span class="n">time_columns</span><span class="o">=</span><span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="s2">"ordered_at"</span><span class="p">},</span>
+</span><span data-line="23">    <span class="n">relationships</span><span class="o">=</span><span class="p">[</span><span class="n">Relationship</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"users"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">)],</span>
+</span><span data-line="24"><span class="p">)</span>
+</span><span data-line="25"><span class="n">model</span> <span class="o">=</span> <span class="n">KumoRelational</span><span class="p">()</span>
+</span><span data-line="26"><span class="n">query</span> <span class="o">=</span> <span class="n">PredictiveQuery</span><span class="p">(</span>
+</span><span data-line="27">    <span class="s2">"PREDICT SUM(orders.amount, 0, 30, days) FOR EACH users.user_id"</span><span class="p">,</span>
+</span><span data-line="28">    <span class="n">schema</span><span class="p">,</span>
+</span><span data-line="29"><span class="p">)</span>
+</span><span data-line="30"><span class="n">relational_request</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">materialize</span><span class="p">(</span>
+</span><span data-line="31">    <span class="n">indices</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>
+</span><span data-line="32">    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+</span><span data-line="33">    <span class="n">num_context_samples</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+</span><span data-line="34"><span class="p">)</span>
+</span><span data-line="35">
+</span><span data-line="36"><span class="k">with</span> <span class="n">SDMClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"http://localhost:8001"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="37">    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">relational_request</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+</span><span data-line="38">    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">materialize()</span></code> resolves the query, constructs historical labeled examples, and samples the related records needed for prediction.
+The sampled data and schema are included in the request.
+The NIM does not connect to your database.</p>
+<p>The <strong>prediction anchor</strong> is the timestamp from which the next 30 days are measured.
+Features come from records at or before that timestamp, and labels come from the later target window.
+<code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">30,</span> <span class="pre">days</span></code> denotes <code class="docutils literal notranslate"><span class="pre">(anchor,</span> <span class="pre">anchor</span> <span class="pre">+</span> <span class="pre">30</span> <span class="pre">days]</span></code>.
+Use data spanning comfortably more than the target window so historical labels can be constructed.
+<code class="docutils literal notranslate"><span class="pre">materialize()</span></code> reports when no eligible context can be built.</p>
+</section>
+<section id="data-connectors">
+<h2>Data Connectors<a class="headerlink" href="#data-connectors" title="Link to this heading">#</a></h2>
+<p>Data connectors (<code class="docutils literal notranslate"><span class="pre">sdm_connectors</span></code>) read input data using your database connection, warehouse session, or file path.
+You choose the data source independently of where the model runs: for example, read tables from Snowflake and send a prediction request to a NIM on another host.
+Add the platform extras below to the client installation command to install the required connectors and drivers.</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Data source</p></th>
+<th class="head"><p>Python API</p></th>
+<th class="head"><p>Installation extra</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Databricks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DatabricksSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">databricks</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Snowflake</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SnowflakeSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">snowflake</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>PostgreSQL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PostgresSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">postgres</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>DuckDB</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DuckDBSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">duckdb</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>SQLite</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SQLiteSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sqlite</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Databricks Lakebase</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lakebase()</span></code> connection with <code class="docutils literal notranslate"><span class="pre">PostgresSource</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lakebase</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>S3 CSV/Parquet files</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">read(path)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">s3</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Local CSV/Parquet files</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">read(path)</span></code></p></td>
+<td><p>No driver extra; connectors package required</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>On Databricks, install <code class="docutils literal notranslate"><span class="pre">lakebase</span></code> instead of <code class="docutils literal notranslate"><span class="pre">postgres</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code>, even for PostgreSQL outside Lakebase.
+This avoids the bundled OpenSSL in <code class="docutils literal notranslate"><span class="pre">psycopg[binary]</span></code>, which fails its FIPS self-test on Databricks aarch64 hosts.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">relational</span></code> extra also installs the connectors package.
+If you only installed the base package for Tabular inference and want to use local file readers, add the connectors package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>structured-data-models-connectors
+</span></pre></div>
+</div>
+<p>The Lakebase connection helper is imported from <code class="docutils literal notranslate"><span class="pre">sdm_connectors.databricks</span></code>.</p>
+<p>Database sources with <code class="docutils literal notranslate"><span class="pre">Schema.from_source()</span></code> are for Kumo Relational.
+<code class="docutils literal notranslate"><span class="pre">materialize()</span></code> samples the records needed for a prediction instead of loading every table into memory.
+For Kumo Tabular, use <code class="docutils literal notranslate"><span class="pre">read(path)</span></code> for files or <code class="docutils literal notranslate"><span class="pre">read_table(connection,</span> <span class="pre">table=...)</span></code> for database tables to load rows into pandas DataFrames, then pass those DataFrames to <code class="docutils literal notranslate"><span class="pre">Request</span></code>.
+<code class="docutils literal notranslate"><span class="pre">read_table()</span></code> requires a DB-API connection, such as one from <code class="docutils literal notranslate"><span class="pre">databricks.sql.connect(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">warehouse(...)</span></code>, or <code class="docutils literal notranslate"><span class="pre">snowflake.connector.connect(...)</span></code>.
+For a Snowpark session, pass its <code class="docutils literal notranslate"><span class="pre">.connection</span></code>; a Spark or Snowpark session itself is not a DB-API connection.</p>
+<section id="databricks-and-snowflake">
+<h3>Databricks and Snowflake<a class="headerlink" href="#databricks-and-snowflake" title="Link to this heading">#</a></h3>
+<p>For Databricks:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"structured-data-models-client[relational,databricks]"</span>
+</span></pre></div>
+</div>
+<p>For Snowflake:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"structured-data-models-client[relational,snowflake]"</span>
+</span></pre></div>
+</div>
+<p>For installation in a Databricks notebook, follow <a class="reference internal" href="#nim-databricks-notebooks"><span class="std std-ref">Databricks notebooks</span></a>.</p>
+<p>The following source examples assume that tables equivalent to <code class="docutils literal notranslate"><span class="pre">users</span></code> and <code class="docutils literal notranslate"><span class="pre">orders</span></code> above already exist in the selected warehouse.
+In a Databricks notebook with an existing <code class="docutils literal notranslate"><span class="pre">spark</span></code> session:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatabricksSource</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="n">source</span> <span class="o">=</span> <span class="n">DatabricksSource</span><span class="p">(</span><span class="n">spark</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="s2">"main"</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="s2">"sales"</span><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>This Spark path requires Databricks Runtime 17.3 LTS or serverless environment 4 and later.
+For a SQL warehouse, open a connection with <code class="docutils literal notranslate"><span class="pre">databricks.sql.connect(...)</span></code> or <code class="docutils literal notranslate"><span class="pre">warehouse(warehouse_id)</span></code> from <code class="docutils literal notranslate"><span class="pre">sdm_connectors.databricks</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">warehouse()</span></code> helper uses the Databricks SDK’s configured workspace identity.
+Pass that connection to <code class="docutils literal notranslate"><span class="pre">DatabricksSource(connection,</span> <span class="pre">catalog=...,</span> <span class="pre">schema=...)</span></code>.</p>
+<p>With an existing Snowpark session or Snowflake connector connection named <code class="docutils literal notranslate"><span class="pre">snowflake_session</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">SnowflakeSource</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="n">source</span> <span class="o">=</span> <span class="n">SnowflakeSource</span><span class="p">(</span><span class="n">snowflake_session</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s2">"SALES"</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="s2">"PUBLIC"</span><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>Column names in schema arguments and PQL must match the names reported by the warehouse exactly.
+The shared example below assumes the lowercase column names from the DataFrames above.
+In Snowflake, those names require columns created with quoted lowercase identifiers.
+For ordinary unquoted Snowflake columns, use <code class="docutils literal notranslate"><span class="pre">USER_ID</span></code>, <code class="docutils literal notranslate"><span class="pre">ORDER_ID</span></code>, <code class="docutils literal notranslate"><span class="pre">ORDERED_AT</span></code>, and <code class="docutils literal notranslate"><span class="pre">AMOUNT</span></code> in the schema arguments and PQL, such as <code class="docutils literal notranslate"><span class="pre">users.USER_ID</span></code> and <code class="docutils literal notranslate"><span class="pre">orders.AMOUNT</span></code>.</p>
+<p>After choosing one source, build the schema with the same keys and relationships:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">from</span><span class="w"> </span><span class="nn">sdm_client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span data-line="2">    <span class="n">KumoRelational</span><span class="p">,</span>
+</span><span data-line="3">    <span class="n">PredictiveQuery</span><span class="p">,</span>
+</span><span data-line="4">    <span class="n">Relationship</span><span class="p">,</span>
+</span><span data-line="5">    <span class="n">Schema</span><span class="p">,</span>
+</span><span data-line="6">    <span class="n">SDMClient</span><span class="p">,</span>
+</span><span data-line="7"><span class="p">)</span>
+</span><span data-line="8">
+</span><span data-line="9"><span class="n">model</span> <span class="o">=</span> <span class="n">KumoRelational</span><span class="p">()</span>
+</span><span data-line="10"><span class="n">warehouse_schema</span> <span class="o">=</span> <span class="n">Schema</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span>
+</span><span data-line="11">    <span class="n">source</span><span class="p">,</span>
+</span><span data-line="12">    <span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="s2">"users"</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="s2">"orders"</span><span class="p">},</span>
+</span><span data-line="13">    <span class="n">primary_keys</span><span class="o">=</span><span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="s2">"order_id"</span><span class="p">},</span>
+</span><span data-line="14">    <span class="n">time_columns</span><span class="o">=</span><span class="p">{</span><span class="s2">"users"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">:</span> <span class="s2">"ordered_at"</span><span class="p">},</span>
+</span><span data-line="15">    <span class="n">relationships</span><span class="o">=</span><span class="p">[</span><span class="n">Relationship</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">,</span> <span class="s2">"users"</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">)],</span>
+</span><span data-line="16"><span class="p">)</span>
+</span><span data-line="17"><span class="n">warehouse_request</span> <span class="o">=</span> <span class="n">PredictiveQuery</span><span class="p">(</span>
+</span><span data-line="18">    <span class="s2">"PREDICT SUM(orders.amount, 0, 30, days) FOR EACH users.user_id"</span><span class="p">,</span>
+</span><span data-line="19">    <span class="n">warehouse_schema</span><span class="p">,</span>
+</span><span data-line="20"><span class="p">)</span><span class="o">.</span><span class="n">materialize</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">num_context_samples</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
+</span><span data-line="21">
+</span><span data-line="22"><span class="k">with</span> <span class="n">SDMClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"https://your-nim-host"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="23">    <span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">warehouse_request</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p>Schema construction reads catalog metadata, previews up to 1,000 rows per table, and checks primary keys with a full scan of each eligible table.
+Pass <code class="docutils literal notranslate"><span class="pre">check_keys=False</span></code> to skip the key scans when you have already validated those keys.
+<code class="docutils literal notranslate"><span class="pre">materialize()</span></code> samples records with SQL and includes them in the prediction request.
+The source uses your warehouse permissions.
+It does not close your connection; close it yourself when you are done.
+The notebook must be able to reach the NIM host over the network; supply its base URL and, if required by the gateway, its API key as described under <a class="reference internal" href="#nim-authentication"><span class="std std-ref">Authentication</span></a>.</p>
+</section>
+</section>
+<section id="databricks-model-serving">
+<h2>Databricks Model Serving<a class="headerlink" href="#databricks-model-serving" title="Link to this heading">#</a></h2>
+<p>To call a model on Databricks Model Serving, connect by its serving endpoint name.
+The endpoint must serve the Kumo Relational MLflow package with the <code class="docutils literal notranslate"><span class="pre">request_json</span></code> input and <code class="docutils literal notranslate"><span class="pre">response_json</span></code> output fields.
+Obtain that model package through your deployment provider, or ask your workspace operator to register it and create the serving endpoint.
+This section covers invocation of an existing compatible endpoint.
+Install the <code class="docutils literal notranslate"><span class="pre">relational</span></code> and <code class="docutils literal notranslate"><span class="pre">databricks-serving</span></code> extras:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span data-line="1">python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"structured-data-models-client[relational,databricks-serving]"</span>
+</span></pre></div>
+</div>
+<p>For notebook setup, see <a class="reference internal" href="#nim-databricks-notebooks"><span class="std std-ref">Databricks notebooks</span></a>.</p>
+<p>Use the <strong>serving endpoint name</strong>, and the Relational request prepared above:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">with</span> <span class="n">SDMClient</span><span class="o">.</span><span class="n">for_databricks_serving</span><span class="p">(</span><span class="s2">"kumo-relational"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="2">    <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">relational_request</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">KumoRelational</span><span class="p">())</span>
+</span><span data-line="3">    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p>Authentication comes from the Databricks SDK’s configured workspace identity, including the notebook’s identity when supported by its environment.
+For another workspace or credential, pass <code class="docutils literal notranslate"><span class="pre">workspace_client=WorkspaceClient(...)</span></code> from <code class="docutils literal notranslate"><span class="pre">databricks.sdk</span></code>.
+Each call sends one <code class="docutils literal notranslate"><span class="pre">request_json</span></code> row and reads one <code class="docutils literal notranslate"><span class="pre">response_json</span></code> row.
+The endpoint must support these fields; an MLflow model with a different input signature will not work.
+This path supports one-shot <code class="docutils literal notranslate"><span class="pre">predict()</span></code>; <code class="docutils literal notranslate"><span class="pre">fit()</span></code> and <code class="docutils literal notranslate"><span class="pre">models()</span></code> are unavailable.
+<code class="docutils literal notranslate"><span class="pre">predict()</span></code> checks Databricks’ 16 MB limit against the wrapped request; reduce the number of context samples or entities per call when a request exceeds it.
+See <a class="reference external" href="https://docs.databricks.com/aws/en/machine-learning/model-serving/score-custom-model-endpoints">Databricks custom-model endpoint documentation</a> for the platform’s invocation interfaces.</p>
+</section>
+<section id="snowflake-model-serving">
+<h2>Snowflake Model Serving<a class="headerlink" href="#snowflake-model-serving" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">SnowflakeSource</span></code> connector reads tables; it does not call a model hosted by Snowflake.
+<code class="docutils literal notranslate"><span class="pre">SDMClient</span></code> currently has no public connection for Snowflake Model Serving.
+To use Snowflake data with the Python workflow in this guide, sample tables as above and send the request to a deployed NIM.
+For a model hosted through the Snowflake Model Registry on Snowpark Container Services, use Snowflake’s serving interfaces.
+See <a class="reference external" href="https://docs.snowflake.com/en/developer-guide/snowflake-ml/inference/real-time-inference-rest-api">Snowflake model serving</a> for the platform’s own serving interfaces.</p>
+</section>
+<section id="reuse-context-with-a-session">
+<h2>Reuse Context with a Session<a class="headerlink" href="#reuse-context-with-a-session" title="Link to this heading">#</a></h2>
+<p>A NIM that supports sessions can retain context across prediction calls for the same task and schema.
+Using the schema, model, and query from the Relational example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">more_request</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">materialize</span><span class="p">(</span>
+</span><span data-line="2">    <span class="n">indices</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span>
+</span><span data-line="3">    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+</span><span data-line="4">    <span class="n">num_context_samples</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+</span><span data-line="5"><span class="p">)</span>
+</span><span data-line="6">
+</span><span data-line="7"><span class="k">with</span> <span class="n">SDMClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"http://localhost:8001"</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+</span><span data-line="8">    <span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
+</span><span data-line="9">        <span class="n">relational_request</span><span class="p">,</span>
+</span><span data-line="10">        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+</span><span data-line="11">        <span class="n">holdout</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span>
+</span><span data-line="12">    <span class="p">)</span> <span class="k">as</span> <span class="n">fitted</span><span class="p">:</span>
+</span><span data-line="13">        <span class="n">first</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">relational_request</span><span class="p">)</span>
+</span><span data-line="14">        <span class="n">second</span> <span class="o">=</span> <span class="n">fitted</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">more_request</span><span class="p">)</span>
+</span><span data-line="15">        <span class="nb">print</span><span class="p">(</span><span class="n">first</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span><span data-line="16">        <span class="nb">print</span><span class="p">(</span><span class="n">second</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">())</span>
+</span></pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">fit()</span></code> uploads and pins context; it does not train the model.
+The fitted handle sends query data against that context, and its context manager releases the session.
+Declare every entity the session may score in <code class="docutils literal notranslate"><span class="pre">holdout</span></code> before pinning context, so those entities cannot become their own labeled examples.
+<code class="docutils literal notranslate"><span class="pre">fit()</span></code> emits an <code class="docutils literal notranslate"><span class="pre">SDMWarning</span></code> when it removes holdout rows from the context; this is expected and reduces the context size.
+For temporal tasks, this excludes those entities at every anchor; use one-shot prediction when historical examples for the same entity are needed.
+If the deployment does not support sessions, use <code class="docutils literal notranslate"><span class="pre">client.predict()</span></code>.
+Sessions live in the serving process and can expire, be evicted, or disappear after a restart.
+Route session calls to the same serving process; create a new session or use one-shot prediction if the session is gone.</p>
+</section>
+<section id="prediction-results">
+<h2>Prediction Results<a class="headerlink" href="#prediction-results" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">client.predict()</span></code> and the fitted handle return a <code class="docutils literal notranslate"><span class="pre">PredictionResult</span></code>.
+<code class="docutils literal notranslate"><span class="pre">result.to_pandas()</span></code> exposes fields such as <code class="docutils literal notranslate"><span class="pre">prediction</span></code>, <code class="docutils literal notranslate"><span class="pre">probability_&lt;class&gt;</span></code>, and <code class="docutils literal notranslate"><span class="pre">quantile_&lt;level&gt;</span></code>, depending on the task and requested outputs.
+Use the returned entity <code class="docutils literal notranslate"><span class="pre">id</span></code> when present, or <code class="docutils literal notranslate"><span class="pre">row_index</span></code> for a positional request, to join predictions to the input.
+Do not assume the endpoint preserves row order.</p>
+<p>Endpoint capabilities depend on the deployed model and version.
+<code class="docutils literal notranslate"><span class="pre">client.models()</span></code> reports the model IDs advertised by a NIM, while <code class="docutils literal notranslate"><span class="pre">client.capabilities(model)</span></code> describes locally known capabilities rather than querying the deployment.</p>
+</section>
+</section>
+
+        </article><button class="back-to-top" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+  </svg>
+  <span>Back to top</span>
+</button><div class="navigation flex print:hidden"><div class="navigation-prev">
+    <a href="processing.html">
+      <i class="i-lucide chevron-left"></i>
+      <div class="page-info">
+        <span>Previous</span><div class="title">Data Processing</div></div>
+    </a>
+  </div><div class="navigation-next">
+    <a href="api/sdm.html">
+      <div class="page-info">
+        <span>Next</span>
+        <div class="title">sdm</div>
+      </div>
+      <i class="i-lucide chevron-right"></i>
+    </a>
+  </div></div></div>
+    </div>
+  </main>
+</div>
+
+      <script src="_static/documentation_options.js?v=7677a7f5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=ccdb6887"></script>
+      <script src="_static/shibuya.js?v=50760d75"></script></body>
+</html>
