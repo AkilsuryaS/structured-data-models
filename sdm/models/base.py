@@ -634,13 +634,11 @@ class ICLModel(torch.nn.Module, abc.ABC):
         requires_grad = self.training
         requires_grad |= any(callback.requires_grad for callback in callbacks)
 
-        processed_context: _ProcessedContext | None = None
-        processed_query: _ProcessedQuery | None = None
+        source_contexts = contexts
+        source_queries = queries
         if isinstance(contexts, _ProcessedContext):
-            processed_context = contexts
             contexts = contexts.members
         if isinstance(queries, _ProcessedQuery):
-            processed_query = queries
             queries = queries.members
 
         if estimator_batch_size == 1 and len(contexts) > 1:
@@ -681,15 +679,11 @@ class ICLModel(torch.nn.Module, abc.ABC):
             estimator_batch_size=estimator_batch_size,
         ):
             outs += self._run_estimators(
-                contexts=processed_context
-                if processed_context is not None and not callbacks
-                else contexts,
-                queries=processed_query
-                if processed_query is not None and not callbacks
-                else queries,
+                contexts=contexts if callbacks else source_contexts,
+                queries=queries if callbacks else source_queries,
                 batch=batch,
                 cache=None,
-                categorical_mask=None,
+                categorical_mask=_categorical_mask(contexts[batch]),
                 class_values=class_values[batch],
                 callbacks=callbacks,
                 requires_grad=requires_grad,
@@ -748,7 +742,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
         *,
         batch: slice,
         cache: Cache | None,
-        categorical_mask: Tensor | None,
+        categorical_mask: Tensor,
         class_values: Sequence[tuple[Any, ...] | None] | None,
         callbacks: Sequence[Callback],
         requires_grad: bool,
@@ -758,35 +752,18 @@ class ICLModel(torch.nn.Module, abc.ABC):
         # Stacking inside the autograd region keeps callback-captured leaves
         # attached to the graph.
         with inference_mode("grad" if requires_grad else "inference"):
-            context_members = (
-                contexts.members
-                if isinstance(contexts, _ProcessedContext)
-                else contexts
-            )
             query_members = (
                 queries.members
                 if isinstance(queries, _ProcessedQuery)
                 else queries
             )
-            if context_members is not None:
-                context_members = context_members[batch]
-            query_members = query_members[batch]
-            if len(query_members) == 1:
-                context = (
-                    None if context_members is None else context_members[0]
-                )
-                query = query_members[0]
-            else:
-                context = (
-                    None
-                    if contexts is None
-                    else _stack_context(contexts, batch=batch)
-                )
-                query = _stack_query(queries, batch=batch)
-
-            if categorical_mask is None:
-                assert context_members is not None
-                categorical_mask = _categorical_mask(context_members)
+            num_members = len(query_members[batch])
+            context = (
+                None
+                if contexts is None
+                else _stack_context(contexts, batch=batch)
+            )
+            query = _stack_query(queries, batch=batch)
             out = self._forward(
                 x_context=None if context is None else context.x,
                 y_context=None if context is None else context.y,
@@ -803,7 +780,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 categorical_mask=categorical_mask,
                 **kwargs,
             )
-            outs = _unstack(out, class_values, len(query_members))
+            outs = _unstack(out, class_values, num_members)
             for i in range(len(outs)):
                 for callback in callbacks:
                     outs[i] = callback.on_model_forward_end(self, outs[i])
