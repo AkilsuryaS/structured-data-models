@@ -37,7 +37,9 @@ def main() -> None:
     runs = {}
     for model_config in MODEL_CONFIGS.values():
         if (result_root / model_config.name).is_dir():
-            runs[f"[SDM] {model_config.name}"] = result_root / model_config.name
+            runs[f"[SDM] {model_config.name}"] = (
+                result_root / model_config.name
+            )
 
     if not runs:
         raise FileNotFoundError(f"No TIME results found under {result_root}")
@@ -45,7 +47,10 @@ def main() -> None:
     # Compare with published results on configurations run by all models:
     configs = set.intersection(
         *(
-            {path.parent.relative_to(run) for path in run.glob("**/metrics.npz")}
+            {
+                path.parent.relative_to(run)
+                for path in run.glob("**/metrics.npz")
+            }
             for run in runs.values()
         )
     )
