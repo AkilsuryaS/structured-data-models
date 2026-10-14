@@ -11,6 +11,7 @@ import sdm.processing as sp
 from sdm import (
     CategoricalTensor,
     ColumnarTensor,
+    EnsembleTable,
     RelatedTables,
     Stype,
     TableTensor,
@@ -19,6 +20,7 @@ from sdm.cache import Cache
 from sdm.models import ICLModel
 from sdm.models.callback import Callback
 from sdm.processing import InvertibleMixin, Processor
+from sdm.processing.execution import RecipeExecution
 
 
 @dataclass
@@ -27,6 +29,7 @@ class _Call:
     x_query: TableTensor | None
     related_context_tables: RelatedTables | None
     related_query_tables: RelatedTables | None
+    y_context: TableTensor | None = None
 
 
 class _RecordingModel(ICLModel):
@@ -59,6 +62,7 @@ class _RecordingModel(ICLModel):
                 x_query=x_query,
                 related_context_tables=related_context_tables,
                 related_query_tables=related_query_tables,
+                y_context=y_context,
             )
         )
         table = x_query if x_query is not None else x_context
@@ -820,3 +824,77 @@ def test_estimator_batching_groups_by_layout_not_names(
         estimator_batch_size=None,
     )
     torch.testing.assert_close(model.predict(x).numerical, expected.numerical)
+
+
+@pytest.mark.parametrize("estimator_batch_size", [2, None])
+def test_estimator_batching_reuses_grouped_inputs(
+    estimator_batch_size: int | None,
+) -> None:
+    model = _RecordingModel()
+    x = torch.arange(24, dtype=torch.float32).reshape(4, 3, 2)
+    y = torch.zeros(4, 3, 1)
+    query = x[:, :2]
+
+    out = model(x, y, query, estimator_batch_size=estimator_batch_size)
+    torch.testing.assert_close(out.numerical, query)
+    model.fit(x, y, estimator_batch_size=estimator_batch_size)
+    torch.testing.assert_close(model.predict(query).numerical, query)
+    for call in model.calls:
+        if call.x_context is not None:
+            assert call.x_context.numerical.untyped_storage().data_ptr() == (
+                x.untyped_storage().data_ptr()
+            )
+        if call.x_query is not None:
+            assert call.x_query.numerical.untyped_storage().data_ptr() == (
+                query.untyped_storage().data_ptr()
+            )
+
+
+def test_estimator_batching_aligns_independent_group_locations() -> None:
+    x_group = TableTensor(numerical=torch.arange(18.0).reshape(3, 3, 2))
+    y_group = TableTensor(numerical=torch.arange(9.0).reshape(3, 3, 1))
+    query_group = TableTensor(numerical=torch.arange(12.0).reshape(3, 2, 2))
+    x = EnsembleTable(
+        groups=(x_group,),
+        locations=((0, 2), (0, 0), (0, 2), (0, 1)),
+    )
+    y = EnsembleTable(
+        groups=(y_group[:1], y_group[1:]),
+        locations=((1, 1), (0, 0), (1, 0), (0, 0)),
+    )
+    query = EnsembleTable(
+        groups=(query_group,),
+        locations=((0, 1), (0, 2), (0, 0), (0, 1)),
+    )
+    model = _RecordingModel()
+    expected_query = torch.stack([query[i].numerical for i in range(4)])
+    execution = RecipeExecution(sp.Recipe())
+    contexts = execution.fit_transform(x=x, y=y, related_tables=None)
+    queries = execution.transform(x=query, related_tables=None)
+    outs = model._forward_members(contexts, queries, estimator_batch_size=None)
+    torch.testing.assert_close(
+        torch.stack([out.numerical for out in outs]), expected_query
+    )
+    expected_x = torch.stack([x[i].numerical for i in range(4)])
+    expected_y = torch.stack([y[i].numerical for i in range(4)])
+    (call,) = model.calls
+    assert call.x_context is not None
+    assert call.y_context is not None
+    torch.testing.assert_close(call.x_context.numerical, expected_x)
+    torch.testing.assert_close(call.y_context.numerical, expected_y)
+
+
+def test_shared_estimator_batch_has_writable_inputs() -> None:
+    model = _RecordingModel()
+    x = torch.arange(6.0).reshape(3, 2)
+    y = torch.zeros(3, 1)
+    model(x, y, x, num_estimators=4, estimator_batch_size=None)
+    call = model.calls[0]
+    assert call.x_context is not None
+    with torch.inference_mode():
+        call.x_context.numerical.add_(1)
+    torch.testing.assert_close(
+        call.x_context.numerical,
+        (x + 1).expand(4, 3, 2),
+    )
+    torch.testing.assert_close(x, torch.arange(6.0).reshape(3, 2))

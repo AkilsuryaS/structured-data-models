@@ -33,6 +33,8 @@ from sdm.processing.execution import (
     MemberContext,
     MemberQuery,
     RecipeExecution,
+    _ContextGroups,
+    _QueryGroups,
 )
 from sdm.relational.task import RelatedTablesSchema
 from sdm.tensor.table import TableSchema
@@ -214,7 +216,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
         )
 
         # Regression: invert target before stacking estimator outputs.
-        if contexts[0].y.numerical.size(-1) > 0:
+        if contexts.members[0].y.numerical.size(-1) > 0:
             with (
                 torch.amp.autocast(x_query.device.type, enabled=False),
                 inference_mode("grad" if requires_grad else "inference"),
@@ -289,7 +291,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
             torch.amp.autocast(x.device.type, enabled=False),
             inference_mode("no_grad"),
         ):
-            contexts = recipe_execution.fit_transform(
+            context_groups = recipe_execution.fit_transform(
                 x=x,
                 y=y,
                 related_tables=related_tables,
@@ -299,7 +301,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
             )
 
         contexts = [
-            self._prepare_context(context, callbacks) for context in contexts
+            self._prepare_context(context, callbacks)
+            for context in context_groups.members
         ]
         class_values = _class_values(contexts, estimator_batch_size)
         batches = _batch_slices(
@@ -315,7 +318,11 @@ class ICLModel(torch.nn.Module, abc.ABC):
         )
         for i, batch in enumerate(batches):
             with inference_mode("no_grad"):
-                context = _stack_context(contexts[batch])
+                context = _stack_context(
+                    context_groups.select(batch)
+                    if not callbacks
+                    else contexts[batch]
+                )
                 categorical_mask = _categorical_mask(contexts[batch])
                 batch_cache = Cache(
                     x_schemas=tuple(
@@ -439,7 +446,9 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 torch.amp.autocast(x.device.type, enabled=False),
                 inference_mode("no_grad" if requires_grad else "inference"),
             ):
-                queries = recipe_execution.transform(x, related_tables)
+                query_groups = recipe_execution.transform(
+                    x=x, related_tables=related_tables
+                )
 
             if x.is_cuda:
                 assert compute_stream is not None
@@ -453,6 +462,9 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 assert cache is not None
 
                 x_schemas = cast(tuple[TableSchema, ...], cache["x_schemas"])
+                grouped_queries = query_groups.select(
+                    slice(start, start + len(x_schemas))
+                )
                 batch_queries = [
                     self._prepare_query(
                         query=query,
@@ -464,7 +476,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                         callbacks=callbacks,
                     )
                     for query, x_schema in zip(
-                        queries[start : start + len(x_schemas)],
+                        grouped_queries.members,
                         x_schemas,
                         strict=True,
                     )
@@ -480,7 +492,9 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
                 outs += self._run_estimators(
                     contexts=None,
-                    queries=batch_queries,
+                    queries=grouped_queries
+                    if not callbacks
+                    else batch_queries,
                     cache=cache,
                     categorical_mask=cast(Tensor, cache["categorical_mask"]),
                     class_values=cast(
@@ -605,8 +619,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
     def _forward_members(
         self,
-        contexts: Sequence[MemberContext],
-        queries: Sequence[MemberQuery],
+        contexts: Sequence[MemberContext] | _ContextGroups,
+        queries: Sequence[MemberQuery] | _QueryGroups,
         *,
         estimator_batch_size: int | None = 1,
         callbacks: Sequence[Callback] | None = None,
@@ -621,6 +635,15 @@ class ICLModel(torch.nn.Module, abc.ABC):
         callbacks = () if callbacks is None else callbacks
         requires_grad = self.training
         requires_grad |= any(callback.requires_grad for callback in callbacks)
+
+        context_groups: _ContextGroups | None = None
+        query_groups: _QueryGroups | None = None
+        if isinstance(contexts, _ContextGroups):
+            context_groups = contexts
+            contexts = contexts.members
+        if isinstance(queries, _QueryGroups):
+            query_groups = queries
+            queries = queries.members
 
         if estimator_batch_size == 1 and len(contexts) > 1:
             outs: list[TableTensor] = []
@@ -660,8 +683,12 @@ class ICLModel(torch.nn.Module, abc.ABC):
             estimator_batch_size=estimator_batch_size,
         ):
             outs += self._run_estimators(
-                contexts=contexts[batch],
-                queries=queries[batch],
+                contexts=context_groups.select(batch)
+                if context_groups is not None and not callbacks
+                else contexts[batch],
+                queries=query_groups.select(batch)
+                if query_groups is not None and not callbacks
+                else queries[batch],
                 cache=None,
                 categorical_mask=None,
                 class_values=class_values[batch],
@@ -717,8 +744,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
 
     def _run_estimators(
         self,
-        contexts: Sequence[MemberContext] | None,
-        queries: Sequence[MemberQuery],
+        contexts: Sequence[MemberContext] | _ContextGroups | None,
+        queries: Sequence[MemberQuery] | _QueryGroups,
         *,
         cache: Cache | None,
         categorical_mask: Tensor | None,
@@ -731,9 +758,21 @@ class ICLModel(torch.nn.Module, abc.ABC):
         # Stacking inside the autograd region keeps callback-captured leaves
         # attached to the graph.
         with inference_mode("grad" if requires_grad else "inference"):
-            if len(queries) == 1:
-                context = None if contexts is None else contexts[0]
-                query = queries[0]
+            context_members = (
+                contexts.members
+                if isinstance(contexts, _ContextGroups)
+                else contexts
+            )
+            query_members = (
+                queries.members
+                if isinstance(queries, _QueryGroups)
+                else queries
+            )
+            if len(query_members) == 1:
+                context = (
+                    None if context_members is None else context_members[0]
+                )
+                query = query_members[0]
             else:
                 context = (
                     None if contexts is None else _stack_context(contexts)
@@ -741,8 +780,8 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 query = _stack_query(queries)
 
             if categorical_mask is None:
-                assert contexts is not None
-                categorical_mask = _categorical_mask(contexts)
+                assert context_members is not None
+                categorical_mask = _categorical_mask(context_members)
             out = self._forward(
                 x_context=None if context is None else context.x,
                 y_context=None if context is None else context.y,
@@ -759,7 +798,7 @@ class ICLModel(torch.nn.Module, abc.ABC):
                 categorical_mask=categorical_mask,
                 **kwargs,
             )
-            outs = _unstack(out, class_values, len(queries))
+            outs = _unstack(out, class_values, len(query_members))
             for i in range(len(outs)):
                 for callback in callbacks:
                     outs[i] = callback.on_model_forward_end(self, outs[i])

@@ -7,8 +7,13 @@ from typing import Any, cast
 import torch
 from torch import Tensor
 
-from sdm import Stype, StypeLike, TableTensor
-from sdm.processing.execution import MemberContext, MemberQuery
+from sdm import EnsembleTable, Stype, StypeLike, TableTensor
+from sdm.processing.execution import (
+    MemberContext,
+    MemberQuery,
+    _ContextGroups,
+    _QueryGroups,
+)
 
 
 def _table_layout(table: TableTensor) -> Hashable:
@@ -89,9 +94,42 @@ def _stack(tables: Sequence[TableTensor]) -> TableTensor:
     return cast(TableTensor, torch.stack(renamed))
 
 
-def _stack_context(members: Sequence[MemberContext]) -> MemberContext:
+def _stack_ensemble(
+    table: EnsembleTable, member_ids: Sequence[int]
+) -> TableTensor:
+    group_ids = tuple(table._locations[i][0] for i in member_ids)
+    if all(group_id == group_ids[0] for group_id in group_ids):
+        selected = table[member_ids]
+        out = selected.expanded_group(0)
+        # Shared members need distinct writable storage, as with stacking.
+        if any(
+            block.numel() > 0 and block.stride(0) == 0
+            for _, block in out.items()
+        ):
+            return cast(TableTensor, out.clone())
+        return out
+    return _stack([table[i] for i in member_ids])
+
+
+def _stack_context(
+    members: Sequence[MemberContext] | _ContextGroups,
+) -> MemberContext:
+    groups: _ContextGroups | None = None
+    if isinstance(members, _ContextGroups):
+        groups = members
+        members = members.members
     if len(members) == 1:
         return members[0]
+    if groups is not None:
+        return MemberContext(
+            x=_stack_ensemble(groups.x, groups.member_ids),
+            y=_stack_ensemble(groups.y, groups.member_ids),
+            x_context_only=None
+            if groups.x_context_only is None
+            else _stack_ensemble(groups.x_context_only, groups.member_ids),
+            related_tables=None,
+            input_stypes=members[0].input_stypes,
+        )
     return MemberContext(
         x=_stack([member.x for member in members]),
         y=_stack([member.y for member in members]),
@@ -105,9 +143,18 @@ def _stack_context(members: Sequence[MemberContext]) -> MemberContext:
     )
 
 
-def _stack_query(members: Sequence[MemberQuery]) -> MemberQuery:
+def _stack_query(members: Sequence[MemberQuery] | _QueryGroups) -> MemberQuery:
+    groups: _QueryGroups | None = None
+    if isinstance(members, _QueryGroups):
+        groups = members
+        members = members.members
     if len(members) == 1:
         return members[0]
+    if groups is not None:
+        return MemberQuery(
+            x=_stack_ensemble(groups.x, groups.member_ids),
+            related_tables=None,
+        )
     return MemberQuery(
         x=_stack([member.x for member in members]), related_tables=None
     )
