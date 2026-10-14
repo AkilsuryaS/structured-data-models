@@ -31,7 +31,6 @@ overview
 tensor
 icl
 processing
-nim
 ```
 
 ```{toctree}
