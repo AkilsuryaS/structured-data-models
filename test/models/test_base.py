@@ -18,6 +18,7 @@ from sdm import (
 )
 from sdm.cache import Cache
 from sdm.models import ICLModel
+from sdm.models._batching import _stack_context, _stack_ensemble
 from sdm.models.callback import Callback
 from sdm.processing import InvertibleMixin, Processor
 from sdm.processing.execution import RecipeExecution
@@ -29,7 +30,6 @@ class _Call:
     x_query: TableTensor | None
     related_context_tables: RelatedTables | None
     related_query_tables: RelatedTables | None
-    y_context: TableTensor | None = None
 
 
 class _RecordingModel(ICLModel):
@@ -62,7 +62,6 @@ class _RecordingModel(ICLModel):
                 x_query=x_query,
                 related_context_tables=related_context_tables,
                 related_query_tables=related_query_tables,
-                y_context=y_context,
             )
         )
         table = x_query if x_query is not None else x_context
@@ -849,6 +848,13 @@ def test_estimator_batching_reuses_grouped_inputs(
                 query.untyped_storage().data_ptr()
             )
 
+    groups = RecipeExecution(sp.Recipe()).fit_transform(
+        x=x, y=y, related_tables=None, context_only_columns=("0",)
+    )
+    batch = _stack_context(groups.select(slice(1, 3)))
+    assert batch.x_context_only is not None
+    torch.testing.assert_close(batch.x_context_only.numerical, x[1:3, :, :1])
+
 
 def test_estimator_batching_aligns_independent_group_locations() -> None:
     x_group = TableTensor(numerical=torch.arange(18.0).reshape(3, 3, 2))
@@ -866,22 +872,11 @@ def test_estimator_batching_aligns_independent_group_locations() -> None:
         groups=(query_group,),
         locations=((0, 1), (0, 2), (0, 0), (0, 1)),
     )
-    model = _RecordingModel()
-    expected_query = torch.stack([query[i].numerical for i in range(4)])
-    execution = RecipeExecution(sp.Recipe())
-    contexts = execution.fit_transform(x=x, y=y, related_tables=None)
-    queries = execution.transform(x=query, related_tables=None)
-    outs = model._forward_members(contexts, queries, estimator_batch_size=None)
-    torch.testing.assert_close(
-        torch.stack([out.numerical for out in outs]), expected_query
-    )
-    expected_x = torch.stack([x[i].numerical for i in range(4)])
-    expected_y = torch.stack([y[i].numerical for i in range(4)])
-    (call,) = model.calls
-    assert call.x_context is not None
-    assert call.y_context is not None
-    torch.testing.assert_close(call.x_context.numerical, expected_x)
-    torch.testing.assert_close(call.y_context.numerical, expected_y)
+    for table in (x, y, query):
+        expected = torch.stack([table[i].numerical for i in range(4)])
+        torch.testing.assert_close(
+            _stack_ensemble(table, range(4)).numerical, expected
+        )
 
 
 def test_shared_estimator_batch_has_writable_inputs() -> None:
