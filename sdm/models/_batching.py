@@ -95,19 +95,19 @@ def _stack(tables: Sequence[TableTensor]) -> TableTensor:
 
 
 def _stack_ensemble(table: EnsembleTable, *, batch: slice) -> TableTensor:
+    """Reuse one storage group, or stack members from different groups."""
     member_ids = range(*batch.indices(len(table)))
-    group_ids = tuple(table._locations[i][0] for i in member_ids)
-    if all(group_id == group_ids[0] for group_id in group_ids):
-        selected = table[member_ids]
-        out = selected.expanded_group(0)
-        # Shared members need distinct writable storage, as with stacking.
-        if any(
-            block.numel() > 0 and block.stride(0) == 0
-            for _, block in out.items()
-        ):
-            return cast(TableTensor, out.clone())
-        return out
-    return _stack([table[i] for i in member_ids])
+    group_ids = {table._locations[i][0] for i in member_ids}
+    if len(group_ids) > 1:
+        return _stack([table[i] for i in member_ids])
+
+    out = table[batch].expanded_group(0)
+    # Shared members need distinct writable storage, as with stacking.
+    if any(
+        block.numel() > 0 and block.stride(0) == 0 for _, block in out.items()
+    ):
+        return cast(TableTensor, out.clone())
+    return out
 
 
 def _stack_context(
@@ -115,6 +115,7 @@ def _stack_context(
     *,
     batch: slice,
 ) -> MemberContext:
+    """Prepare context inputs for the selected estimators."""
     processed: _ProcessedContext | None = None
     if isinstance(context, _ProcessedContext):
         processed = context
@@ -149,6 +150,7 @@ def _stack_context(
 def _stack_query(
     query: Sequence[MemberQuery] | _ProcessedQuery, *, batch: slice
 ) -> MemberQuery:
+    """Prepare query inputs for the selected estimators."""
     processed: _ProcessedQuery | None = None
     if isinstance(query, _ProcessedQuery):
         processed = query
