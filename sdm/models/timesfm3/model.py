@@ -45,8 +45,8 @@ from sdm.tensor.table import TableSchema
 
 
 class TimesFM3(ICLModel):
-    r"""The multivariate forecasting foundation model from `"TimesFM-3: A
-    Zero-shot Foundation Model for Multivariate Forecasting"
+    r"""The time series forecasting foundation model from
+    `"TimesFM-3: A Zero-shot Foundation Model for Multivariate Forecasting"
     <https://research.google/blog/
     timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting>`__.
 

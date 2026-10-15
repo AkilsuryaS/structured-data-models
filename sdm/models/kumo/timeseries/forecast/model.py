@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# ruff: noqa: D205
+
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -15,29 +17,35 @@ from sdm.models.kumo.timeseries.forecast.recipe import default_recipe
 
 
 class KumoForecast(ICLModel):
-    """Kumo time-series forecasting with the Kumo-Forecast checkpoints.
+    r"""The time series forecasting foundation model from
+    `"New NVIDIA NV-Tesseract Time Series Models Advance Dataset Processing and
+    Anomaly Detection" <https://developer.nvidia.com/blog/
+    new-nvidia-nv-tesseract-time-series-models-advance-dataset-processing-and-
+    anomaly-detection>`__.
 
-    Rows are chronological, regularly spaced time steps. ``y_context`` holds
-    one or more target histories; numerical ``x_context`` columns are optional
-    past covariates. The last 512 rows are used and at least 512 are required.
+    .. figure:: /images/kumo_forecast_light.png
+        :width: 100%
 
-    ``x_query`` determines a forecast length from 1 to 72 steps. Its values
-    are ignored: this model does not support future-known covariates. Supply
-    NaN placeholders with the same schema as ``x_context``. With no covariates,
-    use tensors of shape ``[T, 0]`` and ``[H, 0]``. Predictions retain target
-    column names and original scale. Higher-rank inputs follow SDM's ensemble
-    semantics; pass ``num_estimators=1`` to preserve batch dimensions.
+    :class:`KumoForecast` is a time-series foundation model for multivariate
+    forecasting, with optional historical covariates.
 
-    The default recipe reproduces the published fixed standardizer. This is
-    direct backbone forecasting; SDK retrieval correction and autoregressive
-    extrapolation beyond the checkpoint horizon are not included.
+    Architecturally, it combines patch-based time-series embeddings with a
+    `MOMENT <https://arxiv.org/abs/2402.03885>`__ transformer encoder and a
+    pretrained forecasting head.
+    Optional cross-channel mixing lets forecasts use dependencies between
+    variates after temporal encoding. The forecasting head predicts the native
+    up to 72-step horizon directly from a 512-step history.
+
+    Within the :class:`~sdm.models.ICLModel` protocol, :class:`KumoForecast`
+    treats rows as ordered time steps. In a default forward pass,
+    ``x_context`` contains past-only historical covariates, ``y_context``
+    contains one or more past target series, and ``x_query`` is required to be
+    empty.
 
     Args:
-        pretrained: Whether to download pretrained weights when ``checkpoint``
-            is not supplied.
-        cross_channel: Whether to mix variates after the T5 encoder.
-            Selects the cross-channel or base published checkpoint.
-        device: The device for model parameters.
+        pretrained: Whether to load the pretrained checkpoint.
+        cross_channel: Whether to mix variates after encoding.
+        device: The device.
     """
 
     supported_feature_stypes: ClassVar[frozenset[Stype]] = frozenset(
@@ -54,7 +62,6 @@ class KumoForecast(ICLModel):
         self,
         pretrained: bool = True,
         cross_channel: bool = True,
-        checkpoint: str | Path | None = None,
         device: torch.device | str | None = None,
     ) -> None:
         super().__init__(task=Task.regression)
