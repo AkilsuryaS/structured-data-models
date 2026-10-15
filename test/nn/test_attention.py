@@ -232,6 +232,27 @@ def test_sdpa_scale(device: torch.device) -> None:
 
 
 @withCUDA
+def test_sdpa_additive_bias(device: torch.device) -> None:
+    module = SDPA(num_query_heads=2)
+    query = torch.randn(2, 4, 2, 8, device=device)
+    key = torch.randn(5, 2, 8, device=device)
+    value = torch.randn_like(key)
+    bias = torch.randn(2, 2, 1, 5, device=device, requires_grad=True)
+
+    out = module(query=query, key=key, value=value, attn_mask=bias)
+    expected = reference_sdpa(
+        query=query,
+        key=key,
+        value=value,
+        attn_mask=bias,
+    )
+    torch.testing.assert_close(out, expected)
+    (gradient,) = torch.autograd.grad(out.square().sum(), bias)
+    (expected_gradient,) = torch.autograd.grad(expected.square().sum(), bias)
+    torch.testing.assert_close(gradient, expected_gradient)
+
+
+@withCUDA
 @pytest.mark.parametrize("value_channels", [8, 4])
 def test_sdpa_empty_batch(device: torch.device, value_channels: int) -> None:
     # Empty key/value batches should give empty results, even with queries.
@@ -279,17 +300,6 @@ def test_sdpa_errors() -> None:
             key=key,
             value=value,
             seqused_key_value=torch.tensor([1], dtype=torch.int64),
-        )
-
-    with pytest.raises(
-        ValueError,
-        match=r"`attn_mask` must have dtype torch\.bool",
-    ):
-        module(
-            query=query,
-            key=key,
-            value=value,
-            attn_mask=torch.ones(1, 2, 2, dtype=torch.float32),
         )
 
     with pytest.raises(ValueError, match="must be divisible"):
@@ -456,15 +466,6 @@ def test_attention_errors() -> None:
         module(
             query=query,
             seqused_key_value=torch.tensor([4, 4], dtype=torch.int64),
-        )
-
-    with pytest.raises(
-        ValueError,
-        match=r"`attn_mask` must have dtype torch\.bool",
-    ):
-        module(
-            query=query,
-            attn_mask=torch.ones(2, 1, 4, 4, dtype=torch.float32),
         )
 
     with pytest.raises(ValueError, match="must be divisible"):
