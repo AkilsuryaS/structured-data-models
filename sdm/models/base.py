@@ -553,11 +553,18 @@ class ICLModel(torch.nn.Module, abc.ABC):
         items: dict[Hashable, object] | None = None
         for index in pinned_batches:
             batch = cast(Cache, cache[index])
-            if not batch.is_pinned():
+            if any(
+                tensor.is_cpu and not tensor.is_pinned()
+                for tensor in batch._tensors()
+            ):
                 if items is None:
                     set_pinned_max_round_threshold(mb=1)
                     items = dict(cache.items())
-                items[index] = batch.pin_memory()
+                items[index] = batch._apply_tensor(
+                    lambda tensor: (
+                        tensor.pin_memory() if tensor.is_cpu else tensor
+                    )
+                )
         if items is not None:
             self._cache = Cache(items).freeze()
 

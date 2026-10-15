@@ -76,6 +76,7 @@ Unlike {py:meth}`~sdm.models.ICLModel.forward`, {py:meth}`~sdm.models.ICLModel.p
 CUDA ensembles store fitted caches in pinned CPU memory so transfers can overlap prediction.
 Saving and loading a whole fitted model, or making a deep copy, restores this pinning when CUDA is available.
 Restoring pinning copies the cached CPU tensors during loading and can temporarily increase host-memory use.
+Tensors explicitly mapped to another device retain that placement.
 Previously saved models without pinning metadata retain their existing loading behavior.
 
 ## Model Concepts
