@@ -73,6 +73,11 @@ Use one-shot {py:meth}`~sdm.models.ICLModel.forward` calls for one-time calls wh
 
 Unlike {py:meth}`~sdm.models.ICLModel.forward`, {py:meth}`~sdm.models.ICLModel.predict` does not support gradient-based fine-tuning and raises if the model is in train mode.
 
+CUDA ensembles store fitted caches in pinned CPU memory so transfers can overlap prediction.
+Saving and loading a whole fitted model, or making a deep copy, restores this pinning when CUDA is available.
+Restoring pinning copies the cached CPU tensors during loading and can temporarily increase host-memory use.
+Previously saved models without pinning metadata retain their existing loading behavior.
+
 ## Model Concepts
 
 Structured data foundation models are not bound to a specific task type.
