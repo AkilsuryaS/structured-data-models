@@ -273,7 +273,7 @@ number of key/value heads (<code class="docutils literal notranslate"><span clas
 <li><p><strong>value</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><em>Tensor</em></a>) – The value tensor with shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">KV,</span> <span class="pre">Hkv,</span> <span class="pre">C]</span></code>.</p></li>
 <li><p><strong>seqused_key_value</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><em>Tensor</em></a><em> | </em><em>None</em>) – Valid key/value lengths with shape <code class="docutils literal notranslate"><span class="pre">[...]</span></code> and
 <a class="reference external" href="https://docs.pytorch.org/docs/stable/tensor_attributes.html#dtype-doc" title="(in PyTorch v2.14)"><span class="xref std std-ref">torch.int32</span></a> dtype.</p></li>
-<li><p><strong>attn_mask</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><em>Tensor</em></a><em> | </em><em>None</em>) – Boolean attention mask with shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">Q,</span> <span class="pre">KV]</span></code>.
+<li><p><strong>attn_mask</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.14)"><em>Tensor</em></a><em> | </em><em>None</em>) – Boolean attention mask with shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">Hq,</span> <span class="pre">Q,</span> <span class="pre">KV]</span></code>.
 Entries set to <code class="docutils literal notranslate"><span class="pre">True</span></code> participate in attention.</p></li>
 <li><p><strong>is_causal</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><em>bool</em></a>) – Apply an upper-left causal attention mask.</p></li>
 </ul>
@@ -315,7 +315,7 @@ Entries set to <code class="docutils literal notranslate"><span class="pre">True
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=b53e4682"></script>
+      <script src="../../_static/documentation_options.js?v=9f79eeaa"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
