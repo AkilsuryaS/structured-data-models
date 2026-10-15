@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from numbers import Integral
 from typing import Any, ClassVar, Literal, cast
 
 import torch
@@ -16,6 +17,8 @@ from sdm import Recipe, RelatedTables, Stype, TableTensor, Task, TaskLike
 from sdm.cache import Cache
 from sdm.models import ECOC, ICLModel
 from sdm.models._huggingface import download_checkpoint
+from sdm.models.callback import Callback
+from sdm.models.kumo.tabular.finetune import _context_rows, fit_context
 from sdm.models.kumo.tabular.icl import ICLBlock
 from sdm.models.kumo.tabular.recipe import default_recipe
 from sdm.models.kumo.tabular.row_embedding import RowEmbedding
@@ -143,6 +146,142 @@ class KumoTabular(ICLModel):
         r""":meta private:"""  # noqa: D415
         return default_recipe()
 
+    def fit(
+        self,
+        x: Tensor | TableTensor,
+        y: Tensor | TableTensor,
+        related_tables: RelatedTables | None = None,
+        *,
+        recipe: Recipe | None = None,
+        n_estimators: int | None = None,
+        num_estimators: int | None = None,
+        context_only_columns: Sequence[str] | None = None,
+        estimator_batch_size: int | None = 1,
+        callbacks: Sequence[Callback] | None = None,
+        generator: torch.Generator | None = None,
+        finetune: bool | int | float = False,
+        query_batch_size: int = 4096,
+        learning_rate: float = 1e-3,
+        min_learning_rate: float = 1e-5,
+        max_epochs: int = 20,
+        patience: int = 5,
+        min_epochs: int = 5,
+        min_improvement: float = 1e-4,
+        shuffle_columns: bool = False,
+        memory_fraction: float = 0.9,
+        **kwargs: Any,
+    ) -> None:
+        """Fit examples, optionally optimizing a compressed context.
+
+        ``finetune=False`` (or zero) performs ordinary zero-shot fitting.
+        ``finetune=True`` tunes min(32,768, available training rows), after
+        reserving the fixed 10% validation holdout. Contexts are sampled
+        randomly within each class, preserving training class proportions
+        subject to including both classes. A positive whole
+        number requests exactly that many context rows; a fraction in (0, 1)
+        requests floor(fraction * supplied training rows). Positive values
+        always tune binary context embeddings on CUDA. Each estimator receives
+        the requested context size and its own optimization budget.
+        Context sampling excludes a fixed 10% validation holdout.
+        Unavailable rows or insufficient memory raise an error without reducing
+        the requested count. ``finetune_result_`` reports the tuned outcome.
+
+        Args:
+            x: Unbatched training features for tuning.
+            y: Training targets.
+            related_tables: Related context tables for ordinary fitting.
+            recipe: Preprocessing and output recipe.
+            n_estimators: Number of estimators. Defaults to eight for zero-shot
+                fitting and one for tuning. Tuned estimators share a fixed
+                validation holdout and average their output probabilities.
+            num_estimators: Alias for n_estimators; specify only one name.
+            context_only_columns: Context-only features for ordinary fitting.
+            estimator_batch_size: Estimators per ordinary inference batch.
+                Tuned estimators always train and predict sequentially.
+            callbacks: Callbacks for ordinary fitting.
+            generator: Generator for preprocessing and sampling.
+            kwargs: Additional ordinary model arguments.
+            query_batch_size: Queries sampled per update and validation batch.
+                Defaults to 4,096; training batches are capped by the number
+                of available training rows.
+            learning_rate: Adam learning rate (without weight decay).
+            min_learning_rate: Cosine schedule's final learning rate.
+            max_epochs: Maximum sampling epochs.
+            patience: Epochs without sufficient validation improvement.
+            min_epochs: Minimum epochs before early stopping.
+            min_improvement: Required decrease in validation cross-entropy.
+            shuffle_columns: Permute processed columns jointly each update.
+            memory_fraction: Fraction of available CUDA memory to use.
+            finetune: False or zero for ordinary fitting; True to tune up to
+                32,768 rows from the training pool after the validation split.
+                A positive row count or fraction of supplied training rows
+                requests an explicit context size per estimator.
+
+        Other arguments follow :meth:`ICLModel.fit`. Returns ``None``.
+        """
+        context_rows = _context_rows(finetune, x.size(-2))
+        if n_estimators is not None and num_estimators is not None:
+            raise ValueError(
+                "Specify only one of n_estimators and num_estimators."
+            )
+        estimators = (
+            n_estimators if n_estimators is not None else num_estimators
+        )
+        if estimators is None:
+            estimators = 1 if context_rows else 8
+        if (
+            isinstance(estimators, bool)
+            or not isinstance(estimators, Integral)
+            or estimators < 1
+        ):
+            raise ValueError("n_estimators must be a positive integer.")
+        if context_rows:
+            return fit_context(
+                self,
+                x,
+                y,
+                observer=kwargs.pop("_finetune_observer", None),
+                max_steps=kwargs.pop("_finetune_max_steps", None),
+                context_rows=context_rows,
+                fit_kwargs=dict(
+                    related_tables=related_tables,
+                    recipe=recipe,
+                    num_estimators=int(estimators),
+                    context_only_columns=context_only_columns,
+                    estimator_batch_size=estimator_batch_size,
+                    callbacks=callbacks,
+                    generator=generator,
+                    **kwargs,
+                ),
+                query_batch_size=query_batch_size,
+                learning_rate=learning_rate,
+                min_learning_rate=min_learning_rate,
+                max_epochs=max_epochs,
+                patience=patience,
+                min_epochs=min_epochs,
+                min_improvement=min_improvement,
+                shuffle_columns=shuffle_columns,
+                memory_fraction=memory_fraction,
+            )
+
+        return super().fit(
+            x=x,
+            y=y,
+            related_tables=related_tables,
+            recipe=recipe,
+            num_estimators=int(estimators),
+            context_only_columns=context_only_columns,
+            estimator_batch_size=estimator_batch_size,
+            callbacks=callbacks,
+            generator=generator,
+            **kwargs,
+        )
+
+    def clear(self) -> None:
+        """Discard fitted context and its tuning report."""
+        super().clear()
+        self.finetune_result_: dict[str, Any] | None = None
+
     def _load_from_pretrained(
         self,
         size: Literal["small", "medium", "large"],
@@ -182,7 +321,6 @@ class KumoTabular(ICLModel):
         categorical_mask: Tensor,
         **kwargs: Any,
     ) -> TableTensor:  # [..., R_query, num_classes or 999]
-
         if x_query is None and x_context is not None:
             x = x_context.numerical
         elif x_context is None and x_query is not None:
@@ -204,6 +342,31 @@ class KumoTabular(ICLModel):
             y = x.new_empty(
                 (*x.size()[:-2], 0),
                 dtype=torch.int64 if classes is not None else x.dtype,
+            )
+
+        if "_context_device" in kwargs:
+            x = x.to(kwargs["_context_device"])
+            y = y.to(x.device)
+            categorical_mask = categorical_mask.to(x.device)
+
+        if cache is not None and "finetune_dtype" in cache:
+            device = next(self.parameters()).device
+            x = x.to(device)
+            y = y.to(device)
+            categorical_mask = categorical_mask.to(device)
+            with torch.autocast(
+                "cuda", dtype=cast(torch.dtype, cache["finetune_dtype"])
+            ):
+                out = self.models[Task.classification](
+                    x=x,
+                    y=y,
+                    categorical_mask=categorical_mask,
+                    cache=cache,
+                )[..., :2]
+            assert classes is not None
+            return TableTensor(
+                columns={Stype.numerical: [str(i) for i in classes.tolist()]},
+                numerical=out,
             )
 
         categorical_mask = categorical_mask.expand(*x.size()[:-2], -1)
@@ -305,6 +468,18 @@ class _KumoTabular(torch.nn.Module):
         *,
         cache: Cache | None = None,
     ) -> Tensor:  # [..., R_test, num_classes or num_quantiles]
-        x = self.row_embedding(x, y, categorical_mask, cache=cache)
-        x = self.row_project(x)
+        x = self.encode(x, y, categorical_mask, cache=cache)
         return self.icl_block(x=x, y=y, cache=cache)
+
+    def encode(
+        self,
+        x: Tensor,
+        y: Tensor,
+        categorical_mask: Tensor,
+        *,
+        cache: Cache | None = None,
+    ) -> Tensor:
+        """Encode table rows before the ICL target embedding."""
+        return self.row_project(
+            self.row_embedding(x, y, categorical_mask, cache=cache)
+        )

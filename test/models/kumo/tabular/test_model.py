@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
+from typing import Literal, TypedDict
 
 import pytest
 import torch
@@ -10,6 +10,10 @@ import sdm.processing as sp
 from sdm import CategoricalTensor, Stype, TableTensor
 from sdm.models import KumoTabular
 from sdm.testing import onlyMPS
+
+
+class _FitKwargs(TypedDict, total=False):
+    finetune: int | float
 
 
 def _build(
@@ -183,9 +187,13 @@ def test_estimator_batching(
     )
 
 
+@pytest.mark.parametrize(
+    "fit_kwargs", [{}, {"finetune": 0}, {"finetune": 0.0}, {"finetune": False}]
+)
 def test_fit_predict(
     cls_model: KumoTabular,
     reg_model: KumoTabular,
+    fit_kwargs: _FitKwargs,
 ) -> None:
     x_context, x_query = _features()
     for num_classes in (3, 11):
@@ -195,6 +203,7 @@ def test_fit_predict(
             y_context=target,
             x_query=x_query,
             recipe=_recipe(),
+            num_estimators=8,
             generator=torch.Generator().manual_seed(0),
         )
         cls_model.fit(
@@ -202,6 +211,7 @@ def test_fit_predict(
             y=target,
             recipe=_recipe(),
             generator=torch.Generator().manual_seed(0),
+            **fit_kwargs,
         )
         actual = cls_model.predict(x_query)
 
@@ -212,8 +222,10 @@ def test_fit_predict(
     x_context, x_query = _features(Stype.numerical)
     target = _reg_target()
     recipe = _recipe()
-    expected = reg_model(x_context, target, x_query, recipe=recipe)
-    reg_model.fit(x_context, target, recipe=recipe)
+    expected = reg_model(
+        x_context, target, x_query, recipe=recipe, num_estimators=8
+    )
+    reg_model.fit(x_context, target, recipe=recipe, **fit_kwargs)
     actual = reg_model.predict(x_query)
 
     torch.testing.assert_close(
@@ -222,6 +234,12 @@ def test_fit_predict(
         atol=1e-4,
         rtol=1e-4,
     )
+
+
+def test_fit_finetune_requires_cuda(cls_model: KumoTabular) -> None:
+    x_context, _ = _features()
+    with pytest.raises(RuntimeError, match="CUDA"):
+        cls_model.fit(x_context, _cls_target(), finetune=2)
 
 
 def test_missing_values_pass_through_fit_predict(
