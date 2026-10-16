@@ -7,11 +7,15 @@ from typing import TypeAlias
 import torch
 from torch import Tensor
 
-_LogScale: TypeAlias = Callable[[Tensor, Tensor, Tensor, Tensor | None], Tensor]
+_LogScale: TypeAlias = Callable[
+    [Tensor, Tensor, Tensor, Tensor | None], Tensor
+]
 
 _triton_log_scale: _LogScale | None = None
 try:
-    from sdm._kernels.triton.log_scale import log_scale as _triton_log_scale_impl
+    from sdm._kernels.triton.log_scale import (
+        log_scale as _triton_log_scale_impl,
+    )
 except ImportError:
     pass
 else:
@@ -42,7 +46,9 @@ def log_scale(
             for x in inputs
         )
         and (gate is None or gate.shape == query.shape)
-        and not (torch.is_grad_enabled() and any(x.requires_grad for x in inputs))
+        and not (
+            torch.is_grad_enabled() and any(x.requires_grad for x in inputs)
+        )
     ):
         return _triton_log_scale(query, log_key_len, head_scale, gate)
 

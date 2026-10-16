@@ -113,7 +113,9 @@ def _log_scale_reference(
 
 @withCUDA
 @pytest.mark.parametrize("gated", [False, True])
-@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32])
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.bfloat16, torch.float32]
+)
 @pytest.mark.parametrize("layout", ["contiguous", "strided", "empty"])
 @pytest.mark.parametrize("length_kind", ["scalar", "batch", "query"])
 def test_log_scale_exact_inference(
@@ -124,7 +126,9 @@ def test_log_scale_exact_inference(
     length_kind: str,
 ) -> None:
     module = (
-        GatedLogScale(channels=7, num_heads=3, hidden_channels=11, device=device)
+        GatedLogScale(
+            channels=7, num_heads=3, hidden_channels=11, device=device
+        )
         if gated
         else LogScale(num_heads=3, device=device)
     )
@@ -143,18 +147,24 @@ def test_log_scale_exact_inference(
         key_len = torch.arange(2 * rows, device=device).reshape(2, rows)
     with (
         torch.inference_mode(),
-        torch.autocast(device.type, dtype=dtype, enabled=dtype != torch.float32),
+        torch.autocast(
+            device.type, dtype=dtype, enabled=dtype != torch.float32
+        ),
     ):
         expected = _log_scale_reference(module, query, key_len)
         actual = module(query, key_len=key_len)
-    torch.testing.assert_close(actual, expected, rtol=0, atol=0, equal_nan=True)
+    torch.testing.assert_close(
+        actual, expected, rtol=0, atol=0, equal_nan=True
+    )
 
 
 @withCUDA
 @pytest.mark.parametrize("gated", [False, True])
 def test_log_scale_gradients(device: torch.device, gated: bool) -> None:
     module = (
-        GatedLogScale(channels=7, num_heads=3, hidden_channels=11, device=device)
+        GatedLogScale(
+            channels=7, num_heads=3, hidden_channels=11, device=device
+        )
         if gated
         else LogScale(num_heads=3, device=device)
     )
