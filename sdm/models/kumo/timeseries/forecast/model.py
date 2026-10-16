@@ -15,6 +15,8 @@ from sdm._warnings import warn_once
 from sdm.cache import Cache
 from sdm.models import ICLModel
 from sdm.models._huggingface import download_checkpoint
+from sdm.models.kumo.timeseries.forecast.attention import CrossChannelAttention
+from sdm.models.kumo.timeseries.forecast.encoder import T5Encoder
 from sdm.models.kumo.timeseries.forecast.recipe import default_recipe
 from sdm.nn import RevIN, SinusoidalEmbedding
 from sdm.tensor.table import TableSchema
@@ -111,6 +113,10 @@ class KumoForecast(ICLModel):
         **kwargs: Any,
     ) -> TableTensor:
         r""":meta private:"""  # noqa: D415
+        if not isinstance(x_context, TableTensor):
+            x_context = TableTensor.from_tensor(x_context)
+        if not isinstance(x_query, TableTensor):
+            x_query = TableTensor.from_tensor(x_query)
         if x_query.size(-1) > 0:
             warn_once(
                 key="kumo-forecast-future-covariate",
@@ -181,7 +187,7 @@ class KumoForecast(ICLModel):
         ):
             raise ValueError(
                 "Number of query rows must be between 1 and "
-                f"{self.model.max_prediction_size} steps "
+                f"{self.model.prediction_size} steps "
                 f"(got {x_query.size(-2)})"
             )
 
@@ -219,7 +225,6 @@ class _KumoForecast(torch.nn.Module):
         hidden_channels: int = 2816,
         num_layers: int = 24,
         num_heads: int = 16,
-        head_channels: int = 64,
         cross_channel_heads: int = 8,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
@@ -241,9 +246,25 @@ class _KumoForecast(torch.nn.Module):
         torch.nn.init.orthogonal_(self.lin.weight, gain=1.41)
         self.pe = SinusoidalEmbedding()
 
+        self.encoder = T5Encoder(
+            channels=channels,
+            hidden_channels=hidden_channels,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            **factory_kwargs,
+        )
+        self.cross_channel_attn: CrossChannelAttention | None = None
+        if cross_channel:
+            self.cross_channel_attn = CrossChannelAttention(
+                channels=channels,
+                num_heads=cross_channel_heads,
+                **factory_kwargs,
+            )
+
         self.head = torch.nn.Linear(
             in_features=channels * (context_size // patch_size),
             out_features=prediction_size,
+            **factory_kwargs,
         )
 
     def forward(
@@ -257,6 +278,9 @@ class _KumoForecast(torch.nn.Module):
         x = x.unflatten(-1, (-1, self.patch_size))  # [..., C, N, P]
         x = self.pe(self.lin(x))  # [..., C, N, D]
 
-        # x = self.revin.inverse(x, mean, scale)
+        x = self.encoder(x)
+        if self.cross_channel_attn is not None:
+            x = self.cross_channel_attn(x)
 
-        return x.new_zeros(*x.size()[:-2], self.prediction_size)
+        x = self.head(x.flatten(-2))  # [..., C, prediction_size]
+        return self.revin.inverse(x, mean, scale)
