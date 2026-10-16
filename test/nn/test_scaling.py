@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
 from collections.abc import Callable
 
 import pytest
@@ -8,7 +9,7 @@ import torch
 from torch import Tensor
 
 from sdm.nn import GatedLogScale, LogScale, QASSMax
-from sdm.testing import withCUDA
+from sdm.testing import onlyCUDA, withCUDA
 
 
 @withCUDA
@@ -180,3 +181,38 @@ def test_log_scale_gradients(device: torch.device, gated: bool) -> None:
     actual_grad = torch.autograd.grad(actual.sum(), inputs)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
     torch.testing.assert_close(actual_grad, expected_grad, rtol=0, atol=0)
+
+
+@onlyCUDA
+@pytest.mark.parametrize("gated", [False, True])
+def test_log_scale_without_triton(
+    monkeypatch: pytest.MonkeyPatch, gated: bool
+) -> None:
+    kernel = importlib.import_module("sdm._kernels.log_scale")
+    monkeypatch.setattr(kernel, "_triton_log_scale", None)
+    module = (
+        GatedLogScale(7, 3, 11, device="cuda")
+        if gated
+        else LogScale(3, device="cuda")
+    )
+    query = torch.randn(17, 3, 7, device="cuda", dtype=torch.float16)
+    with torch.inference_mode(), torch.autocast("cuda", dtype=query.dtype):
+        expected = _log_scale_reference(module, query, 31)
+        actual = module(query, key_len=31)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+@onlyCUDA
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_gated_log_scale_dtype_fallback(dtype: torch.dtype) -> None:
+    module = GatedLogScale(7, 3, 11, device="cuda", dtype=dtype)
+    query = torch.randn(17, 3, 7, device="cuda", dtype=dtype)
+    with (
+        torch.inference_mode(),
+        torch.autocast(
+            "cuda", dtype=torch.float16, enabled=dtype != torch.float64
+        ),
+    ):
+        expected = _log_scale_reference(module, query, 31)
+        actual = module(query, key_len=31)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
