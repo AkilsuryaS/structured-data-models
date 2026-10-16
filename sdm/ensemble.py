@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import abc
 import copy
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Generic, Self, TypeVar, cast, overload
 
 import torch
@@ -80,6 +80,30 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
             stacked along their leading dimension.
         locations: ``(group, batch)`` location of each ensemble member.
     """
+
+    # Schema-correct member views can share positionally batched storage.
+    _positional_storage: EnsembleTable | None = None
+
+    @classmethod
+    def _from_positional_storage(
+        cls,
+        storage: EnsembleTable,
+        columns: Sequence[Mapping[Stype, tuple[str, ...]]],
+    ) -> Self:
+        tables = [
+            table.__class__(
+                columns=cast(Mapping[StypeLike, Sequence[str]], names),
+                **dict(table.items()),
+            )
+            for table, names in zip(
+                (storage[i] for i in range(len(storage))),
+                columns,
+                strict=True,
+            )
+        ]
+        out = cls.from_tables(tables, range(len(tables)))
+        out._positional_storage = storage
+        return out
 
     @classmethod
     def from_table(
@@ -195,6 +219,11 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         member_ids = tuple(member_ids)
         if member_ids == tuple(range(len(self))):
             return self
+        if self._positional_storage is not None:
+            return self._from_positional_storage(
+                self._positional_storage[member_ids],
+                [self[i].columns for i in member_ids],
+            )
 
         locations = tuple(
             self._locations[member_id] for member_id in member_ids
@@ -329,6 +358,11 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         yield from self._groups
 
     def _apply_tensor(self, fn: Callable[[Tensor], Tensor]) -> Self:
+        if self._positional_storage is not None:
+            return self._from_positional_storage(
+                self._positional_storage._apply_tensor(fn),
+                [self[i].columns for i in range(len(self))],
+            )
         return self.replace_groups(
             [cast(TableTensor, fn(group)) for group in self._groups]
         )
@@ -350,12 +384,18 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         stypes = tuple(Stype(stype) for stype in stypes)
 
         if len(stypes) == 0:
-            return self.replace_groups(
+            out = self.replace_groups(
                 [group.select_columns(()) for group in self._groups]
             )
-        return self.replace_groups(
-            [group.select_stypes(stypes) for group in self._groups]
-        )
+        else:
+            out = self.replace_groups(
+                [group.select_stypes(stypes) for group in self._groups]
+            )
+        if self._positional_storage is not None:
+            out._positional_storage = self._positional_storage.select_stypes(
+                stypes
+            )
+        return out
 
     @classmethod
     def concatenate_columns(cls, tables: Sequence[Self]) -> Self:
@@ -492,6 +532,8 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
             )
         ensemble = copy.copy(self)
         ensemble._groups = tuple(groups)
+        # Arbitrary replacements may no longer alias the positional storage.
+        ensemble._positional_storage = None
         return ensemble
 
     def __repr__(self, *, indent: int = 0) -> str:

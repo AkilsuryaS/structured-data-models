@@ -1,12 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Mapping, Sequence
 from typing import Literal, cast
 
 import torch
 from torch import Tensor
 
-from sdm import EnsembleTable, Stype, TableTensor
+from sdm import EnsembleTable, Stype, StypeLike, TableTensor
 from sdm.nn._buffer import BufferList
 from sdm.processing import EnsembleInvertibleMixin, EnsembleProcessor
 
@@ -118,6 +119,11 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
                 f"{len(self._permutations)} ensemble members, but got "
                 f"{len(ensemble_table)}."
             )
+        if all(
+            group.active_stypes <= {Stype.numerical}
+            for group in ensemble_table._iter_groups()
+        ):
+            return self._transform_numerical_groups(ensemble_table)
         tables: list[TableTensor] = []
         for member_id in range(len(ensemble_table)):
             table = ensemble_table[member_id]
@@ -146,6 +152,51 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
             tables=tables,
             member_table_ids=range(len(tables)),
         )
+
+    def _transform_numerical_groups(
+        self, ensemble_table: EnsembleTable
+    ) -> EnsembleTable:
+        source = ensemble_table._positional_storage
+        if source is None:
+            source = ensemble_table
+        groups = []
+        locations = [(-1, -1)] * len(source)
+        columns = []
+        for member_id in range(len(source)):
+            names = ensemble_table[member_id].columns[Stype.numerical]
+            columns.append(
+                {
+                    Stype.numerical: tuple(
+                        names[i] for i in self._host_permutations[member_id]
+                    )
+                }
+            )
+        for group_id in range(source.num_groups):
+            member_ids = [
+                i
+                for i, (group, _) in enumerate(source._locations)
+                if group == group_id
+            ]
+            values = source.expanded_group(group_id).numerical
+            permutations = torch.stack(
+                [self._permutations[i] for i in member_ids]
+            )
+            index = permutations.view(
+                len(member_ids), *(1,) * (values.dim() - 2), -1
+            ).expand_as(values)
+            groups.append(
+                TableTensor(
+                    columns=cast(
+                        Mapping[StypeLike, Sequence[str]],
+                        columns[member_ids[0]],
+                    ),
+                    numerical=values.gather(-1, index),
+                )
+            )
+            for position, member_id in enumerate(member_ids):
+                locations[member_id] = (group_id, position)
+        storage = EnsembleTable(groups=groups, locations=locations)
+        return EnsembleTable._from_positional_storage(storage, columns)
 
     def _inverse_transform_ensemble(
         self,

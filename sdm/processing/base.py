@@ -37,6 +37,9 @@ class Processor(torch.nn.Module, abc.ABC):
     #: Whether this processor requires fitting.
     requires_fit: bool
 
+    # Opt in only for stateless transforms independent of column names.
+    _supports_positional_storage = False
+
     _fitted_state: Tensor
 
     def __init__(self) -> None:

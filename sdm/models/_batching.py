@@ -97,6 +97,14 @@ def _stack(tables: Sequence[TableTensor]) -> TableTensor:
 def _stack_ensemble(table: EnsembleTable, *, batch: slice) -> TableTensor:
     """Reuse one storage group, or stack members from different groups."""
     member_ids = range(*batch.indices(len(table)))
+    if table._positional_storage is not None:
+        out = _stack_ensemble(table._positional_storage, batch=batch)
+        return out.__class__(
+            columns=cast(
+                Mapping[StypeLike, Sequence[str]], table[member_ids[0]].columns
+            ),
+            **dict(out.items()),
+        )
     group_ids = {table._locations[i][0] for i in member_ids}
     if len(group_ids) > 1:
         return _stack([table[i] for i in member_ids])

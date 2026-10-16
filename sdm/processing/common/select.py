@@ -59,7 +59,12 @@ class SelectColumns(EnsembleProcessor):
                     for stype, block in group.items()
                 }
                 groups.append(group.__class__(columns=columns, **blocks))
-            return ensemble_table.replace_groups(groups)
+            out = ensemble_table.replace_groups(groups)
+            if ensemble_table._positional_storage is not None:
+                out._positional_storage = self._transform_ensemble(
+                    ensemble_table._positional_storage
+                )
+            return out
 
         assert self.method == "round_robin"
         tables: list[TableTensor] = []

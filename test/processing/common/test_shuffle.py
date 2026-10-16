@@ -7,7 +7,13 @@ import pytest
 import torch
 
 from sdm import EnsembleTable, Stype, TableTensor
-from sdm.processing import ShuffleColumns
+from sdm.models._batching import _stack_ensemble
+from sdm.processing import (
+    Cast,
+    EnsembleProcessor,
+    SelectColumns,
+    ShuffleColumns,
+)
 from sdm.testing import withCUDA
 
 
@@ -77,6 +83,84 @@ def test_random_ensemble_matches_independent_shuffles() -> None:
         assert context_output[member_id].equal(expected_context)
         assert query_output[member_id].equal(expected_query)
         assert restored[member_id].equal(context)
+
+
+@pytest.mark.parametrize("method", ["random", "latin"])
+def test_shuffled_members_share_batched_storage(
+    method: Literal["random", "latin"],
+) -> None:
+    values = torch.arange(60.0).reshape(5, 4, 3).requires_grad_()
+    source = EnsembleTable(
+        groups=(TableTensor(numerical=values),),
+        locations=tuple((0, i) for i in range(5)),
+    )
+    shuffle = ShuffleColumns(method=method)
+    out = shuffle.fit_transform_ensemble(
+        source, generator=torch.Generator().manual_seed(42)
+    )
+    storage = out._positional_storage
+    assert storage is not None
+    assert storage.num_groups == 1
+    for batch in (slice(0, 4), slice(1, 5)):
+        combined = _stack_ensemble(out, batch=batch)
+        expected = torch.stack([out[i].numerical for i in range(5)[batch]])
+        torch.testing.assert_close(combined.numerical, expected)
+        assert combined.columns == out[range(5)[batch][0]].columns
+        assert combined.numerical.untyped_storage().data_ptr() == (
+            storage._groups[0].numerical.untyped_storage().data_ptr()
+        )
+    selected = out[[4, 1, 4, 0]]
+    torch.testing.assert_close(
+        _stack_ensemble(selected, batch=slice(None)).numerical,
+        torch.stack([out[i].numerical for i in (4, 1, 4, 0)]),
+    )
+    _stack_ensemble(out, batch=slice(None)).numerical.sum().backward()
+    torch.testing.assert_close(values.grad, torch.ones_like(values))
+    with torch.no_grad():
+        selected[0].numerical.add_(7)
+    torch.testing.assert_close(
+        _stack_ensemble(selected, batch=slice(None)).numerical,
+        torch.stack([selected[i].numerical for i in range(len(selected))]),
+    )
+
+    cast = EnsembleProcessor.as_processor(
+        Cast(torch.float64)
+    ).transform_ensemble(out)
+    selected = (
+        SelectColumns(2)
+        .transform_ensemble(cast)
+        .select_stypes(Stype.numerical)
+    )
+    assert selected._positional_storage is not None
+    for i in range(5):
+        expected = out[i].numerical[:, :2].double()
+        torch.testing.assert_close(selected[i].numerical, expected)
+        assert (
+            selected[i].columns[Stype.numerical]
+            == (out[i].columns[Stype.numerical][:2])
+        )
+    with torch.no_grad():
+        selected[0].numerical.add_(5)
+    torch.testing.assert_close(
+        _stack_ensemble(selected, batch=slice(None)).numerical,
+        torch.stack([selected[i].numerical for i in range(len(selected))]),
+    )
+    moved = selected.to("cpu")
+    assert moved._positional_storage is not None
+    for i in range(5):
+        torch.testing.assert_close(moved[i].numerical, selected[i].numerical)
+
+    replaced = selected.replace_groups(
+        [
+            group.replace_blocks(numerical=group.numerical + 10)
+            for group in selected._iter_groups()
+        ]
+    )
+    assert replaced._positional_storage is None
+    torch.testing.assert_close(
+        _stack_ensemble(replaced, batch=slice(None)).numerical,
+        _stack_ensemble(selected, batch=slice(None)).numerical + 10,
+    )
 
 
 @withCUDA

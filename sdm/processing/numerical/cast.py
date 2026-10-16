@@ -16,6 +16,7 @@ class Cast(Processor):
 
     handles_stypes = frozenset({Stype.numerical})
     requires_fit = False
+    _supports_positional_storage = True
 
     def __init__(self, dtype: torch.dtype) -> None:
         super().__init__()

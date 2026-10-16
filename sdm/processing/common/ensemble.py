@@ -105,6 +105,24 @@ class EnsembleProcessorAdapter(EnsembleProcessor, EnsembleInvertibleMixin):
         self,
         ensemble_table: EnsembleTable,
     ) -> EnsembleTable:
+        storage = ensemble_table._positional_storage
+        if (
+            storage is not None
+            and not self.requires_fit
+            and self.processor._supports_positional_storage
+        ):
+            return EnsembleTable._from_positional_storage(
+                storage.replace_groups(
+                    [
+                        self.processor.transform(group)
+                        for group in storage._iter_groups()
+                    ]
+                ),
+                [
+                    ensemble_table[i].columns
+                    for i in range(len(ensemble_table))
+                ],
+            )
         if self.requires_fit:
             processors = self._aligned_processors(ensemble_table)
         else:

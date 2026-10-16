@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, ClassVar, cast
 
@@ -17,7 +18,7 @@ from sdm import (
     TableTensor,
 )
 from sdm.cache import Cache
-from sdm.models import ICLModel
+from sdm.models import ICLModel, KumoTabular, TabFM, TabICLv2
 from sdm.models._batching import _stack_context, _stack_ensemble
 from sdm.models.callback import Callback
 from sdm.processing import InvertibleMixin, Processor
@@ -893,3 +894,68 @@ def test_shared_estimator_batch_has_writable_inputs() -> None:
         (x + 1).expand(4, 3, 2),
     )
     torch.testing.assert_close(x, torch.arange(6.0).reshape(3, 2))
+
+
+@pytest.mark.parametrize(
+    "recipe_factory",
+    [
+        TabICLv2.default_recipe,
+        KumoTabular.default_recipe,
+        TabFM.default_recipe,
+    ],
+)
+def test_default_recipe_reuses_shuffled_feature_storage(
+    recipe_factory: Callable[[], sp.Recipe],
+) -> None:
+    x = torch.randn(100, 12, generator=torch.Generator().manual_seed(0))
+    query = x[:17]
+    y = TableTensor(
+        categorical=CategoricalTensor(
+            code=torch.arange(100).remainder(2).reshape(-1, 1),
+            categories=(torch.tensor([0, 1]),),
+        )
+    )
+    execution = RecipeExecution(recipe_factory())
+    context = execution.fit_transform(
+        x=x,
+        y=y,
+        related_tables=None,
+        num_members=8,
+        generator=torch.Generator().manual_seed(42),
+    )
+    queries = execution.transform(query, related_tables=None)
+    for table in (context.x, queries.x):
+        storage = table._positional_storage
+        assert storage is not None
+        assert storage.num_groups == 1
+        for batch in (slice(0, 4), slice(4, 8)):
+            inputs = _stack_ensemble(table, batch=batch)
+            assert inputs.numerical.untyped_storage().data_ptr() == (
+                storage._groups[0].numerical.untyped_storage().data_ptr()
+            )
+            torch.testing.assert_close(
+                inputs.numerical,
+                torch.stack([table[i].numerical for i in range(8)[batch]]),
+            )
+
+    model = _ClassFrequencyModel()
+    expected = model(
+        x,
+        y,
+        query,
+        recipe=recipe_factory(),
+        num_estimators=8,
+        estimator_batch_size=1,
+        generator=torch.Generator().manual_seed(42),
+    )
+    model.fit(
+        x,
+        y,
+        recipe=recipe_factory(),
+        num_estimators=8,
+        estimator_batch_size=4,
+        generator=torch.Generator().manual_seed(42),
+    )
+    torch.testing.assert_close(
+        model.predict(query).numerical, expected.numerical
+    )
