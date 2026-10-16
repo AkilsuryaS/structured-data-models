@@ -11,8 +11,9 @@ import pyarrow.compute as pc
 import torch
 from torch import Tensor
 
-from sdm import TableTensor
+from sdm import NullableTensor, Stype, TableTensor
 from sdm._warnings import warn_once
+from sdm.relational._integer_join import _join_integer
 from sdm.tensor.io import arrow_as_tensor, to_cudf
 
 PREFIX = "sdm_internal"
@@ -30,6 +31,13 @@ def join_index(
     device: torch.device | str | None = None,
 ) -> tuple[Tensor, Tensor]:
     r"""Return row-index pairs for matching rows in two tables.
+
+    Output order is unspecified. Duplicate keys emit every matching row pair.
+
+    During compilation, signed-integer ID keys use PyTorch when right-hand
+    key types safely widen to left-hand key types. Other keys use Arrow/cuDF
+    outside the captured graph and require graph breaks. PyTorch 2.7 also
+    requires ``capture_dynamic_output_shape_ops=True`` for full-graph joins.
 
     Args:
         left_table: The left table.
@@ -54,8 +62,6 @@ def join_index(
     dtype = dtype or torch.long
     device = device or left_table.device
 
-    left_table = left_table[list(left_keys)]
-    right_table = right_table[list(right_keys)]
     left_rows = math.prod(left_table.size()[:-1])
     right_rows = math.prod(right_table.size()[:-1])
 
@@ -65,6 +71,60 @@ def join_index(
             f"in '{dtype}' would overflow"
         )
 
+    if torch.compiler.is_compiling() and dtype in (
+        torch.int8,
+        torch.int16,
+        torch.int32,
+        torch.int64,
+        torch.uint8,
+    ):
+        integer_keys = _integer_keys(
+            left_table=left_table,
+            right_table=right_table,
+            left_keys=left_keys,
+            right_keys=right_keys,
+        )
+        if integer_keys is not None:
+            left, right, left_valid, right_valid = integer_keys
+            left_index, right_index = _join_integer(
+                left=left,
+                right=right,
+                left_valid=left_valid,
+                right_valid=right_valid,
+            )
+            return (
+                left_index.to(device=device, dtype=dtype),
+                right_index.to(device=device, dtype=dtype),
+            )
+
+    return _join_external_backend(
+        left_table=left_table,
+        right_table=right_table,
+        left_keys=left_keys,
+        right_keys=right_keys,
+        how=how,
+        dtype=dtype,
+        device=device,
+        left_rows=left_rows,
+        right_rows=right_rows,
+    )
+
+
+@torch.compiler.disable
+def _join_external_backend(
+    left_table: TableTensor,
+    right_table: TableTensor,
+    left_keys: Sequence[str],
+    right_keys: Sequence[str],
+    how: Literal["inner"],
+    dtype: torch.dtype,
+    device: torch.device | str,
+    left_rows: int,
+    right_rows: int,
+) -> tuple[Tensor, Tensor]:
+    # Arrow and cuDF consume actual buffers outside FakeTensor tracing.
+    left_table = left_table[list(left_keys)]
+    right_table = right_table[list(right_keys)]
     backend: Literal["arrow", "cudf"] = "arrow"
     if left_table.is_cuda:
         if importlib.util.find_spec("cudf") is not None:
@@ -136,6 +196,66 @@ def join_index(
             torch.as_tensor(joined[LEFT_ROW_ID]).to(device),
             torch.as_tensor(joined[RIGHT_ROW_ID]).to(device),
         )
+
+
+def _integer_keys(
+    left_table: TableTensor,
+    right_table: TableTensor,
+    left_keys: Sequence[str],
+    right_keys: Sequence[str],
+) -> tuple[Tensor, Tensor, Tensor, Tensor] | None:
+    # Restrict dispatch to IDs and total Arrow-compatible right-to-left casts.
+    if (
+        not left_keys
+        or len(left_keys) != len(right_keys)
+        or len(set(left_keys)) != len(left_keys)
+        or len(set(right_keys)) != len(right_keys)
+    ):
+        return None
+    signed = (torch.int8, torch.int16, torch.int32, torch.int64)
+    left_values: list[Tensor] = []
+    right_values: list[Tensor] = []
+    left_valid = torch.ones(
+        math.prod(left_table.size()[:-1]),
+        dtype=torch.bool,
+        device=left_table.device,
+    )
+    right_valid = torch.ones(
+        math.prod(right_table.size()[:-1]),
+        dtype=torch.bool,
+        device=right_table.device,
+    )
+    for left_key, right_key in zip(left_keys, right_keys):
+        left_stype, left_column = left_table._column_to_loc[left_key]
+        right_stype, right_column = right_table._column_to_loc[right_key]
+        if left_stype != Stype.id or right_stype != Stype.id:
+            return None
+        # Read registered tensor-flatten attributes directly: unbinding a
+        # wrapper first loses the source of nullable data during tracing.
+        left = getattr(left_table._id, f"_column_{left_column}")
+        right = getattr(right_table._id, f"_column_{right_column}")
+        if isinstance(left, NullableTensor):
+            left_valid = left_valid & left._valid.reshape(-1)
+            left = left._data
+        if isinstance(right, NullableTensor):
+            right_valid = right_valid & right._valid.reshape(-1)
+            right = right._data
+        if (
+            type(left) is not Tensor
+            or type(right) is not Tensor
+            or left.dtype not in signed
+            or right.dtype not in signed
+            or torch.iinfo(right.dtype).bits > torch.iinfo(left.dtype).bits
+        ):
+            return None
+        left_values.append(left.reshape(-1).to(torch.int64))
+        right_values.append(right.reshape(-1).to(torch.int64))
+    return (
+        torch.stack(left_values, dim=-1),
+        torch.stack(right_values, dim=-1),
+        left_valid,
+        right_valid,
+    )
 
 
 def dropna(

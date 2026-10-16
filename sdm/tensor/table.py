@@ -1085,8 +1085,8 @@ class TableTensor(Tensor):
 
     def __tensor_flatten__(self) -> tuple[list[str], tuple[Any, ...]]:
         attrs = ["numerical", "categorical", "datetime", "text"]
-        if self.id.size(-1) > 0:
-            attrs.append("id")
+        if self._id.size(-1) > 0:
+            attrs.append("_id")
         columns = tuple(
             (str(stype), names) for stype, names in self._columns.items()
         )
@@ -1108,7 +1108,7 @@ class TableTensor(Tensor):
             categorical=inner_tensors["categorical"],
             datetime=inner_tensors["datetime"],
             text=inner_tensors["text"],
-            id=inner_tensors.get("id"),
+            id=inner_tensors.get("_id"),
         )
 
     def __reduce_ex__(self, proto: SupportsIndex) -> Any:
