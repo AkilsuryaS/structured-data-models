@@ -120,7 +120,6 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Clip.html">Clip</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSoft.html">ClipSoft</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
@@ -320,12 +319,12 @@ default device.</p></li>
 </span><span data-line="11">          <span class="n">PowerTransform</span><span class="p">(),</span>
 </span><span data-line="12">          <span class="n">Sequential</span><span class="p">(</span>
 </span><span data-line="13">            <span class="n">RobustScale</span><span class="p">(</span><span class="n">quantile_range</span><span class="o">=</span><span class="p">(</span><span class="mf">25.0</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">)),</span>
-</span><span data-line="14">            <span class="n">ClipSoft</span><span class="p">(</span><span class="mf">3.0</span><span class="p">),</span>
+</span><span data-line="14">            <span class="n">Clip</span><span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'saturate'</span><span class="p">),</span>
 </span><span data-line="15">          <span class="p">),</span>
 </span><span data-line="16">          <span class="n">RankGaussian</span><span class="p">(</span><span class="n">max_knots</span><span class="o">=</span><span class="mi">8192</span><span class="p">),</span>
 </span><span data-line="17">          <span class="n">method</span><span class="o">=</span><span class="s1">'round_robin'</span><span class="p">,</span>
 </span><span data-line="18">        <span class="p">),</span>
-</span><span data-line="19">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">),</span>
+</span><span data-line="19">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'log'</span><span class="p">),</span>
 </span><span data-line="20">        <span class="n">FlipSign</span><span class="p">(</span><span class="n">probability</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
 </span><span data-line="21">      <span class="p">),</span>
 </span><span data-line="22">      <span class="n">categorical</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
@@ -341,12 +340,12 @@ default device.</p></li>
 </span><span data-line="32">          <span class="n">PowerTransform</span><span class="p">(),</span>
 </span><span data-line="33">          <span class="n">Sequential</span><span class="p">(</span>
 </span><span data-line="34">            <span class="n">RobustScale</span><span class="p">(</span><span class="n">quantile_range</span><span class="o">=</span><span class="p">(</span><span class="mf">25.0</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">)),</span>
-</span><span data-line="35">            <span class="n">ClipSoft</span><span class="p">(</span><span class="mf">3.0</span><span class="p">),</span>
+</span><span data-line="35">            <span class="n">Clip</span><span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'saturate'</span><span class="p">),</span>
 </span><span data-line="36">          <span class="p">),</span>
 </span><span data-line="37">          <span class="n">RankGaussian</span><span class="p">(</span><span class="n">max_knots</span><span class="o">=</span><span class="mi">8192</span><span class="p">),</span>
 </span><span data-line="38">          <span class="n">method</span><span class="o">=</span><span class="s1">'round_robin'</span><span class="p">,</span>
 </span><span data-line="39">        <span class="p">),</span>
-</span><span data-line="40">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">),</span>
+</span><span data-line="40">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'log'</span><span class="p">),</span>
 </span><span data-line="41">      <span class="p">),</span>
 </span><span data-line="42">    <span class="p">),</span>
 </span><span data-line="43">    <span class="n">ShuffleColumns</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">'latin'</span><span class="p">),</span>
@@ -405,7 +404,7 @@ default device.</p></li>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=8dc89813"></script>
+      <script src="../../_static/documentation_options.js?v=0c9967e0"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

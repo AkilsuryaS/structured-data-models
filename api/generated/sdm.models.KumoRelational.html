@@ -120,7 +120,6 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Clip.html">Clip</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSoft.html">ClipSoft</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
@@ -410,7 +409,7 @@ model are initialized.</p></li>
 </span><span data-line="31">          <span class="n">PowerTransform</span><span class="p">(),</span>
 </span><span data-line="32">          <span class="n">method</span><span class="o">=</span><span class="s1">'round_robin'</span><span class="p">,</span>
 </span><span data-line="33">        <span class="p">),</span>
-</span><span data-line="34">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">),</span>
+</span><span data-line="34">        <span class="n">ClipSigma</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">'log'</span><span class="p">),</span>
 </span><span data-line="35">        <span class="n">ShuffleColumns</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s1">'latin'</span><span class="p">),</span>
 </span><span data-line="36">      <span class="p">),</span>
 </span><span data-line="37">    <span class="p">),</span>
@@ -463,7 +462,7 @@ model are initialized.</p></li>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=8dc89813"></script>
+      <script src="../../_static/documentation_options.js?v=0c9967e0"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

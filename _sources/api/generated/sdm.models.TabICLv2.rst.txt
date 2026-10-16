@@ -52,7 +52,7 @@ Default Recipe
              PowerTransform(),
              method='round_robin',
            ),
-           ClipSigma(threshold=4.0),
+           ClipSigma(threshold=4.0, method='log'),
            ShuffleColumns(method='latin'),
          ),
        ),

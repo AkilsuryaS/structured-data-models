@@ -120,7 +120,6 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Clip</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ClipSoft.html">ClipSoft</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
@@ -234,17 +233,26 @@ data-aria-dark="Switch to auto color mode">
 <h1>Clip<a class="headerlink" href="#clip" title="Link to this heading">#</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="sdm.processing.numerical.Clip">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sdm.processing.numerical.</span></span><span class="sig-name descname"><span class="pre">Clip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sdm.processing.numerical.Clip" title="Link to this definition">#</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">sdm.processing.numerical.</span></span><span class="sig-name descname"><span class="pre">Clip</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.15)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'saturate'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'hard'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'hard'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#sdm.processing.numerical.Clip" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="sdm.processing.base.Processor.html#sdm.processing.base.Processor" title="sdm.processing.base.Processor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Processor</span></code></a>, <a class="reference internal" href="sdm.processing.base.InvertibleMixin.html#sdm.processing.base.InvertibleMixin" title="sdm.processing.base.InvertibleMixin"><code class="xref py py-class docutils literal notranslate"><span class="pre">InvertibleMixin</span></code></a></p>
-<p>Clamp numerical values to a fixed interval.</p>
-<p>Values below <code class="docutils literal notranslate"><span class="pre">min_value</span></code> are set to <code class="docutils literal notranslate"><span class="pre">min_value</span></code>, and values above
-<code class="docutils literal notranslate"><span class="pre">max_value</span></code> are set to <code class="docutils literal notranslate"><span class="pre">max_value</span></code>. Values within the interval are
-unchanged. Inverse transformation leaves values unchanged.</p>
+<p>Clip numerical values to a fixed interval.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">method=&quot;hard&quot;</span></code>, values are clamped to the interval. With
+<code class="docutils literal notranslate"><span class="pre">method=&quot;saturate&quot;</span></code>, values are mapped smoothly into the interval:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[y = \frac{x}{\sqrt{1 + (x / b)^2}}\]</div>
+</div>
+<p>where <span class="math notranslate nohighlight">\(b\)</span> is <code class="docutils literal notranslate"><span class="pre">max_value</span></code> and <code class="docutils literal notranslate"><span class="pre">min_value</span></code> must equal
+<code class="docutils literal notranslate"><span class="pre">-max_value</span></code>. NaN is preserved and infinities map to the endpoints.
+Inverse transformation leaves values unchanged.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>min_value</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Inclusive lower bound for every numerical value.</p></li>
 <li><p><strong>max_value</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Inclusive upper bound for every numerical value.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.15)"><em>Literal</em></a><em>[</em><em>'saturate'</em><em>, </em><em>'hard'</em><em>]</em>) – <code class="docutils literal notranslate"><span class="pre">&quot;hard&quot;</span></code> clamps to the bounds; <code class="docutils literal notranslate"><span class="pre">&quot;saturate&quot;</span></code> approaches
+finite, nonzero symmetric bounds smoothly and also changes
+interior values.</p></li>
 </ul>
 </dd>
 </dl>
@@ -291,10 +299,11 @@ unchanged. Inverse transformation leaves values unchanged.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=8dc89813"></script>
+      <script src="../../_static/documentation_options.js?v=0c9967e0"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=ccdb6887"></script>
-      <script src="../../_static/shibuya.js?v=50760d75"></script></body>
+      <script src="../../_static/shibuya.js?v=50760d75"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script></body>
 </html>
