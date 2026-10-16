@@ -46,7 +46,7 @@ def log_scale(
     gate: Tensor | None,
 ) -> Tensor:
     out = torch.empty_like(query)
-    grid = (triton.cdiv(query.numel(), 1024),)
+    grid = ((query.numel() + 1023) // 1024,)
     with torch.cuda.device(query.device):
         cast(Any, _log_scale_kernel)[grid](
             query,
