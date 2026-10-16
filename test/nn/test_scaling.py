@@ -238,3 +238,19 @@ def test_log_scale_integer_lengths(dtype: torch.dtype, key_len: int) -> None:
         expected = _log_scale_reference(module, query, key_len)
         actual = module(query, key_len=key_len)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+@onlyCUDA
+@pytest.mark.parametrize("tensor_length", [False, True])
+def test_log_scale_compilation(compilation: None, tensor_length: bool) -> None:
+    module = GatedLogScale(7, 3, 11, device="cuda")
+    with torch.no_grad():
+        for parameter in module.parameters():
+            parameter.uniform_(-0.5, 0.5)
+    query = torch.randn(17, 3, 7, device="cuda", dtype=torch.float16)
+    key_len = torch.tensor(31, device="cuda") if tensor_length else 31
+    compiled = torch.compile(module, backend="eager", fullgraph=True)
+    with torch.inference_mode(), torch.autocast("cuda", dtype=query.dtype):
+        expected = _log_scale_reference(module, query, key_len)
+        actual = compiled(query, key_len=key_len)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
