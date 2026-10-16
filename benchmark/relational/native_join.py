@@ -74,9 +74,7 @@ def native_join(
     lo = torch.searchsorted(sorted_hash, lh, side="left")
     hi = torch.searchsorted(sorted_hash, lh, side="right")
     counts = hi - lo
-    lpos = torch.repeat_interleave(
-        torch.arange(left.shape[0], device=left.device), counts
-    )
+    lpos = torch.repeat_interleave(counts)
     starts = torch.cumsum(counts, 0) - counts
     rsorted = (
         lo[lpos]
@@ -197,50 +195,61 @@ def _selftest() -> None:
 def _compile_check() -> None:
     # Variable-length matches require dynamic-output capture on PyTorch 2.7.
     torch._dynamo.config.capture_dynamic_output_shape_ops = True
-    for constant in (False, True):
-        torch._dynamo.reset()
-        fn = torch.compile(
-            native_join, backend="inductor", fullgraph=True, dynamic=True
-        )
-        count = 0
-        for n in (9, 0, 1):
-            for m in (9, 0, 1):
-                left = torch.arange(n * 2, dtype=torch.long).reshape(n, 2)
-                right = torch.arange(m * 2, dtype=torch.long).reshape(m, 2)
-                if n and m:
-                    left[0] = torch.tensor([-(1 << 63), (1 << 63) - 1])
-                    right[0] = left[0]
-                    if m > 1:
-                        right[1] = left[0]
-                lv = torch.ones((n, 2), dtype=torch.bool)
-                rv = torch.ones((m, 2), dtype=torch.bool)
-                if n > 2:
-                    lv[2, 0] = False
-                if m > 3:
-                    rv[3, 1] = False
-                lvalid, rvalid = _row_valid(left, lv), _row_valid(right, rv)
-                expected = sorted(
-                    (i, j)
-                    for i in range(n)
-                    for j in range(m)
-                    if lvalid[i]
-                    and rvalid[j]
-                    and torch.equal(left[i], right[j])
-                )
-                li, ri = fn(left, right, lv, rv, force_constant_hash=constant)
-                assert sorted(zip(li.tolist(), ri.tolist())) == expected, (
-                    constant,
-                    n,
-                    m,
-                )
-                count += 1
-        print(
-            "FULLGRAPH dynamic=True PASS constant_hash=",
-            constant,
-            "cases=",
-            count,
-            flush=True,
-        )
+    for fullgraph in (False, True):
+        for constant in (False, True):
+            torch._dynamo.reset()
+            fn = torch.compile(
+                native_join,
+                backend="inductor",
+                fullgraph=fullgraph,
+                dynamic=True,
+            )
+            count = 0
+            for n in (9, 0, 1):
+                for m in (9, 0, 1):
+                    left = torch.arange(n * 2, dtype=torch.long).reshape(n, 2)
+                    right = torch.arange(m * 2, dtype=torch.long).reshape(m, 2)
+                    if n and m:
+                        left[0] = torch.tensor([-(1 << 63), (1 << 63) - 1])
+                        right[0] = left[0]
+                        if m > 1:
+                            right[1] = left[0]
+                    lv = torch.ones((n, 2), dtype=torch.bool)
+                    rv = torch.ones((m, 2), dtype=torch.bool)
+                    if n > 2:
+                        lv[2, 0] = False
+                    if m > 3:
+                        rv[3, 1] = False
+                    lvalid, rvalid = (
+                        _row_valid(left, lv),
+                        _row_valid(right, rv),
+                    )
+                    expected = sorted(
+                        (i, j)
+                        for i in range(n)
+                        for j in range(m)
+                        if lvalid[i]
+                        and rvalid[j]
+                        and torch.equal(left[i], right[j])
+                    )
+                    li, ri = fn(
+                        left, right, lv, rv, force_constant_hash=constant
+                    )
+                    assert sorted(zip(li.tolist(), ri.tolist())) == expected, (
+                        constant,
+                        n,
+                        m,
+                    )
+                    count += 1
+            print(
+                "PASS fullgraph=",
+                fullgraph,
+                "dynamic=True constant_hash=",
+                constant,
+                "cases=",
+                count,
+                flush=True,
+            )
 
 
 if __name__ == "__main__":
@@ -250,5 +259,5 @@ if __name__ == "__main__":
     torch.set_num_threads(1)
     with torch.inference_mode():
         _selftest()
-    if args.compile:
-        _compile_check()
+        if args.compile:
+            _compile_check()
