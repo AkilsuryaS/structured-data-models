@@ -1,0 +1,8 @@
+﻿SinusoidalEmbedding
+===================
+
+.. currentmodule:: sdm.nn
+
+.. autoclass:: SinusoidalEmbedding
+   :members:
+   :show-inheritance:
