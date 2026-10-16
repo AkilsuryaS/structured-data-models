@@ -10,14 +10,15 @@ from torch import Tensor
 _LogScale: TypeAlias = Callable[[Tensor, int, Tensor, Tensor | None], Tensor]
 
 _triton_log_scale: _LogScale | None = None
-try:
-    from sdm._kernels.triton.log_scale import (
-        log_scale as _triton_log_scale_impl,
-    )
-except ImportError:
-    pass
-else:
-    _triton_log_scale = _triton_log_scale_impl
+if torch.version.cuda is not None:
+    try:
+        from sdm._kernels.triton.log_scale import (
+            log_scale as _triton_log_scale_impl,
+        )
+    except ImportError:
+        pass
+    else:
+        _triton_log_scale = _triton_log_scale_impl
 
 
 def log_scale(
