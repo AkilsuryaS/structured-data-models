@@ -36,5 +36,5 @@ Default Recipe
    Recipe(
      features=Identity(),
      target=Identity(),
-     output=Identity(),
+     output=AverageEstimators(),
    )
