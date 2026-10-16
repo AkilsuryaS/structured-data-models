@@ -81,7 +81,8 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         locations: ``(group, batch)`` location of each ensemble member.
     """
 
-    # Schema-correct member views can share positionally batched storage.
+    # Member views retain their own names and alias this batched storage.
+    # Arbitrary group replacements must discard it.
     _positional_storage: EnsembleTable | None = None
 
     @classmethod
@@ -90,6 +91,7 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         storage: EnsembleTable,
         columns: Sequence[Mapping[Stype, tuple[str, ...]]],
     ) -> Self:
+        """Attach per-member column names without copying batched values."""
         tables = [
             table.__class__(
                 columns=cast(Mapping[StypeLike, Sequence[str]], names),

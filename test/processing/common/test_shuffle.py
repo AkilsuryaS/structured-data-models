@@ -14,6 +14,7 @@ from sdm.processing import (
     SelectColumns,
     ShuffleColumns,
 )
+from sdm.processing.common.shuffle import _gather_columns
 from sdm.testing import withCUDA
 
 
@@ -161,6 +162,48 @@ def test_shuffled_members_share_batched_storage(
         _stack_ensemble(replaced, batch=slice(None)).numerical,
         _stack_ensemble(selected, batch=slice(None)).numerical + 10,
     )
+
+
+@pytest.mark.parametrize("positions", [(0,) * 8, (0, 1) * 4, (2, 0, 2, 1)])
+@pytest.mark.parametrize("shape", [(4, 3), (2, 4, 3), (0, 3)])
+def test_grouped_shuffle_matches_individual_values_and_gradients(
+    positions: tuple[int, ...], shape: tuple[int, ...]
+) -> None:
+    generator = torch.Generator().manual_seed(42)
+    values = torch.randn(max(positions) + 1, *shape, generator=generator)
+    values.requires_grad_()
+    permutations = torch.stack(
+        [torch.randperm(shape[-1], generator=generator) for _ in positions]
+    )
+    actual = _gather_columns(values, positions, permutations)
+    expected = torch.stack(
+        [
+            values[position].index_select(-1, permutation)
+            for position, permutation in zip(
+                positions, permutations, strict=True
+            )
+        ]
+    )
+    assert actual.is_contiguous()
+    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(
+        torch.autograd.grad(actual.square().sum(), values)[0],
+        torch.autograd.grad(expected.square().sum(), values)[0],
+    )
+
+
+def test_name_aware_transform_discards_positional_storage() -> None:
+    shuffled = ShuffleColumns().fit_transform_ensemble(
+        EnsembleTable.from_table(_table(), num_members=4),
+        generator=torch.Generator().manual_seed(42),
+    )
+    processor = EnsembleProcessor.as_processor(
+        lambda table: table.select_columns(("0", "1"))
+    )
+    actual = processor.transform_ensemble(shuffled)
+    assert actual._positional_storage is None
+    for i in range(len(actual)):
+        assert actual[i].equal(shuffled[i].select_columns(("0", "1")))
 
 
 @withCUDA

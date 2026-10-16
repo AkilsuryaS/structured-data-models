@@ -119,7 +119,7 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
                 f"{len(self._permutations)} ensemble members, but got "
                 f"{len(ensemble_table)}."
             )
-        if all(
+        if len(ensemble_table) > 1 and all(
             group.active_stypes <= {Stype.numerical}
             for group in ensemble_table._iter_groups()
         ):
@@ -162,6 +162,11 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
         groups = []
         locations = [(-1, -1)] * len(source)
         columns = []
+        member_ids_by_group: list[list[int]] = [
+            [] for _ in range(source.num_groups)
+        ]
+        for member_id, (group_id, _) in enumerate(source._locations):
+            member_ids_by_group[group_id].append(member_id)
         for member_id in range(len(source)):
             names = ensemble_table[member_id].columns[Stype.numerical]
             columns.append(
@@ -171,26 +176,21 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
                     )
                 }
             )
-        for group_id in range(source.num_groups):
-            member_ids = [
-                i
-                for i, (group, _) in enumerate(source._locations)
-                if group == group_id
-            ]
-            values = source.expanded_group(group_id).numerical
+        for group_id, member_ids in enumerate(member_ids_by_group):
+            group = source._groups[group_id]
+            positions = tuple(source._locations[i][1] for i in member_ids)
             permutations = torch.stack(
                 [self._permutations[i] for i in member_ids]
             )
-            index = permutations.view(
-                len(member_ids), *(1,) * (values.dim() - 2), -1
-            ).expand_as(values)
             groups.append(
-                TableTensor(
+                group.__class__(
                     columns=cast(
                         Mapping[StypeLike, Sequence[str]],
                         columns[member_ids[0]],
                     ),
-                    numerical=values.gather(-1, index),
+                    numerical=_gather_columns(
+                        group.numerical, positions, permutations
+                    ),
                 )
             )
             for position, member_id in enumerate(member_ids):
@@ -244,3 +244,26 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
         return (
             f"{' ' * indent}{self.__class__.__name__}(method={self.method!r})"
         )
+
+
+def _gather_columns(
+    values: Tensor, positions: tuple[int, ...], permutations: Tensor
+) -> Tensor:
+    """Shuffle members without materializing cyclically repeated inputs."""
+    member_shape = values.shape[1:]
+    repeats = len(positions) // values.size(0)
+    if positions == tuple(range(values.size(0))) * repeats:
+        # Keep repetition as a broadcast dimension until after the gather.
+        values = values.unsqueeze(0).expand(repeats, *values.shape)
+        permutations = permutations.view(
+            repeats, values.size(1), permutations.size(-1)
+        )
+    else:
+        index = torch.tensor(positions, device=values.device)
+        values = values.index_select(0, index)
+    index = permutations.view(
+        *permutations.shape[:-1],
+        *(1,) * (len(member_shape) - 1),
+        permutations.size(-1),
+    ).expand_as(values)
+    return values.gather(-1, index).reshape(len(positions), *member_shape)
