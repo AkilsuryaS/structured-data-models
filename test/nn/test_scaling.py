@@ -216,3 +216,25 @@ def test_gated_log_scale_dtype_fallback(dtype: torch.dtype) -> None:
         expected = _log_scale_reference(module, query, 31)
         actual = module(query, key_len=31)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+@onlyCUDA
+@pytest.mark.parametrize(
+    "dtype", [torch.float16, torch.bfloat16, torch.float32]
+)
+@pytest.mark.parametrize(
+    "key_len", [-17, 0, 1, 311, 2**24 + 1, 2**31 + 1, 2**63 - 1]
+)
+def test_log_scale_integer_lengths(dtype: torch.dtype, key_len: int) -> None:
+    module = GatedLogScale(7, 3, 11, device="cuda")
+    with torch.no_grad():
+        for parameter in module.parameters():
+            parameter.uniform_(-0.5, 0.5)
+    query = torch.randn(17, 3, 7, device="cuda", dtype=dtype)
+    with (
+        torch.inference_mode(),
+        torch.autocast("cuda", dtype=dtype, enabled=dtype != torch.float32),
+    ):
+        expected = _log_scale_reference(module, query, key_len)
+        actual = module(query, key_len=key_len)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)

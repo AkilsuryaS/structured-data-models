@@ -186,17 +186,7 @@ class LogScale(QueryScaling):
                 "`query.size(-2)` must equal the number of per-head scales "
                 f"(got {query.size(-2)} and {self.head_scale.numel()})"
             )
-        if isinstance(key_len, Tensor):
-            key_len_tensor = key_len.float()
-        else:
-            key_len_tensor = query.new_full((), key_len, dtype=torch.float32)
-        log_key_len = key_len_tensor.clamp(min=1.0).log().to(query.dtype)
-        return log_scale(
-            query,
-            log_key_len,
-            self.head_scale.to(query.dtype),
-            gate,
-        )
+        return log_scale(query, key_len, self.head_scale, gate)
 
 
 class GatedLogScale(LogScale):

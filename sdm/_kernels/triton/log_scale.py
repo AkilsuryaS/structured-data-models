@@ -10,10 +10,10 @@ from torch import Tensor
 from triton.language.extra.cuda import libdevice
 
 
-@triton.jit(do_not_specialize=["numel"])
+@triton.jit(do_not_specialize=["numel", "key_len"])
 def _log_scale_kernel(
     query_ptr,
-    length_ptr,
+    key_len,
     head_ptr,
     gate_ptr,
     out_ptr,
@@ -26,8 +26,10 @@ def _log_scale_kernel(
     mask = index < numel
     query = tl.load(query_ptr + index, mask=mask, other=0)
     dtype = query.dtype
-    length = tl.load(length_ptr).to(tl.float32)
-    head = tl.load(head_ptr + index // channels % heads).to(tl.float32)
+    length = libdevice.log(tl.maximum(key_len.to(tl.float32), 1.0))
+    length = length.to(dtype).to(tl.float32)
+    head = tl.load(head_ptr + index // channels % heads)
+    head = head.to(dtype).to(tl.float32)
     # Eager execution rounds each product and gate operation separately.
     out = (query.to(tl.float32) * length).to(dtype).to(tl.float32)
     out = (out * head).to(dtype).to(tl.float32)
@@ -41,7 +43,7 @@ def _log_scale_kernel(
 
 def log_scale(
     query: Tensor,
-    log_key_len: Tensor,
+    key_len: int,
     head_scale: Tensor,
     gate: Tensor | None,
 ) -> Tensor:
@@ -50,7 +52,7 @@ def log_scale(
     with torch.cuda.device(query.device):
         cast(Any, _log_scale_kernel)[grid](
             query,
-            log_key_len,
+            key_len,
             head_scale,
             gate,
             out,
