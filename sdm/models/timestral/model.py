@@ -11,8 +11,8 @@ import torch
 from safetensors.torch import load_file
 from torch import Tensor
 
+import sdm.processing as sp
 from sdm import (
-    ColumnarTensor,
     Recipe,
     RelatedTables,
     Stype,
@@ -26,8 +26,6 @@ from sdm.models.timestral.config import _TimestralConfig
 from sdm.models.timestral.decode import _Decoder, _ffill_with_mask
 from sdm.models.timestral.encoding import _encode_categories
 from sdm.models.timestral.network import _TimestralModel
-from sdm.processing import AverageEstimators
-from sdm.relational.join import join_index
 
 _REVISIONS = {
     "5M": "bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f",
@@ -47,7 +45,8 @@ class Timestral(ICLModel):
     present in the query are known-future covariates; other features are
     historical covariates. Categorical features use target encoding for one
     target and category indices for multiple targets. Missing categories
-    form their own category. Encoding learns from the context only.
+    form their own category. Encoding learns from the context only. The
+    default recipe aligns category dictionaries while preserving unseen values.
 
     Returns 21 numerical columns per target, named ``<target>__q1`` through
     ``<target>__q99`` at the checkpoint's quantile levels. Missing numerical
@@ -145,7 +144,10 @@ class Timestral(ICLModel):
 
     @classmethod
     def default_recipe(cls) -> Recipe:  # noqa: D102
-        return Recipe(output=AverageEstimators())
+        return Recipe(
+            features=sp.AlignCategories(min_frequency=0, unknown="append"),
+            output=sp.AverageEstimators(),
+        )
 
     def _forward(
         self,
@@ -238,46 +240,14 @@ class Timestral(ICLModel):
         )
         if query is not None:
             numeric = torch.cat([numeric, query.numerical], dim=-2)
-            aligned = []
-            for i, (past_categories, future_categories) in enumerate(
-                zip(
-                    context.categorical.categories,
-                    query.categorical.categories,
-                )
-            ):
-                # Match category values at the schema boundary. New categories
-                # keep distinct codes instead of becoming missing values.
-                lookup = (
-                    torch.arange(
-                        future_categories.numel(), device=codes.device
-                    )
-                    + past_categories.numel()
-                )
-                left, right = join_index(
-                    left_table=TableTensor(
-                        columns={Stype.id: ["category"]},
-                        id=ColumnarTensor((future_categories,)),
-                    ),
-                    right_table=TableTensor(
-                        columns={Stype.id: ["category"]},
-                        id=ColumnarTensor((past_categories,)),
-                    ),
-                    left_keys=["category"],
-                    right_keys=["category"],
-                )
-                lookup[left] = right
-                lookup = torch.cat([lookup, lookup.new_full((1,), -1)])
-                aligned.append(
-                    lookup[query.categorical.code[..., i].clamp_min(-1)]
-                )
-                num_categories = max(
-                    num_categories,
-                    past_categories.numel() + future_categories.numel(),
-                )
-            if aligned:
-                codes = torch.cat(
-                    [codes, torch.stack(aligned, dim=-1)], dim=-2
-                )
+            codes = torch.cat([codes, query.categorical.code], dim=-2)
+            num_categories = max(
+                num_categories,
+                max(
+                    (c.numel() for c in query.categorical.categories),
+                    default=0,
+                ),
+            )
         length = numeric.size(-2)
         numeric = (
             numeric.transpose(-2, -1)

@@ -25,8 +25,11 @@ WEIGHT_REVISION = "bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f"
 def make_case(
     name: str,
     device: str,
+    *,
+    context_length: int = 79,
+    prediction_length: int = 65,
 ) -> tuple[TableTensor, TableTensor, TableTensor, dict]:
-    t, h, v, batch = 79, 65, 1, 1
+    t, h, v, batch = context_length, prediction_length, 1, 1
     if name == "multivariate":
         v = 3
     if name == "batched":

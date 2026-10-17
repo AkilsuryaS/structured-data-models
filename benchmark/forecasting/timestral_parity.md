@@ -29,4 +29,28 @@ Only 5M was checked against pretrained weights. The 28M, 123M, and 209M variants
 
 The integration needs no upstream package at runtime. Optional pretrained pytest comparisons skip when upstream or cached 5M weights are unavailable. The ordinary public-contract and neural-block tests use random weights and run offline. SDM represents categorical values with category indices; for multivariate targets those indices become the raw numerical covariates, matching upstream when supplied the same codes.
 
-Separately tensorized string vocabularies are aligned by category value at the model boundary using SDM's relational join. This uses cuDF on CUDA when installed and the existing CPU fallback otherwise. Forecast tensor execution and target encoding stay on the input device.
+The default recipe uses `AlignCategories(min_frequency=0, unknown="append")` to align independently tensorized vocabularies. Context codes and unused dictionary entries are retained; new query categories are appended to the returned vocabulary without changing fitted state. Numeric vocabularies use tensor lookups; string vocabularies use SDM's batched relational join, with cuDF on CUDA when installed and the existing CPU fallback otherwise. Forecast tensor execution and target encoding stay on the input device.
+
+## Runtime versus upstream
+
+The [runtime benchmark](timestral_runtime.py) checks prediction parity before timing each workload. Reproduce it with:
+
+```bash
+python -m benchmark.forecasting.timestral_runtime --device cpu --output benchmark/forecasting/timestral_runtime_cpu.json
+python -m benchmark.forecasting.timestral_runtime --device cuda --output benchmark/forecasting/timestral_runtime_cuda.json
+```
+
+Measured before moving category alignment into the recipe, on the same CPU/GPU and PyTorch version described above, with two CPU threads, float32, eager execution, one series per call, and the default forecast options. Values are median milliseconds across 30 calls after five warmups. Each pair alternates execution order; CUDA is synchronized before and after each individual timed call. These are public API latencies, including preprocessing and output construction, with inputs already on the target device. Loading, initial table construction, and warmup are excluded. CPU and CUDA benchmarks ran sequentially.
+
+| Workload               | Context / horizon | CPU SDM | CPU upstream | CUDA SDM | CUDA upstream |
+| ---------------------- | ----------------- | ------- | ------------ | -------- | ------------- |
+| Univariate             | 128 / 96          | 79.03   | 68.79        | 9.25     | 9.09          |
+| Univariate             | 1,024 / 96        | 82.16   | 71.09        | 10.03    | 9.84          |
+| Three targets          | 1,024 / 96        | 85.71   | 73.62        | 10.56    | 10.32         |
+| Numerical covariates   | 1,024 / 96        | 92.55   | 80.50        | 12.06    | 11.47         |
+| Categorical covariates | 1,024 / 96        | 96.02   | 82.22        | 14.92    | 11.90         |
+| Long horizon           | 79 / 1,030        | 163.30  | 143.34       | 23.54    | 23.65         |
+
+SDM takes roughly 14–17% longer on CPU in these workloads. On CUDA, most workloads are within 5% of upstream; the categorical case takes roughly 25% longer. The categorical comparison includes SDM's dictionary alignment, while upstream accepts numeric category codes. Neither implementation is compiled or uses lower precision. No attribution of the remaining runtime difference to individual operations has been profiled.
+
+The [CPU report](timestral_runtime_cpu.json) and [CUDA report](timestral_runtime_cuda.json) include all individual samples, quartiles, revisions, and benchmark settings.
