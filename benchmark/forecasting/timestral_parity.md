@@ -14,16 +14,16 @@ It compares upstream `TimestralForecaster.forecast` with SDM's public `Timestral
 
 Recorded on 2026-10-17 with PyTorch `2.14.0+cu130`, a Cortex-X925 CPU using two PyTorch threads, and an NVIDIA GB10 GPU:
 
-| Comparison                    | Result                                                                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------- |
-| CPU, all 15 cases             | Bit-for-bit equal                                                                         |
-| CUDA, horizons up to 65 steps | Maximum absolute error `1.67e-5`                                                          |
-| CUDA, 1,030-step horizon      | Maximum absolute error `0.0889` in extreme quantile tails; maximum scaled error `1.64e-5` |
-| CUDA, all 15 cases            | Pass `atol=rtol=1e-4`                                                                     |
-| Numeric covariates, CPU       | 83.9 ms per public forward                                                                |
-| Numeric covariates, CUDA      | 12.0 ms per public forward                                                                |
+| Comparison                    | Result                                                          |
+| ----------------------------- | --------------------------------------------------------------- |
+| CPU, horizons up to 65 steps  | Maximum absolute error `1.05e-5`                                |
+| CPU, 1,030-step horizon       | Maximum absolute error `0.0635`; maximum scaled error `1.82e-5` |
+| CPU, all 15 cases             | Pass `atol=rtol=2e-5`                                           |
+| CUDA, horizons up to 65 steps | Maximum absolute error `1.96e-5`                                |
+| CUDA, 1,030-step horizon      | Maximum absolute error `0.0547`; maximum scaled error `1.66e-5` |
+| CUDA, all 15 cases            | Pass `atol=rtol=1e-4`                                           |
 
-Scaled error is `abs(actual - reference) / (1 + abs(reference))`. The long-horizon example produces large tail quantiles; its absolute error should be interpreted alongside its scaled error. Timings use one series, 79 context steps, 65 forecast steps, one numerical past covariate, one numerical known-future covariate, three warmups, and 20 timed calls. GPU timing uses CUDA events and synchronizes the end event. These timings characterize this workload and hardware, not a general speedup claim.
+Scaled error is `abs(actual - reference) / (1 + abs(reference))`. The long-horizon example produces large tail quantiles; its absolute error should be interpreted alongside its scaled error. Timestral now uses SDM's shared `RotaryEmbedding` with explicit positions. Checkpoint loading permutes query/key channels to match SDM's partial-rotation layout while leaving values unchanged. This preserves the attention computation mathematically; reordered floating-point reductions introduce small differences on CPU and CUDA.
 
 Only 5M was checked against pretrained weights. The 28M, 123M, and 209M variants use pinned configurations and checkpoint loading but have not been parity-tested. Parity is scoped to float32; lower precision is unvalidated.
 

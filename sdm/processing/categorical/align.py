@@ -95,6 +95,15 @@ class AlignCategories(EnsembleProcessor):
         self.min_frequency = min_frequency
         self.unknown = unknown
         self._categories: BufferList[BufferList[Tensor]] = BufferList()
+        self._table_ids: tuple[int, ...] = ()
+
+    def get_extra_state(self) -> tuple[int, ...]:
+        r""":meta private:"""  # noqa: D415
+        return self._table_ids
+
+    def set_extra_state(self, state: object) -> None:
+        r""":meta private:"""  # noqa: D415
+        self._table_ids = cast(tuple[int, ...], state)
 
     def _fit_column(
         self,
@@ -242,6 +251,7 @@ class AlignCategories(EnsembleProcessor):
             table,
             align_codes=False,
         )
+        self._table_ids = tuple(range(len(fitted_categories)))
         self._categories = BufferList(
             BufferList(categories) for categories in fitted_categories
         )
@@ -253,6 +263,7 @@ class AlignCategories(EnsembleProcessor):
         generator: torch.Generator | None = None,
     ) -> TableTensor:
         fitted_categories, aligned_tables = self._fit_and_align(table)
+        self._table_ids = tuple(range(len(fitted_categories)))
         self._categories = BufferList(
             BufferList(categories) for categories in fitted_categories
         )
@@ -294,9 +305,9 @@ class AlignCategories(EnsembleProcessor):
                 align_codes=False,
             )
             fitted_categories.extend(group_categories)
+        self._table_ids = self._member_table_ids(ensemble_table)
         self._categories = BufferList(
-            BufferList(fitted_categories[index])
-            for index in self._member_table_ids(ensemble_table)
+            BufferList(fitted_categories[index]) for index in self._table_ids
         )
 
     def _fit_transform_ensemble(
@@ -317,6 +328,7 @@ class AlignCategories(EnsembleProcessor):
             tables=aligned_tables,
             member_table_ids=member_table_ids,
         )
+        self._table_ids = member_table_ids
         self._categories = BufferList(
             BufferList(fitted_categories[index]) for index in member_table_ids
         )
@@ -344,9 +356,16 @@ class AlignCategories(EnsembleProcessor):
             )
             for member_id, table in zip(member_ids, tables):
                 aligned_tables[member_id] = table
+        # Keep members shared when both their query and fitted context share
+        # a table. Downstream fitted processors depend on that assignment.
+        outputs: dict[tuple[tuple[int, int], int], int] = {}
+        member_table_ids = []
+        for member_id, location in enumerate(ensemble_table._locations):
+            key = (location, self._table_ids[member_id])
+            member_table_ids.append(outputs.setdefault(key, member_id))
         return ensemble_table.replace_tables(
             tables=cast(Sequence[TableTensor], aligned_tables),
-            member_table_ids=tuple(range(len(ensemble_table))),
+            member_table_ids=member_table_ids,
         )
 
     @staticmethod

@@ -22,7 +22,7 @@ from sdm import (
 from sdm.cache import Cache
 from sdm.models._huggingface import download_checkpoint
 from sdm.models.base import ICLModel
-from sdm.models.timestral.config import _TimestralConfig
+from sdm.models.timestral.config import LAYER_KIND_AXES, _TimestralConfig
 from sdm.models.timestral.decode import _Decoder, _ffill_with_mask
 from sdm.models.timestral.encoding import _encode_categories
 from sdm.models.timestral.network import _TimestralModel
@@ -137,9 +137,11 @@ class Timestral(ICLModel):
             state = load_file(
                 path, device=str(next(self.model.parameters()).device)
             )
-            self.model.load_state_dict(
-                _remap_checkpoint(state, config.num_heads), strict=True
+            state = _remap_checkpoint(state, config)
+            state["transformer.rope.inv_freq"] = (
+                self.model.transformer.rope.inv_freq.detach()
             )
+            self.model.load_state_dict(state, strict=True)
         self.eval()
 
     @classmethod
@@ -274,9 +276,30 @@ class Timestral(ICLModel):
 
 
 def _remap_checkpoint(
-    state: dict[str, Tensor], heads: int
+    state: dict[str, Tensor], config: _TimestralConfig
 ) -> dict[str, Tensor]:
     out = {}
+    heads = config.num_heads
+    time_attns = {
+        f"transformer.layers.{layer}.attns.{axis}"
+        for layer, kind in enumerate(config.block_schedule)
+        for axis, is_time in enumerate(LAYER_KIND_AXES[kind])
+        if is_time
+    }
+    channels = torch.arange(
+        config.head_dim,
+        device=next(iter(state.values())).device,
+    )
+    half, rotated_half = config.head_dim // 2, config.rope_dim // 2
+    # Move the active pairs from the full head halves into a contiguous prefix.
+    permutation = torch.cat(
+        [
+            channels[:rotated_half],
+            channels[half : half + rotated_half],
+            channels[rotated_half:half],
+            channels[half + rotated_half :],
+        ]
+    )
     for key, value in state.items():
         key = (
             key.replace("hidden_layer", "hidden_lin")
@@ -287,11 +310,15 @@ def _remap_checkpoint(
             # Upstream interleaves heads within each head channel.
             head_dim = value.size(0) // (3 * heads)
             trailing = value.shape[1:]
-            value = (
-                value.reshape(3, head_dim, heads, *trailing)
-                .transpose(1, 2)
-                .reshape_as(value)
-            )
+            qkv = value.reshape(3, head_dim, heads, *trailing).transpose(1, 2)
+            if key.rsplit(".", 2)[0] in time_attns:
+                qkv = torch.cat(
+                    [
+                        qkv[:2].index_select(2, permutation),
+                        qkv[2:],
+                    ]
+                )
+            value = qkv.reshape_as(value)
             key = key.replace("wQKV", "qkv_lin")
         key = key.replace(".wO.", ".out_lin.").replace("._gate.", ".gate_lin.")
         if key.endswith(".scale"):

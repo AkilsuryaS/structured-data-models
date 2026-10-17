@@ -8,70 +8,7 @@ import torch
 from torch import Tensor, nn
 
 from sdm.models.timestral.config import LAYER_KIND_AXES
-from sdm.nn import SDPA, RMSNorm, SwiGLU
-
-
-class _SinCosRoPE(nn.Module):
-    inv_freq: Tensor
-
-    def __init__(self, dim: int, base: float, rotary_dim: int) -> None:
-        super().__init__()
-        self.dim = dim
-        self.base = base
-        self.rotary_dim = rotary_dim
-        self.register_buffer(
-            "inv_freq", self._build_inv_freq(None), persistent=False
-        )
-
-    def _build_inv_freq(self, device: torch.device | None) -> Tensor:
-        # Partial rotation pairs channels across the full head halves.
-        inv_freq = torch.zeros(
-            self.dim // 2, dtype=torch.float32, device=device
-        )
-        idx = torch.arange(
-            0, self.rotary_dim, 2, dtype=torch.float32, device=device
-        )
-        inv_freq[: self.rotary_dim // 2] = 1.0 / self.base ** (
-            idx / self.rotary_dim
-        )
-        return inv_freq
-
-    def rebuild_inv_freq(self) -> None:
-        self.inv_freq = self._build_inv_freq(self.inv_freq.device)
-
-    @torch.no_grad()
-    def forward(
-        self, x: Tensor, position_ids: Tensor
-    ) -> tuple[Tensor, Tensor]:
-        inv_freq_expanded = (
-            self.inv_freq[None, :, None]
-            .float()
-            .expand(position_ids.shape[0], -1, 1)
-        )
-        position_ids_expanded = position_ids[:, None, :].float()
-        device_type = x.device.type if x.device.type != "mps" else "cpu"
-        with torch.autocast(device_type=device_type, enabled=False):
-            freqs = (
-                inv_freq_expanded @ position_ids_expanded.float()
-            ).transpose(1, 2)
-            emb = torch.cat((freqs, freqs), dim=-1)
-            cos = emb.cos()
-            sin = emb.sin()
-        return (cos.to(dtype=x.dtype), sin.to(dtype=x.dtype))
-
-
-def _rotate_half(x: Tensor) -> Tensor:
-    x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
-    return torch.cat((-x2, x1), dim=-1)
-
-
-def _apply_rotary(
-    q: Tensor, k: Tensor, cos: Tensor, sin: Tensor
-) -> tuple[Tensor, Tensor]:
-    cos = cos.unsqueeze(2)
-    sin = sin.unsqueeze(2)
-    return (q * cos + _rotate_half(q) * sin, k * cos + _rotate_half(k) * sin)
+from sdm.nn import SDPA, RMSNorm, RotaryEmbedding, SwiGLU
 
 
 @dataclass(frozen=True)
@@ -127,14 +64,18 @@ class _Attention(nn.Module):
         self,
         x: Tensor,
         mask: Tensor | _TwoStreamMask | None,
-        cos: Tensor,
-        sin: Tensor,
+        positions: Tensor,
+        rope: RotaryEmbedding,
     ) -> Tensor:
         rows, num_patches, _ = x.shape
         inputs = x if self.is_time else x.permute(1, 0, 2)
         q, k, v = self._qkv(inputs)
         if self.is_time:
-            q, k = _apply_rotary(q, k, cos, sin)
+            # Queries and keys share positions and rotary frequencies.
+            q, k = rope(
+                torch.stack([q, k]),
+                position_ids=positions,
+            ).unbind(0)
         if isinstance(mask, _TwoStreamMask):
             n = mask.enc_len
             out_enc = self._attend(
@@ -202,12 +143,15 @@ class _TransformerBlock(nn.Module):
         x: Tensor,
         time_mask: Tensor | _TwoStreamMask | None,
         variate_mask: Tensor | None,
-        cos: Tensor,
-        sin: Tensor,
+        positions: Tensor,
+        rope: RotaryEmbedding,
     ) -> Tensor:
         for norm, attn in zip(self.attn_norms, self.attns):
             x = x + attn(
-                norm(x), time_mask if attn.is_time else variate_mask, cos, sin
+                x=norm(x),
+                mask=time_mask if attn.is_time else variate_mask,
+                positions=positions,
+                rope=rope,
             )
         return x + self.mlp(self.mlp_norm(x))
 
@@ -244,8 +188,12 @@ class _Transformer(nn.Module):
                 for kind in block_schedule
             ]
         )
-        self.rope = _SinCosRoPE(
-            dim=embed_dim // num_heads, base=rope_theta, rotary_dim=rope_dim
+        self.rope = RotaryEmbedding(
+            channels=embed_dim // num_heads,
+            layout="split_half",
+            theta=rope_theta,
+            partial_rotary_factor=rope_dim / (embed_dim // num_heads),
+            requires_grad=False,
         )
         self.out_norm = RMSNorm(embed_dim, eps=norm_eps)
 
@@ -256,7 +204,12 @@ class _Transformer(nn.Module):
         variate_mask: Tensor | None,
         positions: Tensor,
     ) -> Tensor:
-        cos, sin = self.rope(x, positions)
         for layer in self.layers:
-            x = layer(x, time_mask, variate_mask, cos, sin)
+            x = layer(
+                x=x,
+                time_mask=time_mask,
+                variate_mask=variate_mask,
+                positions=positions,
+                rope=self.rope,
+            )
         return self.out_norm(x)

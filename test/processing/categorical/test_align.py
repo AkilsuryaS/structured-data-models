@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 import torch
 
+import sdm.processing as sp
 from sdm import CategoricalTensor, EnsembleTable, StringTensor, TableTensor
 from sdm.processing import AlignCategories
 from sdm.testing import withCUDA
@@ -626,3 +627,35 @@ def test_align_categories_shared_query_uses_each_fitted_vocabulary(
             AlignCategories(**kwargs).fit(contexts[member]).transform(query)
         )
         assert out[i].equal(expected)
+
+
+@withCUDA
+def test_alignment_preserves_fitted_ensemble_pipeline(
+    device: torch.device,
+) -> None:
+    context = _table(
+        [[0], [1], [0]],
+        categories=(("red", "blue"),),
+        device=device,
+    )
+    query = _table([[1], [0]], categories=(("blue", "red"),), device=device)
+    processor = sp.Sequential(
+        sp.AlignCategories(),
+        sp.ToNumerical(),
+        sp.Choice(
+            sp.Identity(), sp.FlipSign(probability=1), method="round_robin"
+        ),
+        sp.Standardize(),
+    )
+    members = 4
+    processor.fit_transform_ensemble(
+        EnsembleTable.from_table(context, num_members=members)
+    )
+    out = processor.transform_ensemble(
+        EnsembleTable.from_table(query, num_members=members)
+    )
+    # Each sign branch uses its own context-fitted statistics.
+    expected = torch.tensor([[-(2**-0.5)], [2**0.5]], device=device)
+    for member_id in range(len(out)):
+        sign = 1 if member_id % 2 == 0 else -1
+        torch.testing.assert_close(out[member_id].numerical, sign * expected)
