@@ -138,9 +138,9 @@ class Timestral(ICLModel):
                 path, device=str(next(self.model.parameters()).device)
             )
             state = _remap_checkpoint(state, config)
-            state["transformer.rope.inv_freq"] = (
-                self.model.transformer.rope.inv_freq.detach()
-            )
+            for key, value in self.model.state_dict().items():
+                if key.endswith(".inv_freq"):
+                    state[key] = value.detach()
             self.model.load_state_dict(state, strict=True)
         self.eval()
 
@@ -300,6 +300,11 @@ def _remap_checkpoint(
             channels[half + rotated_half :],
         ]
     )
+    offsets = []
+    depth = 0
+    for kind in config.block_schedule:
+        offsets.append(depth)
+        depth += len(LAYER_KIND_AXES[kind])
     for key, value in state.items():
         key = (
             key.replace("hidden_layer", "hidden_lin")
@@ -320,14 +325,33 @@ def _remap_checkpoint(
                 )
             value = qkv.reshape_as(value)
             key = key.replace("wQKV", "qkv_lin")
-        key = key.replace(".wO.", ".out_lin.").replace("._gate.", ".gate_lin.")
+        if key.startswith("transformer.layers."):
+            parts = key.split(".")
+            layer = int(parts[2])
+            offset = offsets[layer]
+            if parts[3] in {"attns", "attn_norms"}:
+                index = offset + int(parts[4])
+                module = "attn" if parts[3] == "attns" else "query_norm"
+                suffix = ".".join(parts[5:])
+            else:
+                index = (
+                    offset
+                    + len(LAYER_KIND_AXES[config.block_schedule[layer]])
+                    - 1
+                )
+                module = "mlp.0" if parts[3] == "mlp_norm" else "mlp.1"
+                suffix = ".".join(parts[4:])
+            key = f"transformer.layers.{index}.{module}.{suffix}"
+        key = key.replace(".wO.", ".out_lin.").replace(
+            "._gate.", ".output_gate.0."
+        )
         if key.endswith(".scale"):
             key = key[:-5] + "weight"
-        if ".mlp.w12." in key:
+        if ".mlp.1.w12." in key:
             # Upstream stores the linear branch first, the SiLU branch second.
             up, gate = value.chunk(2, dim=0)
             out[key.replace("w12", "up_lin")] = up
             out[key.replace("w12", "gate_lin")] = gate
         else:
-            out[key.replace(".mlp.w3.", ".mlp.down_lin.")] = value
+            out[key.replace(".mlp.1.w3.", ".mlp.1.down_lin.")] = value
     return out

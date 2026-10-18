@@ -6,7 +6,7 @@ import torch
 from torch import Tensor, nn
 
 from sdm.models.timestral.config import _TimestralConfig
-from sdm.models.timestral.layers import _Transformer, _TwoStreamMask
+from sdm.models.timestral.layers import _Transformer
 from sdm.models.timestral.masks import (
     _build_forecast_positions,
     _build_forecast_time_mask,
@@ -151,10 +151,7 @@ class _TimestralModel(nn.Module):
         positions: Tensor,
     ) -> Tensor:
         x = torch.cat([x_enc, x_dec], dim=1)
-        mask: Tensor | _TwoStreamMask = time_mask
-        if self.config.split_context_horizon_attn:
-            mask = _TwoStreamMask(mask=time_mask, enc_len=x_enc.shape[1])
-        h = self.transformer(x, mask, variate_mask, positions)
+        h = self.transformer(x, time_mask, variate_mask, positions)
         return self.head(h[:, x_enc.shape[1] :, :])
 
     def predict_block(

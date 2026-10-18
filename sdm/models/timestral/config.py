@@ -33,6 +33,7 @@ class _TimestralConfig:
     use_asinh: bool = True
     stabilize_with_global: bool = False
     covariate_enabled: bool = True
+    # Upstream execution hint; SDM uses the equivalent full attention mask.
     split_context_horizon_attn: bool = True
     attend_missing_patches: bool = True
     quantile_width_factor: float = 2.0
