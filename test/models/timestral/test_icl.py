@@ -85,3 +85,29 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
         torch.testing.assert_close(
             block(x[:1], row_mask=row_mask, col_mask=col_mask), out[:1]
         )
+
+
+@withCUDA
+@pytest.mark.parametrize("strided", [False, True])
+def test_icl_block_inference(device: torch.device, strided: bool) -> None:
+    block = ICLBlock(
+        channels=16,
+        num_layers=4,
+        num_heads=2,
+        hidden_channels=24,
+        column_every=2,
+        device=device,
+    )
+    for module in block.modules():
+        if isinstance(module, torch.nn.Linear):
+            module.reset_parameters()
+    x = torch.randn(2, 3, 5, 16, device=device)
+    if strided:
+        x = x.transpose(-3, -2)
+    original = x.clone()
+    pos = torch.arange(x.size(-2), device=device).square()
+    expected = block(x, row_mask=None, col_mask=None, pos=pos)
+    with torch.inference_mode():
+        out = block(x, row_mask=None, col_mask=None, pos=pos)
+    torch.testing.assert_close(out, expected)
+    torch.testing.assert_close(x, original, rtol=0, atol=0)

@@ -101,7 +101,9 @@ class ICLBlock(nn.Module):
         Returns:
             Tensor with the same shape as ``x``.
         """
-        for is_row, layer in zip(self._row_attention, self.layers):
+        for i, (is_row, layer) in enumerate(
+            zip(self._row_attention, self.layers)
+        ):
             if not is_row:
                 x = x.transpose(-3, -2)
             x = layer(
@@ -109,6 +111,8 @@ class ICLBlock(nn.Module):
                 attn_mask=row_mask if is_row else col_mask,
                 query_pos=pos if is_row else None,
                 is_causal=is_row and row_mask is None,
+                batch_size_limit="auto",
+                out=None if torch.is_grad_enabled() or i == 0 else x,
             )
             if not is_row:
                 x = x.transpose(-3, -2)
