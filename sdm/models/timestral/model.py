@@ -300,11 +300,7 @@ def _remap_checkpoint(
             channels[half + rotated_half :],
         ]
     )
-    offsets = []
-    depth = 0
-    for kind in config.block_schedule:
-        offsets.append(depth)
-        depth += len(LAYER_KIND_AXES[kind])
+    column_every = config.column_every
     for key, value in state.items():
         key = (
             key.replace("hidden_layer", "hidden_lin")
@@ -328,20 +324,17 @@ def _remap_checkpoint(
         if key.startswith("transformer.layers."):
             parts = key.split(".")
             layer = int(parts[2])
-            offset = offsets[layer]
             if parts[3] in {"attns", "attn_norms"}:
-                index = offset + int(parts[4])
+                column = int(parts[4]) == 1
                 module = "attn" if parts[3] == "attns" else "query_norm"
                 suffix = ".".join(parts[5:])
             else:
-                index = (
-                    offset
-                    + len(LAYER_KIND_AXES[config.block_schedule[layer]])
-                    - 1
-                )
+                column = (layer + 1) % column_every == 0
                 module = "mlp.0" if parts[3] == "mlp_norm" else "mlp.1"
                 suffix = ".".join(parts[4:])
-            key = f"transformer.layers.{index}.{module}.{suffix}"
+            stack = "col_blocks" if column else "row_blocks"
+            index = layer // column_every if column else layer
+            key = f"transformer.{stack}.{index}.{module}.{suffix}"
         key = key.replace(".wO.", ".out_lin.").replace("._gate.", ".gate.0.")
         key = key.replace("transformer.out_norm.", "transformer.norm.")
         if key.endswith(".scale"):
