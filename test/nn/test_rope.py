@@ -113,7 +113,7 @@ def test_rope_explicit_positions(
     sequential = module(x.expand(2, 3, 8, 2, 16))
     index = positions[..., None, None].expand(2, 3, 5, 2, 16)
     expected = sequential.gather(-3, index)
-    out = module(x.expand(2, 3, 5, 2, 16), position_ids=positions)
+    out = module(x.expand(2, 3, 5, 2, 16), pos=positions)
     torch.testing.assert_close(out, expected)
     rotated = int(16 * partial_rotary_factor)
     torch.testing.assert_close(
@@ -137,8 +137,8 @@ def test_rope_negative_positions_invert_rotation(
     positions = torch.tensor(
         [[0, 2, -3, 2, 7], [-1, 4, 0, 0, 3]], device=device
     )
-    rotated = module(x, position_ids=positions)
-    recovered = module(rotated, position_ids=-positions)
+    rotated = module(x, pos=positions)
+    recovered = module(rotated, pos=-positions)
     torch.testing.assert_close(recovered, x)
     rotated.sum().backward()
     assert x.grad is not None

@@ -96,10 +96,6 @@ class _TimestralModel(nn.Module):
             rope_theta=c.rope_theta,
             rope_dim=c.rope_dim,
             norm_eps=c.norm_eps,
-            attn_bias=c.attn_bias,
-            mlp_bias=c.mlp_bias,
-            time_attn_gate=c.time_attn_gate,
-            variate_attn_gate=c.variate_attn_gate,
         )
         self.head = _QuantileHead(c)
 

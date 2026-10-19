@@ -80,8 +80,8 @@ def test_rotary_embedding_compile(
         positions = torch.tensor(
             [[0, 2, -3, 2, 7], [-1, 4, 0, 0, 3]], device=device
         )
-    expected = module(x, position_ids=positions)
-    out = fullgraph(module)(x, position_ids=positions)
+    expected = module(x, pos=positions)
+    out = fullgraph(module)(x, pos=positions)
     torch.testing.assert_close(out, expected)
 
 

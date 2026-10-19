@@ -66,7 +66,7 @@ class RotaryEmbedding(torch.nn.Module):
     def forward(
         self,
         x: Tensor,  # [..., S, H, C]
-        position_ids: Tensor | None = None,  # [..., S]
+        pos: Tensor | None = None,  # [..., S]
     ) -> Tensor:  # [..., S, H, C]
         """The forward pass.
 
@@ -74,8 +74,7 @@ class RotaryEmbedding(torch.nn.Module):
             x: Tensor with shape ``[..., S, H, C]``.
                 ``S`` is the query sequence length, ``H`` is the number of
                 attention heads, and ``C`` is the channels per head.
-            position_ids: Positions with shape ``[..., S]``, broadcastable
-                over the input batch dimensions. Defaults to ``0..S-1``.
+            pos: Optional position indices with shape ``[..., S]``.
 
         Returns:
             Tensor with shape ``[..., S, H, C]``.
@@ -84,15 +83,15 @@ class RotaryEmbedding(torch.nn.Module):
             raise ValueError(
                 f"Expected {self.channels} channels (got {x.size(-1)})"
             )
-        if position_ids is None:
-            position_ids = torch.arange(
+        if pos is None:
+            pos = torch.arange(
                 x.size(-3),
                 device=x.device,
                 dtype=torch.float32,
             )
-        freq = position_ids.float().unsqueeze(-1) * self.inv_freq
-        sin = freq.sin().unsqueeze(-2).to(x.dtype)  # [..., S, 1, C_rot // 2]
-        cos = freq.cos().unsqueeze(-2).to(x.dtype)
+        freq = pos.float().unsqueeze(-1) * self.inv_freq  # [..., S, C // 2]
+        sin = freq.sin().unsqueeze(-2).to(x.dtype)  # [..., S, 1, C // 2]
+        cos = freq.cos().unsqueeze(-2).to(x.dtype)  # [..., S, 1, C // 2]
 
         rotary = x[..., : self.rotary_channels]
         if self.layout == "interleaved":

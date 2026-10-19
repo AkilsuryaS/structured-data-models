@@ -4,8 +4,9 @@
 
 from torch import Tensor, nn
 
+from sdm.models.timestral.block import TimestralTransformerBlock
 from sdm.models.timestral.config import LAYER_KIND_AXES
-from sdm.nn import RMSNorm, RotaryEmbedding, SwiGLU, TransformerBlock
+from sdm.nn import RMSNorm, RotaryEmbedding
 
 
 class _Transformer(nn.Module):
@@ -18,10 +19,6 @@ class _Transformer(nn.Module):
         rope_theta: float,
         rope_dim: int,
         norm_eps: float,
-        attn_bias: bool,
-        mlp_bias: bool,
-        time_attn_gate: str,
-        variate_attn_gate: str,
     ) -> None:
         super().__init__()
         rope = RotaryEmbedding(
@@ -40,27 +37,14 @@ class _Transformer(nn.Module):
         for kind in block_schedule:
             axes = LAYER_KIND_AXES[kind]
             for index, is_time in enumerate(axes):
-                gate = time_attn_gate if is_time else variate_attn_gate
                 self.layers.append(
-                    TransformerBlock(
+                    TimestralTransformerBlock(
                         channels=embed_dim,
-                        num_query_heads=num_heads,
-                        query_norm=RMSNorm(embed_dim, eps=norm_eps),
-                        query_transform=rope if is_time else None,
-                        key_transform=rope if is_time else None,
-                        output_gate=nn.Sequential(
-                            nn.Linear(embed_dim, embed_dim, bias=attn_bias),
-                            nn.Sigmoid(),
-                        )
-                        if gate == "sdpa_sigmoid"
-                        else None,
-                        mlp=nn.Sequential(
-                            RMSNorm(embed_dim, eps=norm_eps),
-                            SwiGLU(embed_dim, mlp_hidden_dim, bias=mlp_bias),
-                        )
+                        num_heads=num_heads,
+                        hidden_channels=mlp_hidden_dim
                         if index == len(axes) - 1
                         else None,
-                        bias=attn_bias,
+                        rope=rope if is_time else None,
                     )
                 )
         self.out_norm = RMSNorm(embed_dim, eps=norm_eps)
@@ -78,7 +62,7 @@ class _Transformer(nn.Module):
             x = layer(
                 query=x,
                 attn_mask=time_mask if is_time else variate_mask,
-                position_ids=positions if is_time else None,
+                query_pos=positions if is_time else None,
                 is_causal=is_time and time_mask is None,
             )
             if not is_time:

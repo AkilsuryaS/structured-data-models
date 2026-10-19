@@ -342,11 +342,11 @@ def _remap_checkpoint(
                 module = "mlp.0" if parts[3] == "mlp_norm" else "mlp.1"
                 suffix = ".".join(parts[4:])
             key = f"transformer.layers.{index}.{module}.{suffix}"
-        key = key.replace(".wO.", ".out_lin.").replace(
-            "._gate.", ".output_gate.0."
-        )
+        key = key.replace(".wO.", ".out_lin.").replace("._gate.", ".gate.0.")
         if key.endswith(".scale"):
             key = key[:-5] + "weight"
+        if ".query_norm." in key:
+            out[key.replace(".query_norm.", ".key_value_norm.")] = value
         if ".mlp.1.w12." in key:
             # Upstream stores the linear branch first, the SiLU branch second.
             up, gate = value.chunk(2, dim=0)
