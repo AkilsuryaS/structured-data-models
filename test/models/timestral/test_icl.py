@@ -63,7 +63,7 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
         changed[:, 1:] += torch.randn_like(changed[:, 1:])
         changed[:, 0, 3:] += torch.randn_like(changed[:, 0, 3:])
         torch.testing.assert_close(
-            block(changed, row_mask=row_mask, col_mask=col_mask, pos=pos)[
+            block(changed, row_mask=None, col_mask=col_mask, pos=pos)[
                 :, 0, :3
             ],
             out[:, 0, :3],
@@ -72,7 +72,7 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
         full_mask = torch.ones_like(row_mask)
         full = block(x, row_mask=full_mask, col_mask=col_mask, pos=pos)
         torch.testing.assert_close(
-            block(x, row_mask=None, col_mask=col_mask, pos=pos), full
+            block(x, row_mask=None, col_mask=col_mask, pos=pos), out
         )
         assert not torch.allclose(full[:, 0, :3], out[:, 0, :3])
         assert not torch.allclose(

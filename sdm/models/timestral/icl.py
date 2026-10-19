@@ -18,7 +18,8 @@ class ICLBlock(nn.Module):
 
     Every layer applies row attention, followed by column attention every
     ``column_every`` layers, and one MLP. Row attention uses rotary positions.
-    A ``None`` mask allows unrestricted attention on its axis.
+    A ``None`` row mask selects causal attention; a ``None`` column mask
+    allows unrestricted attention.
 
     Args:
         channels: Hidden channels.
@@ -91,7 +92,7 @@ class ICLBlock(nn.Module):
                 row tokens ``R``, and hidden channels ``D``.
             row_mask: Allowed row attention, broadcastable to
                 ``[..., C, H, R, R]``, where ``H`` is the number of heads,
-                or ``None`` for unrestricted attention.
+                or ``None`` for causal attention.
             col_mask: Allowed column attention, broadcastable to
                 ``[..., R, H, C, C]``, or ``None`` for unrestricted attention.
             pos: Row positions with shape ``[R]`` or ``[..., C, R]``.
@@ -107,6 +108,7 @@ class ICLBlock(nn.Module):
                 query=x,
                 attn_mask=row_mask if is_row else col_mask,
                 query_pos=pos if is_row else None,
+                is_causal=is_row and row_mask is None,
             )
             if not is_row:
                 x = x.transpose(-3, -2)
