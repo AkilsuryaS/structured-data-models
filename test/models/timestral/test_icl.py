@@ -9,8 +9,8 @@ from sdm.testing import withCUDA
 
 
 @withCUDA
-@pytest.mark.parametrize("column_every", [None, 1, 2, 4])
-def test_icl_block(device: torch.device, column_every: int | None) -> None:
+@pytest.mark.parametrize("column_every", [1, 2, 4])
+def test_icl_block(device: torch.device, column_every: int) -> None:
     block = ICLBlock(
         channels=16,
         num_layers=4,

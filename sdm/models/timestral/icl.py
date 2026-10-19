@@ -26,8 +26,7 @@ class ICLBlock(nn.Module):
         num_layers: Number of layers.
         num_heads: Number of attention heads.
         hidden_channels: MLP hidden channels.
-        column_every: Apply column attention every this many layers, or
-            ``None`` to disable it.
+        column_every: Apply column attention every this many layers.
         device: The device.
         dtype: The data type.
     """
@@ -38,7 +37,7 @@ class ICLBlock(nn.Module):
         num_layers: int,
         num_heads: int,
         hidden_channels: int,
-        column_every: int | None = 4,
+        column_every: int = 4,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -55,7 +54,7 @@ class ICLBlock(nn.Module):
         self._row_attention: list[bool] = []
         self.layers = nn.ModuleList()
         for i in range(num_layers):
-            column = column_every is not None and (i + 1) % column_every == 0
+            column = (i + 1) % column_every == 0
             self._row_attention.append(True)
             self.layers.append(
                 TimestralTransformerBlock(
