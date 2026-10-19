@@ -1087,6 +1087,8 @@ class TableTensor(Tensor):
         attrs = ["numerical", "categorical", "datetime", "text"]
         if self.id.size(-1) > 0:
             attrs.append("id")
+        # Let torch.compile track backing fields and their public properties.
+        attrs = [f"_{name}" for name in attrs] + attrs
         columns = tuple(
             (str(stype), names) for stype, names in self._columns.items()
         )
