@@ -28,8 +28,6 @@ class ICLBlock(nn.Module):
         hidden_channels: MLP hidden channels.
         column_every: Apply column attention every this many layers, or
             ``None`` to disable it.
-        rope_theta: Rotary frequency base.
-        partial_rotary_factor: Fraction of each head using rotary embeddings.
         device: The device.
         dtype: The data type.
     """
@@ -41,8 +39,6 @@ class ICLBlock(nn.Module):
         num_heads: int,
         hidden_channels: int,
         column_every: int | None = 4,
-        rope_theta: float = 10_000,
-        partial_rotary_factor: float = 0.5,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -51,8 +47,8 @@ class ICLBlock(nn.Module):
         rope = RotaryEmbedding(
             channels=channels // num_heads,
             layout="split_half",
-            theta=rope_theta,
-            partial_rotary_factor=partial_rotary_factor,
+            theta=10_000,
+            partial_rotary_factor=0.5,
             requires_grad=False,
             **factory_kwargs,
         )
