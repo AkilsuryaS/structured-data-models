@@ -20,7 +20,8 @@ def test_icl_block(device: torch.device, column_every: int | None) -> None:
         device=device,
     )
     x = torch.randn(2, 3, 5, 16, device=device)
-    out = block(x)
+    row_mask = torch.ones(5, 5, device=device, dtype=torch.bool).tril()[None]
+    out = block(x, row_mask=row_mask, col_mask=None)
     assert out.shape == x.shape
     assert out.isfinite().all()
     out.square().mean().backward()
@@ -29,7 +30,9 @@ def test_icl_block(device: torch.device, column_every: int | None) -> None:
     )
 
     with torch.inference_mode():
-        torch.testing.assert_close(block(x), out)
+        torch.testing.assert_close(
+            block(x, row_mask=row_mask, col_mask=None), out
+        )
 
 
 @withCUDA
@@ -51,7 +54,7 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
     row_mask = torch.ones(5, 5, device=device, dtype=torch.bool).tril()[None]
     col_mask = torch.eye(3, device=device, dtype=torch.bool)[None]
     with torch.inference_mode():
-        out = block(x, col_mask=col_mask)
+        out = block(x, row_mask=row_mask, col_mask=col_mask)
         torch.testing.assert_close(
             block(x, row_mask=row_mask, col_mask=col_mask, pos=pos), out
         )
@@ -65,12 +68,20 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
             ],
             out[:, 0, :3],
         )
-        # Bidirectional row attention can replace the default causal behavior.
+        # The supplied mask can allow bidirectional row attention.
         full_mask = torch.ones_like(row_mask)
         full = block(x, row_mask=full_mask, col_mask=col_mask, pos=pos)
-        assert not torch.allclose(full[:, 0, :3], out[:, 0, :3])
-        assert not torch.allclose(block(x)[:, 0], out[:, 0])
-        assert not torch.allclose(
-            block(x, col_mask=col_mask, pos=pos.square()), out
+        torch.testing.assert_close(
+            block(x, row_mask=None, col_mask=col_mask, pos=pos), full
         )
-        torch.testing.assert_close(block(x[:1], col_mask=col_mask), out[:1])
+        assert not torch.allclose(full[:, 0, :3], out[:, 0, :3])
+        assert not torch.allclose(
+            block(x, row_mask=row_mask, col_mask=None)[:, 0], out[:, 0]
+        )
+        assert not torch.allclose(
+            block(x, row_mask=row_mask, col_mask=col_mask, pos=pos.square()),
+            out,
+        )
+        torch.testing.assert_close(
+            block(x[:1], row_mask=row_mask, col_mask=col_mask), out[:1]
+        )
