@@ -51,30 +51,28 @@ class ICLBlock(nn.Module):
             requires_grad=False,
             **factory_kwargs,
         )
-        self._row_attention: list[bool] = []
-        self.layers = nn.ModuleList()
-        for i in range(num_layers):
-            column = (i + 1) % column_every == 0
-            self._row_attention.append(True)
-            self.layers.append(
-                TimestralTransformerBlock(
-                    channels=channels,
-                    num_heads=num_heads,
-                    hidden_channels=None if column else hidden_channels,
-                    rope=rope,
-                    **factory_kwargs,
-                )
+        self.column_every = column_every
+        self.row_blocks = nn.ModuleList(
+            TimestralTransformerBlock(
+                channels=channels,
+                num_heads=num_heads,
+                hidden_channels=None
+                if (i + 1) % column_every == 0
+                else hidden_channels,
+                rope=rope,
+                **factory_kwargs,
             )
-            if column:
-                self._row_attention.append(False)
-                self.layers.append(
-                    TimestralTransformerBlock(
-                        channels=channels,
-                        num_heads=num_heads,
-                        hidden_channels=hidden_channels,
-                        **factory_kwargs,
-                    )
-                )
+            for i in range(num_layers)
+        )
+        self.col_blocks = nn.ModuleList(
+            TimestralTransformerBlock(
+                channels=channels,
+                num_heads=num_heads,
+                hidden_channels=hidden_channels,
+                **factory_kwargs,
+            )
+            for _ in range(num_layers // column_every)
+        )
         self.norm = RMSNorm(channels, eps=1e-6, **factory_kwargs)
 
     def forward(
@@ -100,19 +98,21 @@ class ICLBlock(nn.Module):
         Returns:
             Tensor with the same shape as ``x``.
         """
-        for i, (is_row, layer) in enumerate(
-            zip(self._row_attention, self.layers)
-        ):
-            if not is_row:
-                x = x.transpose(-3, -2)
-            x = layer(
+        for i, row_block in enumerate(self.row_blocks):
+            x = row_block(
                 query=x,
-                attn_mask=row_mask if is_row else col_mask,
-                query_pos=pos if is_row else None,
-                is_causal=is_row and row_mask is None,
+                attn_mask=row_mask,
+                query_pos=pos,
+                is_causal=row_mask is None,
                 batch_size_limit="auto",
                 out=None if torch.is_grad_enabled() or i == 0 else x,
             )
-            if not is_row:
+            if (i + 1) % self.column_every == 0:
                 x = x.transpose(-3, -2)
+                x = self.col_blocks[i // self.column_every](
+                    query=x,
+                    attn_mask=col_mask,
+                    batch_size_limit="auto",
+                    out=None if torch.is_grad_enabled() else x,
+                ).transpose(-3, -2)
         return self.norm(x)
