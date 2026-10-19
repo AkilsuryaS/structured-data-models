@@ -1085,6 +1085,8 @@ class TableTensor(Tensor):
 
     def __tensor_flatten__(self) -> tuple[list[str], tuple[Any, ...]]:
         attrs = ["numerical", "categorical", "datetime", "text", "id"]
+        # Let torch.compile track backing fields and their public properties.
+        attrs = [f"_{name}" for name in attrs] + attrs
         columns = tuple(
             (str(stype), names) for stype, names in self._columns.items()
         )
