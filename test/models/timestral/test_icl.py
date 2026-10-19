@@ -71,6 +71,9 @@ def test_icl_block_masks_and_positions(device: torch.device) -> None:
         # The supplied mask can allow bidirectional row attention.
         full_mask = torch.ones_like(row_mask)
         full = block(x, row_mask=full_mask, col_mask=col_mask, pos=pos)
+        torch.testing.assert_close(
+            block(x, row_mask=None, col_mask=col_mask, pos=pos), full
+        )
         assert not torch.allclose(full[:, 0, :3], out[:, 0, :3])
         assert not torch.allclose(
             block(x, row_mask=row_mask, col_mask=None)[:, 0], out[:, 0]

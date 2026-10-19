@@ -18,7 +18,7 @@ class ICLBlock(nn.Module):
 
     Every layer applies row attention, followed by column attention every
     ``column_every`` layers, and one MLP. Row attention uses rotary positions.
-    Column attention is unrestricted when ``col_mask`` is ``None``.
+    A ``None`` mask allows unrestricted attention on its axis.
 
     Args:
         channels: Hidden channels.
@@ -80,7 +80,7 @@ class ICLBlock(nn.Module):
     def forward(
         self,
         x: Tensor,
-        row_mask: Tensor,
+        row_mask: Tensor | None,
         col_mask: Tensor | None,
         pos: Tensor | None = None,
     ) -> Tensor:
@@ -90,7 +90,8 @@ class ICLBlock(nn.Module):
             x: Input with shape ``[..., C, R, D]``, with columns ``C``,
                 row tokens ``R``, and hidden channels ``D``.
             row_mask: Allowed row attention, broadcastable to
-                ``[..., C, H, R, R]``, where ``H`` is the number of heads.
+                ``[..., C, H, R, R]``, where ``H`` is the number of heads,
+                or ``None`` for unrestricted attention.
             col_mask: Allowed column attention, broadcastable to
                 ``[..., R, H, C, C]``, or ``None`` for unrestricted attention.
             pos: Row positions with shape ``[R]`` or ``[..., C, R]``.
