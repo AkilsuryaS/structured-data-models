@@ -193,3 +193,29 @@ print(result["conservative_peak_bytes"] / 1e9)
 ```
 
 Without `high_cardinality_columns`, the estimator assumes every categorical column adds a count feature and also returns the low-cardinality estimate. The default recipe adds counts at cardinality 50 and caps processed columns at 500; constant columns can reduce the actual count. Calibration artifacts record checkpoint hashes, code revision/hashes, precision, allocator settings, hardware, measured peaks, fitted equations, and held-out error. Estimates apply to those execution settings, not arbitrary tasks, precisions, recipes, query sizes or estimator counts. Out-of-range inputs are flagged; memory feasibility still requires an actual inference probe.
+
+## Six large binary classification datasets
+
+Run the local six-dataset comparison with:
+
+```bash
+HF_HUB_OFFLINE=1 .venv/bin/python -m benchmark.tabular.large_binary \
+  --run-dir .cache/large-binary/20261016-six-datasets
+```
+
+This requires the prepared competition cache at `/mnt/d/tfm-scale-large-data-cache`, CUDA with BF16 support, the cached Small v1.0.1 checkpoint, the existing synthetic memory calibration at `.cache/kumo-memory/20261014-grid/calibration.json`, and the saved Malware split/prepared files from the context experiments. Benchmark-only dependencies include DuckDB, pandas, scikit-learn, SciPy, matplotlib, XGBoost with CUDA support, and CuPy. Source data, prepared tables, fitted artifacts, predictions, and reports remain outside source control. Unchanged tables (including Bosch and Avazu) reference source Parquet files directly. Calendar expansion streams in bounded batches without a global sort. AMEX aggregation and the Red Hat join retain their SQL preparation path; allow space for their temporary files.
+
+The datasets run in this order: Microsoft Malware, Red Hat Business Value, American Express Default Prediction, Bosch Production, Avazu CTR, and TalkingData AdTracking. Four fresh-process GPU arms run sequentially per dataset:
+
+- `xgboost`: installed library defaults with binary logistic objective, CUDA histogram execution, native categorical features, seed 17, eight CPU threads, a 5,000-round limit, and 100-round early stopping on internal log loss. No HPO or holdout refit.
+- `maximum`: one zero-shot Kumo-Small estimator, with approximate maximum inference context under a 40,000,000,000-byte PyTorch allocator limit. The calibrated estimate only brackets actual encoding/cache/query probes. Capacity refinement stops within 10% or 1,024 rows. Full evaluation OOM reduces the context by 10% and restarts prediction from the beginning.
+- `tuned`: one Kumo-Small estimator with 32,768 stratified context rows, query batches of 4,096, at most 2,000 updates, 50-update warmup, Adam learning rate 0.001, cosine minimum 0.00001, and gradient norm clipping at 1. Score every 100 updates; stop after five insufficient improvements once 500 updates have completed, with minimum improvement 0.0001. Restore the lowest-loss checkpoint, including the initial context. This is a benchmark schedule, not the public API's default epoch schedule.
+- `paired`: the exact initial context, fitted preprocessing, and frozen embeddings of the tuned arm, replayed without its learned adjustment. This isolates the effect of optimization from context selection and context size.
+
+The existing outer evaluation partitions remain fixed and are scored in full. AMEX retains the latest statement per customer, with original row order breaking date ties. Red Hat joins the people table with prefixed columns, requiring a many-to-one join. Entity/row IDs and TalkingData's post-outcome `attributed_time` are excluded. Dates become calendar fields. Explicit integer-coded categories retain categorical semantics. Each method receives the same eligible raw features; Kumo's native processed-column selection can retain fewer features than XGBoost.
+
+Reserve an internal 10% holdout before any context selection: stratified customers for AMEX, people-disjoint hashes for Red Hat, complete latest time blocks for Avazu/TalkingData, and latest ID-order blocks for Bosch. Malware reuses its saved split identities and matching reordered source copies. Bosch's split is a provisional production-order proxy, not a verified chronological split. All internal holdout rows stay excluded from supervised training; a fixed stratified subset of at most 100,000 rows is shared for early stopping. Queries may overlap the sampled context but never either held-out partition.
+
+Use `--datasets microsoft_malware red_hat_business_value` to select datasets. Use `--resume` with the original settings to reuse compatible completed arms; `--retry-failed` additionally archives and retries failed arms. Changed settings or code require a new output directory. `--verify --run-dir <path>` independently rechecks source/prepared hashes, split exclusion, full prediction coverage, and saved metrics. Smaller explicit `--context-rows`, `--steps`, `--query-batch-size`, `--validation-interval`, `--holdout-cap`, and `--xgb-rounds` values support pilot runs; these changes are recorded in the run configuration.
+
+Each run writes a live `report.md`, `results.json`, per-arm logs/results, prediction arrays, code provenance, context artifacts, XGBoost models, and per-dataset comparison plots. Metrics include ROC AUC, average precision, accuracy at 0.5, log loss, and prevalence. Inference timing synchronizes CUDA and includes batch feature conversion and transfer, excluding Parquet reads, prediction writes, and scoring; end-to-end prediction time is reported separately. Device memory polling includes other GPU processes; Kumo also records allocator peaks. Mean AUC ranks use only datasets with all four completed arms. Failed arms remain visible, including preparation failures. A completed prediction pass and independently recomputed metrics are required for a successful arm.
