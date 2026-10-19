@@ -39,19 +39,17 @@ class _TimestralConfig:
     quantile_width_factor: float = 2.0
 
     @property
-    def column_every(self) -> int | None:
+    def column_every(self) -> int:
         interval = next(
             (
                 i + 1
                 for i, kind in enumerate(self.block_schedule)
                 if kind == "time_variate"
             ),
-            None,
+            len(self.block_schedule) + 1,
         )
         expected = tuple(
-            "time_variate"
-            if interval is not None and (i + 1) % interval == 0
-            else "time"
+            "time_variate" if (i + 1) % interval == 0 else "time"
             for i in range(len(self.block_schedule))
         )
         if tuple(self.block_schedule) != expected:
