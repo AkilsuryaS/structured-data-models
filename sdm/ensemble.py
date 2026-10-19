@@ -161,7 +161,7 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
                         block.layout,
                         block.dtype,
                     )
-                    for stype, block in table.items()
+                    for stype, block in TableTensor.items(table)
                 ),
                 table.device,
                 tuple(

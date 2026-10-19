@@ -871,7 +871,7 @@ def _stack(tables: Sequence[TableTensor]) -> TableTensor:
     renamed: list[Tensor] = [
         ref,
         *(
-            table.__class__(columns=columns, **dict(table.items()))
+            table.__class__(columns=columns, **dict(TableTensor.items(table)))
             for table in tables[1:]
         ),
     ]
@@ -938,7 +938,7 @@ def _batch_slices(
                 (
                     tuple(
                         (stype, block.size(), block.dtype)
-                        for stype, block in table.items()
+                        for stype, block in TableTensor.items(table)
                     ),
                     tuple(c.numel() for c in table.categorical.categories),
                 )
