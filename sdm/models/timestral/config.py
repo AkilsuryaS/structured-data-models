@@ -39,6 +39,26 @@ class _TimestralConfig:
     quantile_width_factor: float = 2.0
 
     @property
+    def column_every(self) -> int | None:
+        interval = next(
+            (
+                i + 1
+                for i, kind in enumerate(self.block_schedule)
+                if kind == "time_variate"
+            ),
+            None,
+        )
+        expected = tuple(
+            "time_variate"
+            if interval is not None and (i + 1) % interval == 0
+            else "time"
+            for i in range(len(self.block_schedule))
+        )
+        if tuple(self.block_schedule) != expected:
+            raise ValueError("Unsupported Timestral block schedule")
+        return interval
+
+    @property
     def head_dim(self) -> int:
         return self.d_model // self.num_heads
 

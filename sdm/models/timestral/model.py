@@ -343,6 +343,7 @@ def _remap_checkpoint(
                 suffix = ".".join(parts[4:])
             key = f"transformer.layers.{index}.{module}.{suffix}"
         key = key.replace(".wO.", ".out_lin.").replace("._gate.", ".gate.0.")
+        key = key.replace("transformer.out_norm.", "transformer.norm.")
         if key.endswith(".scale"):
             key = key[:-5] + "weight"
         if ".query_norm." in key:

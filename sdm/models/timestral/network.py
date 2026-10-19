@@ -6,7 +6,7 @@ import torch
 from torch import Tensor, nn
 
 from sdm.models.timestral.config import _TimestralConfig
-from sdm.models.timestral.layers import _Transformer
+from sdm.models.timestral.icl import ICLBlock
 from sdm.models.timestral.masks import (
     _build_forecast_positions,
     _build_forecast_time_mask,
@@ -88,14 +88,14 @@ class _TimestralModel(nn.Module):
         c = config
         self.norm = CausalPatchNorm(c.patch_size, c.minimum_scale, c.use_asinh)
         self.representation = _PatchRepresentation(c.patch_size, c.d_model)
-        self.transformer = _Transformer(
-            block_schedule=c.block_schedule,
-            embed_dim=c.d_model,
+        self.transformer = ICLBlock(
+            channels=c.d_model,
+            num_layers=len(c.block_schedule),
+            column_every=c.column_every,
             num_heads=c.num_heads,
-            mlp_hidden_dim=c.mlp_hidden_dim,
+            hidden_channels=c.mlp_hidden_dim,
             rope_theta=c.rope_theta,
-            rope_dim=c.rope_dim,
-            norm_eps=c.norm_eps,
+            partial_rotary_factor=c.rope_partial_factor,
         )
         self.head = _QuantileHead(c)
 
@@ -147,7 +147,12 @@ class _TimestralModel(nn.Module):
         positions: Tensor,
     ) -> Tensor:
         x = torch.cat([x_enc, x_dec], dim=1)
-        h = self.transformer(x, time_mask, variate_mask, positions)
+        h = self.transformer(
+            x=x,
+            row_mask=time_mask,
+            col_mask=variate_mask,
+            pos=positions,
+        )
         return self.head(h[:, x_enc.shape[1] :, :])
 
     def predict_block(
