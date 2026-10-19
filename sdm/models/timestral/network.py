@@ -94,8 +94,6 @@ class _TimestralModel(nn.Module):
             column_every=c.column_every,
             num_heads=c.num_heads,
             hidden_channels=c.mlp_hidden_dim,
-            rope_theta=c.rope_theta,
-            partial_rotary_factor=c.rope_partial_factor,
         )
         self.head = _QuantileHead(c)
 
