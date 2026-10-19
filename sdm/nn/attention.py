@@ -203,6 +203,7 @@ class Attention(torch.nn.Module):
             scaled dot-product attention.
         query_scaling: Query scaling module to scale projected query heads
             before scaled dot-product attention, *e.g.*, :class:`QASSMax`.
+        gate: Multiplicative output gate computed from unprojected queries.
         scale: Scaling factor passed to
             :func:`torch.nn.functional.scaled_dot_product_attention`.
             ``None`` uses ``1 / sqrt(channels_per_head)``.
@@ -220,6 +221,7 @@ class Attention(torch.nn.Module):
         query_transform: torch.nn.Module | None = None,
         key_transform: torch.nn.Module | None = None,
         query_scaling: QueryScaling | None = None,
+        gate: torch.nn.Module | None = None,
         scale: float | None = None,
         dropout: float = 0.0,
         bias: bool = True,
@@ -256,6 +258,7 @@ class Attention(torch.nn.Module):
             scale=scale,
             dropout=dropout,
         )
+        self.gate = gate
         self.out_lin = Linear(channels, channels, bias=bias, **factory_kwargs)
 
         torch.nn.init.zeros_(self.out_lin.weight)
@@ -347,6 +350,8 @@ class Attention(torch.nn.Module):
             Otherwise, a tuple of the output tensor and a
             :class:`~sdm.cache.KVCacheEntry`.
         """
+        gate = self.gate(query) if self.gate is not None else None
+
         if key_value is None and key_pos is None:
             key_pos = query_pos
 
@@ -415,6 +420,8 @@ class Attention(torch.nn.Module):
         )  # [..., Q, Hq, C // Hq]
 
         out = out.flatten(-2, -1)  # [..., Q, C]
+        if gate is not None:
+            out = out * gate
         out = self.out_lin(out)  # [..., Q, C]
         if return_key_value:
             # CUDA autocast runs RMSNorm in fp32, so cast explicitly before
@@ -446,6 +453,7 @@ class TransformerBlock(torch.nn.Module):
             scaled dot-product attention.
         query_scaling: Query scaling module to scale projected query heads
             before scaled dot-product attention, *e.g.*, :class:`QASSMax`.
+        gate: Multiplicative output gate computed from unprojected queries.
         scale: Scaling factor passed to
             :func:`torch.nn.functional.scaled_dot_product_attention`.
             ``None`` uses ``1 / sqrt(channels_per_head)``.
@@ -467,6 +475,7 @@ class TransformerBlock(torch.nn.Module):
         query_transform: torch.nn.Module | None = None,
         key_transform: torch.nn.Module | None = None,
         query_scaling: QueryScaling | None = None,
+        gate: torch.nn.Module | None = None,
         scale: float | None = None,
         dropout: float = 0.0,
         bias: bool = True,
@@ -488,6 +497,7 @@ class TransformerBlock(torch.nn.Module):
             query_transform=query_transform,
             key_transform=key_transform,
             query_scaling=query_scaling,
+            gate=gate,
             scale=scale,
             dropout=dropout,
             bias=bias,
