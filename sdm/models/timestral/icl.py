@@ -37,7 +37,7 @@ class ICLBlock(nn.Module):
         num_layers: int,
         num_heads: int,
         hidden_channels: int,
-        column_every: int = 4,
+        column_every: int,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
