@@ -70,6 +70,7 @@ class VarLenTensor(Tensor):
     _data: Tensor
     _offset: Tensor
     _valid: Tensor | None
+    _storage_offset: int
 
     # Constructors ############################################################
 
@@ -225,6 +226,7 @@ class VarLenTensor(Tensor):
         out._data = data
         out._offset = offset
         out._valid = valid
+        out._storage_offset = storage_offset
 
         return out
 

@@ -356,6 +356,7 @@ class CategoricalTensor(Tensor):
 
     def __tensor_flatten__(self) -> tuple[list[str], tuple[Any, ...]]:
         attrs = [
+            "_code",
             "code",
             *(f"_category_{i}" for i in range(self.code.size(-1))),
         ]
@@ -380,6 +381,14 @@ class CategoricalTensor(Tensor):
     def __reduce_ex__(self, proto: SupportsIndex) -> Any:
         args = (self._code, self._categories)
         return (self.__class__, args)
+
+    def __repr__(self, *, tensor_contents: Any = None) -> str:
+        out = f"{self.__class__.__name__}("
+        out += f"size={tuple(self.size())}"
+        if not self.is_cpu:
+            out += f", device={self.device}"
+        out += ")"
+        return out
 
     @classmethod
     def __torch_function__(
