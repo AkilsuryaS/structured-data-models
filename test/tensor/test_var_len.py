@@ -484,6 +484,30 @@ def test_equal_allclose() -> None:
     assert torch.allclose(tensor, other[:, ::2])
 
 
+def test_compiled_equal_independent_views() -> None:
+    values = [[1], [2, 3]]
+    tensor = VarLenTensor.from_list(values)
+    other = VarLenTensor.from_list([[0], *values, [0]])[1:-1]
+    equal = torch.compile(torch.equal, backend="eager", fullgraph=False)
+
+    assert equal(tensor, other)
+    assert not equal(tensor, VarLenTensor.from_list([[99]] * len(values)))
+
+
+def test_equal_subclass_override() -> None:
+    class CustomVarLenTensor(VarLenTensor):
+        pass
+
+    @CustomVarLenTensor.implements(torch.ops.aten.equal.default)
+    def equal_override(left: VarLenTensor, right: VarLenTensor) -> bool:
+        return True
+
+    left = CustomVarLenTensor.from_list([[1]])
+    right = CustomVarLenTensor.from_list([[2]])
+    assert torch.equal(left, right)
+    assert torch.compile(torch.equal, backend="eager")(left, right)
+
+
 def test_isnan_isfinite() -> None:
     tensor = VarLenTensor.from_list([[1, 2], None, [3]])
     assert tensor.is_nullable
