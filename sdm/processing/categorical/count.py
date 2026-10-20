@@ -105,7 +105,9 @@ class AddCategoryCounts(Processor):
         if not self._columns:
             return table
         codes = table.select_columns(self._columns).categorical.code
-        slots = torch.where(codes >= 0, codes.long(), self._num_categories)
+        # Compiled lookups may run before validation; keep indices in bounds.
+        valid = (codes >= 0) & (codes < self._num_categories)
+        slots = torch.where(valid, codes.long(), self._num_categories)
         counts = self._log_counts.gather(-1, slots.transpose(-2, -1))
 
         out_table = TableTensor(
