@@ -94,7 +94,12 @@ class ClipSigma(Processor):
         self._set_buffer("lower_bound", mean - self.threshold * std)
         self._set_buffer("upper_bound", mean + self.threshold * std)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         numerical = table.numerical
         if self.method == "hard":
             return table.replace_blocks(

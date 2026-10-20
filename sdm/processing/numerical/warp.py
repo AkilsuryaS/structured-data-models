@@ -78,7 +78,12 @@ class WarpTails(Processor):
         self.power = selected & (u[1] < 0.5)
         self.exp = selected & (u[1] >= 0.5)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         x = table.numerical
         magnitude = x.abs()
         a, b = self.column_exponent.unbind(-3)

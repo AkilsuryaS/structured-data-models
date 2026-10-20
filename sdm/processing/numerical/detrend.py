@@ -71,6 +71,8 @@ class Detrend(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if self._offset is None:
             raise RuntimeError(

@@ -78,7 +78,12 @@ class Standardize(Processor, InvertibleMixin):
         else:
             self.scale.add_(self.eps)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         numerical = (table.numerical - self.mean).div_(self.scale)
         return table.replace_blocks(numerical=numerical)
 

@@ -87,7 +87,9 @@ class EnsembleProcessorAdapter(EnsembleProcessor, EnsembleInvertibleMixin):
         generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if not self.requires_fit:
-            return self._transform_ensemble(ensemble_table)
+            return self._transform_ensemble(
+                ensemble_table, generator=generator
+            )
 
         self._fitted_locations = ensemble_table._locations
         outputs = []
@@ -104,13 +106,15 @@ class EnsembleProcessorAdapter(EnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if self.requires_fit:
             processors = self._aligned_processors(ensemble_table)
         else:
             processors = repeat(self.processor, ensemble_table.num_groups)
         outputs = [
-            processor.transform(group)
+            processor.transform(group, generator=generator)
             for group, processor in zip(
                 ensemble_table._iter_groups(), processors, strict=True
             )

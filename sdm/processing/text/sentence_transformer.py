@@ -426,7 +426,12 @@ class SentenceTransformer(Processor):
         self._embedding_dim = embedding_dim
         self._model = _Encoder(model, batch_size, embedding_dim)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         columns = table.columns[Stype.text]
         batch_shape = table.text.shape[:-1]
         output_columns = tuple(

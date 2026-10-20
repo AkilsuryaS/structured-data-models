@@ -63,7 +63,12 @@ class Clip(Processor, InvertibleMixin):
         self.max_value = max_value
         self.method = method
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         numerical = table.numerical
         if self.method == "hard":
             return table.replace_blocks(

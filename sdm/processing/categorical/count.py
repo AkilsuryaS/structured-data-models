@@ -99,7 +99,12 @@ class AddCategoryCounts(Processor):
         self._set_buffer("_num_categories", num_categories)
         self._categories = BufferList(table.categorical.categories)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         _check_categories(table, self._categories)
         _check_categorical_codes(table)
         if not self._columns:

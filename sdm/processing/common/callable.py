@@ -3,6 +3,8 @@
 
 from collections.abc import Callable
 
+import torch
+
 from sdm import Stype, TableTensor
 from sdm.processing import Processor
 
@@ -17,7 +19,12 @@ class Callable(Processor):
         super().__init__()
         self.function = function
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         return self.function(table)
 
     def __repr__(self, *, indent: int = 0) -> str:

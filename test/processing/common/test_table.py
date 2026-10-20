@@ -17,7 +17,12 @@ class _Add(Processor):
         super().__init__()
         self.value = value
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         return table.replace_blocks(numerical=table.numerical + self.value)
 
 

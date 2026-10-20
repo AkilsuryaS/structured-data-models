@@ -48,7 +48,12 @@ class AddCalendarFields(Processor):
         self.fields = fields
         self.encoding = encoding
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         if len(self.fields) == 0:
             return table
 

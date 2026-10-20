@@ -81,6 +81,8 @@ class TableDispatch(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if self._route is None:
             raise RuntimeError(
@@ -89,7 +91,9 @@ class TableDispatch(EnsembleProcessor):
             )
         if self._route not in self.processors:
             return ensemble_table
-        return self.processors[self._route].transform_ensemble(ensemble_table)
+        return self.processors[self._route].transform_ensemble(
+            ensemble_table, generator=generator
+        )
 
     def get_extra_state(self) -> str | None:
         r""":meta private:"""  # noqa: D415

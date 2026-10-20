@@ -69,9 +69,15 @@ class EnsembleProcessor(Processor):
             generator=generator,
         )
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         output = self._transform_ensemble(
-            EnsembleTable.from_table(table, num_members=1)
+            EnsembleTable.from_table(table, num_members=1),
+            generator=generator,
         )
         return output[0]
 
@@ -82,7 +88,7 @@ class EnsembleProcessor(Processor):
         generator: torch.Generator | None = None,
     ) -> TableTensor:
         if not self.requires_fit:
-            return self._transform(table)
+            return self._transform(table, generator=generator)
         output = self._fit_transform_ensemble(
             EnsembleTable.from_table(table, num_members=1),
             generator=generator,
@@ -101,6 +107,8 @@ class EnsembleProcessor(Processor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         pass
 
@@ -112,7 +120,7 @@ class EnsembleProcessor(Processor):
     ) -> EnsembleTable:
         if self.requires_fit:
             self._fit_ensemble(ensemble_table, generator=generator)
-        return self._transform_ensemble(ensemble_table)
+        return self._transform_ensemble(ensemble_table, generator=generator)
 
     def fit_ensemble(
         self,
@@ -139,11 +147,14 @@ class EnsembleProcessor(Processor):
     def transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
-        """Transform an ensemble table with fitted state.
+        """Transform an ensemble table.
 
         Args:
             ensemble_table: Ensemble table to transform.
+            generator: Pseudorandom number generator used for sampling.
 
         Returns:
             The transformed ensemble table.
@@ -154,7 +165,7 @@ class EnsembleProcessor(Processor):
         ):
             return ensemble_table
         self._check_is_fitted()
-        return self._transform_ensemble(ensemble_table)
+        return self._transform_ensemble(ensemble_table, generator=generator)
 
     def fit_transform_ensemble(
         self,

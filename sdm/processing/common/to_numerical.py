@@ -26,7 +26,12 @@ class ToNumerical(Processor):
     requires_fit = False
     handles_stypes = (Stype.numerical, Stype.categorical)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         """Return ``table`` with categorical columns moved to ``numerical``."""
         # Already numerical-only: nothing to move.
         if all(

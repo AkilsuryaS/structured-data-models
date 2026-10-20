@@ -23,7 +23,12 @@ class Add(Processor, InvertibleMixin):
         super().__init__()
         self.value = value
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         return table.replace_blocks(numerical=table.numerical + self.value)
 
     def _inverse_transform(self, table: TableTensor) -> TableTensor:
@@ -49,6 +54,8 @@ class AddFittedMemberCount(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         return ensemble_table.replace_groups(
             [

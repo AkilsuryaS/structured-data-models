@@ -111,6 +111,8 @@ class ShuffleColumns(EnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
+        *,
+        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if len(self._permutations) != len(ensemble_table):
             raise RuntimeError(

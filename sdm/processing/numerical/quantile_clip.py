@@ -58,7 +58,12 @@ class ClipQuantiles(Processor):
         self._set_buffer("lower_bound", q_low)
         self._set_buffer("upper_bound", q_high)
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         """Clamp ``table`` to the fitted lower and upper bounds."""
         numerical = table.numerical.clamp(
             min=self.lower_bound,

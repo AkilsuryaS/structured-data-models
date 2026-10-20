@@ -57,7 +57,12 @@ class PCA(Processor):
             value=vh[..., :num_components, :].transpose(-2, -1),
         )
 
-    def _transform(self, table: TableTensor) -> TableTensor:
+    def _transform(
+        self,
+        table: TableTensor,
+        *,
+        generator: torch.Generator | None = None,
+    ) -> TableTensor:
         x = (table.numerical - self.mean) @ self.components
         out = TableTensor(
             columns={Stype.numerical: [f"pca_{i}" for i in range(x.size(-1))]},
