@@ -28,6 +28,9 @@ class MaskRandom(SeedMixin, Processor):
 
     def __init__(self, *, rate: tuple[float, float] = (0.01, 0.08)) -> None:
         super().__init__()
+        low, high = rate
+        if not 0 <= low <= high <= 1:
+            raise ValueError("rate must satisfy 0 <= low <= high <= 1.")
         self.rate = rate
         self.register_buffer("_missing_rate", torch.empty(0))
 
@@ -54,6 +57,7 @@ class MaskRandom(SeedMixin, Processor):
         num_columns = table.numerical.size(-1) + table.categorical.size(-1)
         u = torch.rand(
             (*table.size()[:-1], num_columns),
+            device="cpu",
             generator=self._transform_generator(),
         )
         missing = u.to(table.device) < self._missing_rate[..., None, None]
