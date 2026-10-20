@@ -77,12 +77,7 @@ class RobustScale(Processor, InvertibleMixin):
         scale = torch.where(lower == upper, 1.0, upper - lower)
         self._set_buffer("scale", scale.to(dtype=numerical.dtype))
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         numerical = (table.numerical - self.median).div_(self.scale)
         return table.replace_blocks(numerical=numerical)
 

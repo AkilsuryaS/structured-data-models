@@ -309,12 +309,7 @@ class PowerTransform(Processor, InvertibleMixin):
             self._set_buffer("mean", torch.zeros_like(self.lambdas))
             self._set_buffer("scale", torch.ones_like(self.lambdas))
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         """Transform ``table`` with fitted Yeo-Johnson parameters."""
         transformed = _yeojohnson_transform(table.numerical, self.lambdas)
         numerical = transformed.sub_(self.mean).div_(self.scale)

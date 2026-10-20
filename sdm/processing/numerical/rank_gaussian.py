@@ -138,12 +138,7 @@ class RankGaussian(Processor):
         self._set_buffer("_values", torch.cat(values, dim=-2))
         self._set_buffer("_probabilities", torch.cat(probabilities, dim=-2))
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         numerical = table.numerical
         columns = numerical.movedim(-1, -2)  # [..., C, R]
         values = self._values.flatten(end_dim=-2)

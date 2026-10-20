@@ -90,12 +90,7 @@ class ImputeMode(Processor):
         self._fit(table, generator=generator)
         return self._replace_missing(table)
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         _check_categories(table, self._categories)
         _check_categorical_codes(table)
         return self._replace_missing(table)

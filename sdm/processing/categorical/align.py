@@ -242,12 +242,7 @@ class AlignCategories(EnsembleProcessor):
         )
         return aligned_tables[0]
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return self._align_to_categories(
             table,
             cast(Sequence[Sequence[Tensor]], self._categories),
@@ -313,8 +308,6 @@ class AlignCategories(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         table_ids = self._member_table_ids(ensemble_table)
         aligned_tables = []

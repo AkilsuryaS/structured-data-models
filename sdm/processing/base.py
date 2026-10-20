@@ -29,10 +29,6 @@ class Processor(torch.nn.Module, abc.ABC):
 
     :meth:`fit`, :meth:`transform`, and :meth:`fit_transform` are no-ops for
     stypes outside of :attr:`handles_stypes`.
-
-    Stochastic operations consume the supplied ``generator`` or the global
-    PyTorch generator when omitted. Reproducing a stochastic transformation
-    requires restoring the generator state as well as any fitted state.
     """
 
     #: Semantic types this processor operates on.
@@ -151,12 +147,7 @@ class Processor(torch.nn.Module, abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         pass
 
     def _fit_transform(
@@ -167,7 +158,7 @@ class Processor(torch.nn.Module, abc.ABC):
     ) -> TableTensor:
         if self.requires_fit:
             self._fit(table, generator=generator)
-        return self._transform(table, generator=generator)
+        return self._transform(table)
 
     def _handles_table(self, table: TableTensor) -> bool:
         # Check column counts directly so torch.compile can trace this without
@@ -196,17 +187,11 @@ class Processor(torch.nn.Module, abc.ABC):
             self._set_fitted(table.device)
         return self
 
-    def transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def transform(self, table: TableTensor) -> TableTensor:
         r"""Transform ``table``.
 
         Args:
             table: The table to transform.
-            generator: Pseudorandom number generator used for sampling.
 
         Returns:
             The transformed table.
@@ -214,21 +199,11 @@ class Processor(torch.nn.Module, abc.ABC):
         if not self._handles_table(table):
             return table
         self._check_is_fitted()
-        return self._transform(table, generator=generator)
+        return self._transform(table)
 
-    def forward(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
-        r"""Alias of :meth:`transform`.
-
-        Args:
-            table: The table to transform.
-            generator: Pseudorandom number generator used for sampling.
-        """
-        return self.transform(table, generator=generator)
+    def forward(self, table: TableTensor) -> TableTensor:
+        r"""Alias of :meth:`transform`."""
+        return self.transform(table)
 
     def fit_transform(
         self,

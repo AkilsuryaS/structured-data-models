@@ -23,12 +23,7 @@ class Cast(Processor):
             raise ValueError(f"Expected a floating-point dtype (got {dtype})")
         self.dtype = dtype
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         dtype = self.dtype
         if table.device.type == "mps" and dtype == torch.float64:
             dtype = torch.float32  # MPS does not support float64.

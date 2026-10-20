@@ -59,8 +59,6 @@ class RandomProjection(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         groups = []
         for i in range(ensemble_table.num_groups):

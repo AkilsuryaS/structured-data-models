@@ -75,13 +75,8 @@ class TaskDispatch(EnsembleProcessor):
     ) -> TableTensor:
         return self._processor().fit_transform(table, generator=generator)
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
-        return self._processor().transform(table, generator=generator)
+    def _transform(self, table: TableTensor) -> TableTensor:
+        return self._processor().transform(table)
 
     def _fit_ensemble(
         self,
@@ -105,12 +100,8 @@ class TaskDispatch(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
-        return self._processor().transform_ensemble(
-            ensemble_table, generator=generator
-        )
+        return self._processor().transform_ensemble(ensemble_table)
 
     def get_extra_state(self) -> str | None:
         r""":meta private:"""  # noqa: D415

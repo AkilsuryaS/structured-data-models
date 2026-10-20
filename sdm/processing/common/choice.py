@@ -147,14 +147,10 @@ class Choice(EnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         self._check_num_members(ensemble_table)
         outputs = {
-            option_id: self.options[option_id].transform_ensemble(
-                table, generator=generator
-            )
+            option_id: self.options[option_id].transform_ensemble(table)
             for option_id, table in self._tables_by_option(ensemble_table)
         }
         return self._gather_outputs(ensemble_table, outputs)

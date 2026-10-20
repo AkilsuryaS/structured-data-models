@@ -199,12 +199,7 @@ class _GeneratorRecordingProcessor(Processor, InvertibleMixin):
         self.generators.append(generator)
         self.draws.append(torch.rand((), generator=generator))
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return table
 
     def _inverse_transform(self, table: TableTensor) -> TableTensor:

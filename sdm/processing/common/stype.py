@@ -129,8 +129,6 @@ class StypeDispatch(EnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         active_routes = self._active_routes
         if not self.requires_fit or active_routes is None:
@@ -138,8 +136,7 @@ class StypeDispatch(EnsembleProcessor, EnsembleInvertibleMixin):
             self._active_routes = active_routes
         outputs = [
             self.processors[stype].transform_ensemble(
-                ensemble_table.select_stypes(stype),
-                generator=generator,
+                ensemble_table.select_stypes(stype)
             )
             for stype in active_routes
         ]

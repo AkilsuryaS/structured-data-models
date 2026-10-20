@@ -220,12 +220,7 @@ def test_batched_recipe_execution(relational_data: RelationalData) -> None:
         ) -> None:
             self.batch_size = table.size(0)
 
-        def _transform(
-            self,
-            table: TableTensor,
-            *,
-            generator: torch.Generator | None = None,
-        ) -> TableTensor:
+        def _transform(self, table: TableTensor) -> TableTensor:
             if table.size(0) != self.batch_size:
                 raise RuntimeError("group layout changed")
             return table

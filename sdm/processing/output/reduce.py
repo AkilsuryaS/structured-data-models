@@ -38,8 +38,6 @@ class AverageEstimators(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
 
         if len(ensemble_table) == 1:
@@ -67,12 +65,7 @@ class AverageEstimators(EnsembleProcessor):
             num_members=1,
         )
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         if table.dim() < 3:
             raise ValueError(
                 f"Expected a leading ensemble dimension (got {table.dim()}D)"
@@ -82,7 +75,7 @@ class AverageEstimators(EnsembleProcessor):
             groups=(table,),
             locations=tuple((0, i) for i in range(table.size(0))),
         )
-        return self._transform_ensemble(ensemble_table, generator=generator)[0]
+        return self._transform_ensemble(ensemble_table)[0]
 
     def __repr__(self, *, indent: int = 0) -> str:
         if self.trim_fraction == 0:

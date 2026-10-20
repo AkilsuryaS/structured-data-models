@@ -34,8 +34,6 @@ class IdentityEnsembleProcessor(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         return ensemble_table
 
@@ -70,12 +68,7 @@ class _StatelessProcessor(Processor, InvertibleMixin):
     handles_stypes = (Stype.numerical,)
     requires_fit = False
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return table.replace_blocks(numerical=-table.numerical)
 
     def _inverse_transform(self, table: TableTensor) -> TableTensor:

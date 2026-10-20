@@ -51,12 +51,7 @@ class ImputeMean(Processor):
             value=torch.where(mean.isnan(), self.fill_value, mean),
         )
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         """Replace NaNs with the fitted per-column means."""
         numerical = table.numerical
         numerical = torch.where(numerical.isnan(), self._mean, numerical)

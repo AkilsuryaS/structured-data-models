@@ -189,12 +189,7 @@ class QuantileTransform(Processor, InvertibleMixin):
         self._set_buffer("_quantiles", quantiles)
         self._set_buffer("_references", references)
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         numerical = table.numerical
         n_samples = numerical.size(-2)
         n_features = numerical.size(-1)

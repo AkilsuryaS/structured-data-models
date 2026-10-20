@@ -31,12 +31,7 @@ class Softmax(Processor):
             raise ValueError("temperature must be positive.")
         self.temperature = temperature
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         """Return ``softmax(table / temperature)`` over the last dimension."""
         numerical = torch.softmax(
             table.numerical / self.temperature,

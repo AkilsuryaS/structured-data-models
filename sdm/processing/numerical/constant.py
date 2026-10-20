@@ -104,12 +104,7 @@ class DropConstantColumns(EnsembleProcessor):
             tuple(index for index, kept in enumerate(keep) if kept),
         )
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return self._select_columns(table, self._kept_indices[0])
 
     def _fit_transform(
@@ -119,7 +114,7 @@ class DropConstantColumns(EnsembleProcessor):
         generator: torch.Generator | None = None,
     ) -> TableTensor:
         self._fit(table, generator=generator)
-        return self._transform(table, generator=generator)
+        return self._transform(table)
 
     def _fit_ensemble(
         self,
@@ -178,8 +173,6 @@ class DropConstantColumns(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if len(self._kept_indices) != len(ensemble_table):
             raise RuntimeError(

@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
-
 from sdm import Stype, TableTensor
 from sdm.processing import Processor
 
@@ -23,12 +21,7 @@ class SortQuantiles(Processor):
         super().__init__()
         self.num_quantiles = num_quantiles
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         numerical = table.numerical
         if self.num_quantiles is not None:
             numerical = numerical.unflatten(-1, (-1, self.num_quantiles))

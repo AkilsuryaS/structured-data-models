@@ -57,12 +57,7 @@ class StatelessProcessor(Processor):
     handles_stypes = (Stype.numerical,)
     requires_fit = False
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return table.replace_blocks(numerical=table.numerical + 1)
 
 
@@ -78,12 +73,7 @@ class StatefulProcessor(Processor):
     ) -> None:
         pass
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         return table.replace_blocks(numerical=table.numerical + 1)
 
 

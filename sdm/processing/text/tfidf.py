@@ -343,8 +343,6 @@ class TFIDF(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if len(self._member_state_ids) != len(ensemble_table):
             raise RuntimeError(

@@ -40,8 +40,6 @@ class SelectColumns(EnsembleProcessor):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         if all(
             group.size(-1) <= self.max_columns

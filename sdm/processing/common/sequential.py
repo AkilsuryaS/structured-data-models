@@ -83,15 +83,10 @@ class Sequential(EnsembleProcessor, EnsembleInvertibleMixin):
             self.append(processor)
         return self
 
-    def _transform(
-        self,
-        table: TableTensor,
-        *,
-        generator: torch.Generator | None = None,
-    ) -> TableTensor:
+    def _transform(self, table: TableTensor) -> TableTensor:
         out = table
         for child in self:
-            out = child.transform(out, generator=generator)
+            out = child.transform(out)
         return out
 
     def _fit_ensemble(
@@ -121,12 +116,10 @@ class Sequential(EnsembleProcessor, EnsembleInvertibleMixin):
     def _transform_ensemble(
         self,
         ensemble_table: EnsembleTable,
-        *,
-        generator: torch.Generator | None = None,
     ) -> EnsembleTable:
         out = ensemble_table
         for child in self:
-            out = child.transform_ensemble(out, generator=generator)
+            out = child.transform_ensemble(out)
         return out
 
     def _inverse_transform_ensemble(

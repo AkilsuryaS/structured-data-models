@@ -96,7 +96,6 @@ def _make_reduction_table() -> EnsembleTable:
 class ProcessorCase:
     processor: sp.Processor
     make_table: Callable[[], EnsembleTable] = make_table
-    stochastic_transform: bool = False
 
 
 def _make_processor_pair(
@@ -139,7 +138,7 @@ PROCESSOR_CASES = (
     ProcessorCase(sp.ShuffleCategories()),
     ProcessorCase(sp.ImputeMode()),
     ProcessorCase(sp.AddCategoryCounts()),
-    ProcessorCase(sp.MaskRandom(rate=(0.5, 0.5)), stochastic_transform=True),
+    ProcessorCase(sp.MaskRandom(rate=(0.5, 0.5))),
     ProcessorCase(sp.AddCalendarFields(["month"])),
     ProcessorCase(sp.Softmax()),
     ProcessorCase(sp.SortQuantiles()),
@@ -226,12 +225,11 @@ def test_fit_transform_matches_fit_then_transform(
 ) -> None:
     table = case.make_table()
     processor_a, processor_b = _make_processor_pair(case.processor)
-    generator = torch.Generator().manual_seed(0)
     processor_a.fit_ensemble(
         table,
-        generator=generator,
+        generator=torch.Generator().manual_seed(0),
     )
-    expected = processor_a.transform_ensemble(table, generator=generator)
+    expected = processor_a.transform_ensemble(table)
     actual = processor_b.fit_transform_ensemble(
         table,
         generator=torch.Generator().manual_seed(0),
@@ -252,8 +250,8 @@ def test_save_and_load_preserves_fitted_processor_behavior(
     table = case.make_table()
     processor_a, processor_b = _make_processor_pair(case.processor)
     processor_a.fit_ensemble(table)
-    expected = processor_a.transform_ensemble(table)
     processor_b.load_state_dict(processor_a.state_dict())
+    expected = processor_a.transform_ensemble(table)
     actual = processor_b.transform_ensemble(table)
     assert len(actual) == len(expected)
     for member_id in range(len(actual)):
@@ -323,13 +321,9 @@ def test_processor_state_moves_to_dtype(case: ProcessorCase) -> None:
     )
     processor = sp.EnsembleProcessor.as_processor(deepcopy(case.processor))
     processor.fit_ensemble(source)
-    expected = processor.transform_ensemble(
-        source, generator=torch.Generator().manual_seed(0)
-    )
+    expected = deepcopy(processor).transform_ensemble(source)
     processor.to(dtype=dtype)
-    actual = processor.transform_ensemble(
-        target, generator=torch.Generator().manual_seed(0)
-    )
+    actual = processor.transform_ensemble(target)
     assert all(
         actual[member_id].dtype == dtype for member_id in range(len(actual))
     )
@@ -370,18 +364,9 @@ def test_processor_state_moves_to_cuda(case: ProcessorCase) -> None:
     processor_a, processor_b = _make_processor_pair(case.processor)
     processor_a.fit_ensemble(source)
     processor_b.load_state_dict(processor_a.state_dict())
+    expected = processor_a.transform_ensemble(source)
     processor_b.to(device=device)
-    if case.stochastic_transform:
-        # CPU and CUDA generators produce different random sequences.
-        processor_a.to(device=device)
-        source = target
-    expected = processor_a.transform_ensemble(
-        source,
-        generator=torch.Generator(device=source[0].device).manual_seed(0),
-    )
-    actual = processor_b.transform_ensemble(
-        target, generator=torch.Generator(device=device).manual_seed(0)
-    )
+    actual = processor_b.transform_ensemble(target)
     assert all(
         actual[member_id].device.type == device.type
         for member_id in range(len(actual))
@@ -393,9 +378,7 @@ def test_processor_state_moves_to_cuda(case: ProcessorCase) -> None:
         assert actual_table.columns == expected_table.columns
         torch.testing.assert_close(
             actual_table.numerical.cpu(),
-            expected_table.numerical.cpu(),
+            expected_table.numerical,
             equal_nan=True,
         )
-        assert actual_table.categorical.cpu().equal(
-            expected_table.categorical.cpu()
-        )
+        assert actual_table.categorical.cpu().equal(expected_table.categorical)
