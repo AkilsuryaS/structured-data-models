@@ -44,6 +44,7 @@ def test_categorical_transform_compilation(
     )
     processor = processor_cls().fit(context)
     compiled = torch.compile(processor.transform, fullgraph=fullgraph)
+    assert compiled(context).equal(processor.transform(context))
     expected = processor.transform(query)
     assert compiled(query).equal(expected)
 

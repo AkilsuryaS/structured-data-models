@@ -79,7 +79,9 @@ class ImputeMode(Processor):
             if len(fill_values) > 0
             else torch.empty(0, dtype=torch.long, device=data.device),
         )
-        self._categories = BufferList(table.categorical.categories)
+        self._categories = BufferList(
+            category.clone() for category in table.categorical.categories
+        )
 
     def _fit_transform(
         self,

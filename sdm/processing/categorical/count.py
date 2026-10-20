@@ -97,7 +97,9 @@ class AddCategoryCounts(Processor):
             value=counts.to(count_dtype).log1p().to(dtype),
         )
         self._set_buffer("_num_categories", num_categories)
-        self._categories = BufferList(table.categorical.categories)
+        self._categories = BufferList(
+            category.clone() for category in table.categorical.categories
+        )
 
     def _transform(self, table: TableTensor) -> TableTensor:
         _check_categories(table, self._categories)
