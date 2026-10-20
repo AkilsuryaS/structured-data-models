@@ -19,7 +19,8 @@ class MaskRandom(Processor):
     processor to all rows in one call.
 
     Args:
-        rate: Range from which to draw each table's missing-cell probability.
+        rate: Lower and upper bounds for uniform sampling of each table's
+            missing-cell probability.
     """
 
     handles_stypes = (Stype.numerical, Stype.categorical)
@@ -29,9 +30,6 @@ class MaskRandom(Processor):
 
     def __init__(self, *, rate: tuple[float, float] = (0.01, 0.08)) -> None:
         super().__init__()
-        low, high = rate
-        if not 0 <= low <= high <= 1:
-            raise ValueError("rate must satisfy 0 <= low <= high <= 1.")
         self.rate = rate
         self._seed = 0
         self.register_buffer("_missing_rate", torch.empty(0))
