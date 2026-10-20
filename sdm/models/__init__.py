@@ -13,7 +13,12 @@ __lazy_modules__ = {
 from sdm.models.base import Callback, Model, ICLModel, ECOC
 from sdm.models.tabiclv2 import TabICLv2
 from sdm.models.tabfm import TabFM
-from sdm.models.kumo import KumoTabular, KumoRelational, KumoForecast
+from sdm.models.kumo import (
+    KumoTabular,
+    KumoRelational,
+    KumoForecast,
+    KumoAnomaly,
+)
 from sdm.models.timesfm3 import TimesFM3
 
 
@@ -27,5 +32,6 @@ __all__ = [
     "KumoTabular",
     "KumoRelational",
     "KumoForecast",
+    "KumoAnomaly",
     "TimesFM3",
 ]
