@@ -3,12 +3,14 @@
 
 import os
 
+import torch
 from torch import Tensor
 
 from sdm import Stype, TableTensor
 from sdm.nn._buffer import BufferList
 
 
+@torch.compiler.disable
 def _check_categorical_codes(table: TableTensor) -> None:
     """Raise if a categorical code exceeds its column's category vocabulary.
 
@@ -29,6 +31,7 @@ def _check_categorical_codes(table: TableTensor) -> None:
             )
 
 
+@torch.compiler.disable
 def _check_categories(
     table: TableTensor,
     categories: BufferList[Tensor],
