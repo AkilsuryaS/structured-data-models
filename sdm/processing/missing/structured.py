@@ -10,7 +10,6 @@ from sdm.processing import Processor
 from sdm.processing._random import (
     SeedMixin,
     count,
-    randint_inclusive,
     rank,
     subset,
 )
@@ -153,13 +152,8 @@ def _pick_columns(
     low, high = num_columns
     num_eligible = eligible.sum()
     upper = num_eligible.clamp(max=high).clamp(min=low)
-    num_selected = randint_inclusive(
-        low=low,
-        high=upper,
-        size=batch,
-        device=eligible.device,
-        generator=generator,
-    )
+    u = torch.rand(batch, device=eligible.device, generator=generator)
+    num_selected = (low + u * (upper - low + 1)).floor().long()
     selected = subset(
         eligible=eligible.expand(*batch, -1),
         count=num_selected,

@@ -46,19 +46,6 @@ def uniform(
     )
 
 
-def randint_inclusive(
-    low: Tensor | int,
-    high: Tensor | int,
-    size: Sequence[int],
-    *,
-    device: torch.device,
-    generator: torch.Generator | None,
-) -> Tensor:
-    r"""Draw integers in ``[low, high]`` with broadcast tensor bounds."""
-    u = torch.rand(size, device=device, generator=generator)
-    return (low + u * (high - low + 1)).floor().long()
-
-
 def count(
     total: Tensor,
     low: float,
@@ -73,13 +60,13 @@ def count(
     total = total.double()
     lower = (total * low).ceil().clamp(min=1)
     upper = torch.maximum(lower, torch.minimum(total, (total * high).floor()))
-    return randint_inclusive(
-        low=lower,
-        high=upper,
-        size=total.shape,
-        device=total.device,
-        generator=generator,
-    ).minimum(total.long())
+    u = torch.rand(total.shape, device=total.device, generator=generator)
+    return (
+        (lower + u * (upper - lower + 1))
+        .floor()
+        .long()
+        .minimum(total.long())
+    )
 
 
 def rank(x: Tensor, dim: int) -> Tensor:
