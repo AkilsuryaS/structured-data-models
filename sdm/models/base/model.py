@@ -92,20 +92,28 @@ class _Prefetcher(Generic[T]):
         self._compute_stream: torch.cuda.Stream | None = None
         self._next: T | None = None
 
+    def _to_device(self, item: T, *, non_blocking: bool = False) -> T:
+        if isinstance(item, Cache) and item._can_reuse_on(self._device):
+            return item
+        if non_blocking:
+            return item.to(  # type: ignore
+                device=self._device, non_blocking=True
+            )
+        return item.to(self._device)  # type: ignore
+
     def __enter__(self) -> Self:
         if self._transfer_stream is not None:
             self._compute_stream = torch.cuda.current_stream(self._device)
             try:
                 with torch.cuda.stream(self._transfer_stream):
-                    self._next = self._items[0].to(  # type: ignore
-                        device=self._device,
-                        non_blocking=True,
+                    self._next = self._to_device(
+                        self._items[0], non_blocking=True
                     )
             except BaseException:
                 self._transfer_stream.synchronize()
                 raise
         else:
-            self._next = self._items[0].to(self._device)  # type: ignore
+            self._next = self._to_device(self._items[0])
 
         return self
 
@@ -137,11 +145,10 @@ class _Prefetcher(Generic[T]):
             if self._next is not None:
                 if self._transfer_stream is not None:
                     with torch.cuda.stream(self._transfer_stream):
-                        self._next = self._next.to(  # type: ignore
-                            device=self._device,
-                            non_blocking=True,
+                        self._next = self._to_device(
+                            self._next, non_blocking=True
                         )
                 else:
-                    self._next = self._next.to(self._device)  # type: ignore
+                    self._next = self._to_device(self._next)
 
             yield item

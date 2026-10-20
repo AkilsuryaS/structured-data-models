@@ -12,6 +12,7 @@ from collections.abc import (
 from enum import StrEnum
 from typing import NamedTuple, Self
 
+import torch
 from torch import Tensor
 
 from sdm.tensor.mixin import DeviceMixin
@@ -141,6 +142,35 @@ class Cache(MutableMapping[Hashable, object], DeviceMixin):
 
         for value in self.values():
             yield from _iter_tensors(value)
+
+    def _can_reuse_on(self, device: torch.device) -> bool:
+        """Whether prefetch can reuse this replay cache without conversion.
+
+        Consumers must leave the reused cache and nested metadata unchanged.
+        """
+
+        def _is_resident(value: object) -> bool:
+            if isinstance(value, Tensor):
+                return type(value) is Tensor and value.device == device
+            if type(value) is Cache:
+                if not value.is_replaying:
+                    return False
+                values = value.values()
+            elif type(value) is KVCacheEntry:
+                values = value
+            elif isinstance(value, DeviceMixin):
+                return False
+            elif type(value) is dict:
+                values = value.values()
+            elif isinstance(value, (list, tuple)):
+                if type(value) not in (list, tuple):
+                    return False
+                values = value
+            else:
+                return not isinstance(value, Mapping)
+            return all(_is_resident(child) for child in values)
+
+        return type(self) is Cache and _is_resident(self)
 
     def _apply_tensor(self, fn: Callable[[Tensor], Tensor]) -> Self:
         def _apply(value: object) -> object:
