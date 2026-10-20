@@ -8,7 +8,6 @@ from torch import Tensor
 from torch._higher_order_ops.effects import (
     _EffectType,
     _register_effectful_op,
-    with_effects,
 )
 
 from sdm import StringTensor, Stype, TableTensor, VarLenTensor
@@ -43,20 +42,21 @@ def _category_values(
 ) -> tuple[Tensor, Tensor | None]:
     if offset is None:
         return data, None
-    if view[2] == 1:
-        offset = offset[view[3] : view[3] + view[1] + 1]
+    _, size, stride, storage_offset = view
+    if stride == 1:
+        offset = offset[storage_offset : storage_offset + size + 1]
         return data[int(offset[0]) : int(offset[-1])], offset - offset[0]
     start = torch.as_strided(
         offset,
-        size=(view[1],),
-        stride=(view[2],),
-        storage_offset=view[3],
+        size=(size,),
+        stride=(stride,),
+        storage_offset=storage_offset,
     )
     end = torch.as_strided(
         offset,
-        size=(view[1],),
-        stride=(view[2],),
-        storage_offset=view[3] + 1,
+        size=(size,),
+        stride=(stride,),
+        storage_offset=storage_offset + 1,
     )
     offset, index = _compact(start, end)
     return data[index], offset
@@ -106,8 +106,8 @@ _register_effectful_op(
     torch.ops.sdm._check_category_vocabulary.default,
     _EffectType.ORDERED,
 )
-# PyTorch 2.7 otherwise removes validation when eliminating unused tokens.
-torch.fx.node.has_side_effect(with_effects)
+# Older PyTorch versions otherwise remove validation with unused tokens.
+torch.fx.node.has_side_effect(torch.ops.prims._sink_tokens.default)
 
 
 def _check_categorical_codes(table: TableTensor) -> None:
@@ -130,10 +130,7 @@ def _check_categorical_codes(table: TableTensor) -> None:
             f"Categorical column {columns[index]!r} contains a code "
             "outside its category vocabulary."
         )
-        if torch.compiler.is_compiling():
-            _check_condition(valid, message)
-        elif not valid:
-            raise ValueError(message)
+        _check_condition(valid, message)
 
 
 def _check_categories(

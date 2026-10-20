@@ -48,7 +48,7 @@ def test_categorical_transform_compilation(
     assert compiled(query).equal(expected)
 
     codes = query.categorical.code.clone()
-    codes[0, 0] = 2
+    codes[0, 0] = 100
     with pytest.raises(ValueError, match="outside its category vocabulary"):
         compiled(
             query.replace_blocks(
