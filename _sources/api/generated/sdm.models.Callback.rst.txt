@@ -1,0 +1,8 @@
+﻿Callback
+========
+
+.. currentmodule:: sdm.models
+
+.. autoclass:: Callback
+   :members:
+   :show-inheritance:

@@ -164,6 +164,7 @@ data-aria-dark="Switch to auto color mode">
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">sdm.models</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.models.ICLModel.html">ICLModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/sdm.models.Callback.html">Callback</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.models.TabICLv2.html">TabICLv2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.models.TabFM.html">TabFM</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/sdm.models.KumoTabular.html">KumoTabular</a></li>
@@ -196,6 +197,7 @@ data-aria-dark="Switch to auto color mode">
     <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
 <li><a class="reference internal" href="#overview">Overview</a></li>
 <li><a class="reference internal" href="#model-api">Model API</a></li>
+<li><a class="reference internal" href="#models">Models</a></li>
 </ul>
 </div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
   </aside>
@@ -320,22 +322,34 @@ data-aria-dark="Switch to auto color mode">
 <tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.ICLModel.html#sdm.models.ICLModel" title="sdm.models.ICLModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ICLModel</span></code></a></p></td>
 <td><p>Base model for in-context foundation models on structured data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.TabICLv2.html#sdm.models.TabICLv2" title="sdm.models.TabICLv2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TabICLv2</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.Callback.html#sdm.models.Callback" title="sdm.models.Callback"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Callback</span></code></a></p></td>
+<td><p>Base class for callbacks attached to a model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="models">
+<h2>Models<a class="headerlink" href="#models" title="Link to this heading">#</a></h2>
+<div class="table-wrapper autosummary longtable docutils container">
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.TabICLv2.html#sdm.models.TabICLv2" title="sdm.models.TabICLv2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TabICLv2</span></code></a></p></td>
 <td><p>The tabular foundation model from the <a class="reference external" href="https://arxiv.org/abs/2602.11139">&quot;TabICLv2: A Better, Faster, Scalable, and Open Tabular Foundation Model&quot;</a> paper.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.TabFM.html#sdm.models.TabFM" title="sdm.models.TabFM"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TabFM</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.TabFM.html#sdm.models.TabFM" title="sdm.models.TabFM"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TabFM</span></code></a></p></td>
 <td><p>The tabular foundation model from the <a class="reference external" href="https://arxiv.org/abs/2609.37959">&quot;TabFM: A Zero-Shot Foundation Model for Tabular Data&quot;</a> paper.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.KumoTabular.html#sdm.models.KumoTabular" title="sdm.models.KumoTabular"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoTabular</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.KumoTabular.html#sdm.models.KumoTabular" title="sdm.models.KumoTabular"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoTabular</span></code></a></p></td>
 <td><p>The tabular foundation model from <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">&quot;NVIDIA Kumo Tabular Sets a New Accuracy-Efficiency Frontier for Tabular Prediction&quot;</a>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.KumoRelational.html#sdm.models.KumoRelational" title="sdm.models.KumoRelational"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoRelational</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.KumoRelational.html#sdm.models.KumoRelational" title="sdm.models.KumoRelational"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoRelational</span></code></a></p></td>
 <td><p>An adapted version of the relational foundation model from the <a class="reference external" href="https://arxiv.org/abs/2604.12596">&quot;KumoRFM-2: Scaling Foundation Models for Relational Learning&quot;</a> paper.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.KumoForecast.html#sdm.models.KumoForecast" title="sdm.models.KumoForecast"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoForecast</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.KumoForecast.html#sdm.models.KumoForecast" title="sdm.models.KumoForecast"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KumoForecast</span></code></a></p></td>
 <td><p>The time series forecasting foundation model from <a class="reference external" href="https://developer.nvidia.com/blog/new-nvidia-nv-tesseract-time-series-models-advance-dataset-processing-and-anomaly-detection">&quot;New NVIDIA NV-Tesseract Time Series Models Advance Dataset Processing and Anomaly Detection&quot;</a>.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimesFM3</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TimesFM3</span></code></a></p></td>
 <td><p>The time series forecasting foundation model from <a class="reference external" href="https://research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting">&quot;TimesFM-3: A Zero-shot Foundation Model for Multivariate Forecasting&quot;</a>.</p></td>
 </tr>
 </tbody>
@@ -368,7 +382,7 @@ data-aria-dark="Switch to auto color mode">
   </main>
 </div>
 
-      <script src="../_static/documentation_options.js?v=9bc5bc7c"></script>
+      <script src="../_static/documentation_options.js?v=6a86d6df"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
