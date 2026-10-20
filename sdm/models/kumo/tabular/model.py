@@ -139,6 +139,7 @@ class KumoTabular(ICLModel):
         self.eval()
 
     @classmethod
+    @torch.compiler.disable
     def default_recipe(cls) -> Recipe:
         r""":meta private:"""  # noqa: D415
         return default_recipe()
