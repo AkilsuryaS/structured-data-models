@@ -62,10 +62,7 @@ def count(
     upper = torch.maximum(lower, torch.minimum(total, (total * high).floor()))
     u = torch.rand(total.shape, device=total.device, generator=generator)
     return (
-        (lower + u * (upper - lower + 1))
-        .floor()
-        .long()
-        .minimum(total.long())
+        (lower + u * (upper - lower + 1)).floor().long().minimum(total.long())
     )
 
 
