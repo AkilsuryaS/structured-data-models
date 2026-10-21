@@ -51,6 +51,15 @@ def preserve_view_inference_mode(fn: Callable) -> Callable:
     return wrapper
 
 
+# torch.compile on PyTorch 2.7 can fail after a graph break with both
+# contexts in one function. Keep the gradient context in a helper.
+def _call_with_grad_enabled(
+    fn: Callable, grad_enabled: bool, /, *args: Any, **kwargs: Any
+) -> Any:
+    with torch.set_grad_enabled(grad_enabled):
+        return fn(*args, **kwargs)
+
+
 def preserve_autograd_state(fn: Callable) -> Callable:
     r"""Re-apply the caller's autograd/inference-mode state for non-view ops.
 
@@ -65,11 +74,8 @@ def preserve_autograd_state(fn: Callable) -> Callable:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         inference_mode_enabled = torch.is_inference_mode_enabled()
         grad_enabled = torch.is_grad_enabled()
-        with (
-            torch.inference_mode(inference_mode_enabled),
-            torch.set_grad_enabled(grad_enabled),
-        ):
-            return fn(*args, **kwargs)
+        with torch.inference_mode(inference_mode_enabled):
+            return _call_with_grad_enabled(fn, grad_enabled, *args, **kwargs)
 
     return wrapper
 
@@ -1156,8 +1162,8 @@ class TableTensor(Tensor):
         args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> Any:
-        if (handler := cls.HANDLED_FUNCTIONS.get(func)) is not None:
-            return handler(*args, **(kwargs or {}))
+        if func in cls.HANDLED_FUNCTIONS:
+            return cls.HANDLED_FUNCTIONS[func](*args, **(kwargs or {}))
 
         raise NotImplementedError(
             f"'{func}' is not supported for {cls.__name__!r}"
