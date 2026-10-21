@@ -9,7 +9,6 @@ from torch import Tensor
 
 from sdm import (
     CategoricalTensor,
-    ColumnarTensor,
     EnsembleTable,
     StringTensor,
     Stype,
@@ -17,7 +16,10 @@ from sdm import (
 )
 from sdm.nn._buffer import BufferList
 from sdm.processing import EnsembleProcessor
-from sdm.relational.join import join_index
+from sdm.processing.categorical._string_lookup import (
+    _flatten_strings,
+    _string_category_lookup,
+)
 from sdm.tensor.categorical import _iter_categories
 
 _UNSIGNED_DTYPES = frozenset({torch.uint16, torch.uint32, torch.uint64})
@@ -339,57 +341,12 @@ class AlignCategories(EnsembleProcessor):
     ) -> tuple[Tensor, ...]:
         if not input_categories:
             return ()
-
-        # Pair IDs for each input category: (total_input_categories,).
-        left_pair = torch.cat(
-            [
-                codes.new_full((categories.numel(),), pair_index)
-                for pair_index, categories in enumerate(input_categories)
-            ]
+        inputs, input_layout = _flatten_strings(input_categories)
+        fitted, fitted_layout = _flatten_strings(fitted_categories)
+        lookup = _string_category_lookup(
+            inputs, input_layout, fitted, fitted_layout, codes
         )
-        # Pair IDs for each fitted category: (total_fitted_categories,).
-        right_pair = torch.cat(
-            [
-                codes.new_full((categories.numel(),), pair_index)
-                for pair_index, categories in enumerate(fitted_categories)
-            ]
-        )
-        left_index, right_index = join_index(
-            left_table=TableTensor(
-                columns={"id": ("pair", "value")},
-                id=ColumnarTensor(
-                    (left_pair, torch.cat(input_categories)),
-                ),
-            ),
-            right_table=TableTensor(
-                columns={"id": ("pair", "value")},
-                id=ColumnarTensor(
-                    (right_pair, torch.cat(fitted_categories)),
-                ),
-            ),
-            left_keys=["pair", "value"],
-            right_keys=["pair", "value"],
-            dtype=codes.dtype,
-        )
-        fitted_codes = torch.cat(
-            [
-                torch.arange(
-                    categories.numel(),
-                    dtype=codes.dtype,
-                    device=codes.device,
-                )
-                for categories in fitted_categories
-            ]
-        )
-        # Fitted code for each input category: (total_input_categories,).
-        lookup = codes.new_full(
-            (sum(categories.numel() for categories in input_categories),),
-            -1,
-        )
-        lookup[left_index] = fitted_codes[right_index]
-        return lookup.split(
-            [categories.numel() for categories in input_categories]
-        )
+        return lookup.split(input_layout[::3])
 
     @staticmethod
     def _category_lookup(

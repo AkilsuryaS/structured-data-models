@@ -500,6 +500,11 @@ class VarLenTensor(Tensor):
     # Properties ##############################################################
 
     @property
+    def _logical_storage_offset(self) -> int:
+        """Expose the logical view offset as traceable Python metadata."""
+        return cast(int, self.storage_offset())
+
+    @property
     def data_offset(self) -> tuple[Tensor, Tensor]:
         r"""Return contiguous data and normalized offsets.
 
