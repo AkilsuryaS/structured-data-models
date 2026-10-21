@@ -348,6 +348,12 @@ For fully deterministic category mappings, align categories at the processing le
 In the example above, <code class="docutils literal notranslate"><span class="pre">table.numerical_columns</span></code> is <code class="docutils literal notranslate"><span class="pre">(&quot;age&quot;,</span> <span class="pre">&quot;income&quot;)</span></code>, so <code class="docutils literal notranslate"><span class="pre">table.numerical[:,</span> <span class="pre">0]</span></code> contains ages and <code class="docutils literal notranslate"><span class="pre">table.numerical[:,</span> <span class="pre">1]</span></code> contains incomes.
 Each property returns an immutable tuple of strings, or <code class="docutils literal notranslate"><span class="pre">()</span></code> when the block has no columns, without copying the full column mapping.
 The existing <code class="docutils literal notranslate"><span class="pre">.columns</span></code> property still returns a copy of the mapping for all semantic types.</p>
+<p>To iterate over every semantic type and its column labels, use <code class="docutils literal notranslate"><span class="pre">.column_groups</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">for</span> <span class="n">stype</span><span class="p">,</span> <span class="n">labels</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">column_groups</span><span class="p">:</span>
+</span><span data-line="2">    <span class="nb">print</span><span class="p">(</span><span class="n">stype</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>This returns immutable pairs in the same order as <code class="docutils literal notranslate"><span class="pre">.columns.items()</span></code>, including types with no columns.</p>
 <p>Because columns are stored in semantic blocks, <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> does not treat the original dataframe column order as a stable invariant.
 Prefer column-name selection over positional assumptions.
 Otherwise, PyTorch syntactic sugar is fully preserved.
@@ -431,7 +437,7 @@ You can learn more about data processing and model execution in the <a class="re
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=8cc3e02b"></script>
+      <script src="_static/documentation_options.js?v=31c4df1c"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
