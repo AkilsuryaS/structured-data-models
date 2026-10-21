@@ -121,8 +121,20 @@ class CategoricalTensor(Tensor):
                     "contain null values"
                 )
 
+        return CategoricalTensor._make_categorical_tensor(
+            code=code,
+            categories=tuple(categories),
+        )
+
+    # Avoid Dynamo reading _code before construction has finished.
+    @staticmethod
+    @torch.compiler.allow_in_graph
+    def _make_categorical_tensor(
+        code: Tensor,
+        categories: tuple[Tensor, ...],
+    ) -> CategoricalTensor:
         out = Tensor._make_wrapper_subclass(
-            cls,
+            cls=CategoricalTensor,
             size=code.size(),
             strides=code.stride(),
             storage_offset=code.storage_offset(),
@@ -132,7 +144,7 @@ class CategoricalTensor(Tensor):
         )
 
         out._code = code
-        out._categories = tuple(categories)
+        out._categories = categories
         for i, category in enumerate(out._categories):
             setattr(out, f"_category_{i}", category)
 
