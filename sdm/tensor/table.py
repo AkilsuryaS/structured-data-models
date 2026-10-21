@@ -865,6 +865,15 @@ class TableTensor(Tensor):
         return self._columns[Stype.id]
 
     @property
+    def column_groups(self) -> tuple[tuple[Stype, tuple[str, ...]], ...]:
+        r"""Return column names grouped by semantic type as an immutable tuple.
+
+        Pairs follow ``columns`` iteration order and include types with no
+        columns.
+        """
+        return tuple(self._columns.items())
+
+    @property
     def columns(self) -> Mapping[Stype, tuple[str, ...]]:
         r"""Return column names grouped by semantic type."""
         return self._columns.copy()
@@ -971,7 +980,7 @@ class TableTensor(Tensor):
             id: Replacement identifier block with shape ``[..., C_id]``.
         """
         return self.__class__(
-            columns=cast(Mapping[StypeLike, Sequence[str]], self.columns),
+            columns=cast(Mapping[StypeLike, Sequence[str]], self._columns),
             numerical=self.numerical if numerical is None else numerical,
             categorical=(
                 self.categorical if categorical is None else categorical
@@ -2007,8 +2016,8 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> TableTensor:
                 )
 
     blocks: dict[Stype, Tensor] = {}
-    for stype, _ in ref.items():
-        block_list = [tensor.blocks[stype] for tensor in tensors]
+    for stype, _ in TableTensor.items(ref):
+        block_list = [getattr(tensor, stype.value) for tensor in tensors]
         if is_column_dim:
             # Skip empty blocks so their dtypes cannot promote the others,
             # but keep one so that an all-empty block retains its dtype.
@@ -2027,11 +2036,11 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> TableTensor:
             stype: tuple(
                 chain.from_iterable(t._columns[stype] for t in tensors)
             )
-            for stype, _ in ref.items()
+            for stype, _ in TableTensor.items(ref)
         }
 
     return ref.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], columns),
+        columns=cast("dict[StypeLike, tuple[str, ...]]", columns),
         **blocks,
     )
 
