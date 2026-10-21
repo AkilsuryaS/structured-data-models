@@ -19,6 +19,7 @@ from sdm._inference import inference_mode
 from sdm._warnings import warn_once
 from sdm.models import Callback, Model
 from sdm.models._huggingface import download_checkpoint
+from sdm.models.kumo.timeseries.anomaly.ckpt import remap_ckpt
 from sdm.models.kumo.timeseries.anomaly.denoiser import DiffusionDenoiser
 from sdm.models.kumo.timeseries.anomaly.embedding import SideEmbedding
 from sdm.models.kumo.timeseries.anomaly.recipe import default_recipe
@@ -61,9 +62,9 @@ class KumoAnomaly(Model):
     ) -> None:
         super().__init__()
 
-        self.model = _KumoAnomaly(
-            device="meta" if pretrained else device,
-        )
+        # Build on the target device, since the checkpoint does not contain
+        # the non-persistent sinusoidal lookup of the step embedding:
+        self.model = _KumoAnomaly(device=device)
 
         if pretrained:
             self._load_from_pretrained(device=device)
@@ -81,7 +82,8 @@ class KumoAnomaly(Model):
             filename="final_model.pth",
             revision="226c5003b0582adc1cac433123f47324bfae39f2",
         )
-        torch.load(path, map_location=device, weights_only=True)  # TODO
+        ckpt = torch.load(path, map_location=device, weights_only=True)
+        self.model.load_state_dict(remap_ckpt(ckpt["model"]))
 
         return self
 
