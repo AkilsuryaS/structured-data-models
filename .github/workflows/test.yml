@@ -2,53 +2,18 @@ name: Test
 
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ startsWith(github.ref, 'refs/pull/') || github.run_number }}  # yamllint disable-line
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 permissions:
   contents: read
 
 jobs:
-  pytest:
+  openml-diagnostic:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.11', '3.15']
-
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
         with:
-          python-version: ${{ matrix.python-version }}
-          activate-environment: true
-
-      - name: Install package
-        run: |
-          # `-e` for coverage report.
-          uv pip install \
-            --torch-backend=cpu \
-            --find-links=https://data.pyg.org/whl/torch-2.14.0+cpu.html \
-            --group=test-cpu \
-            -e .
-
-      - name: Run tests
-        env:
-          FULL_TEST: ${{ ((github.event_name == 'push' && github.ref_name == 'main') || contains(github.event.pull_request.labels.*.name, 'ci-full-test')) && '1' || '0' }}
-        run: |
-          pytest --cov=sdm --cov-config=pyproject.toml --cov-report=term-missing --durations=10
-
-      # TODO: Uncomment when we make the repo public.
-      # - name: Upload coverage
-      #   if: ${{ runner.os == 'Linux' }}
-      #   uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
-      #   with:
-      #     fail_ci_if_error: false
+          python-version: '3.12'
+      - name: Reproduce the OpenML task-cache request
+        run: uv run --no-project --with openml==0.15.1 python -u .github/scripts/diagnose_openml.py
