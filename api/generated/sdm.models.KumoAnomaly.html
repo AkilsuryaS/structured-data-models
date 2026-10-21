@@ -126,6 +126,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.RankGaussian.html">RankGaussian</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.Standardize.html">Standardize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.RobustScale.html">RobustScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.MinMaxScale.html">MinMaxScale</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.FlipSign.html">FlipSign</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.DropConstantColumns.html">DropConstantColumns</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.numerical.PCA.html">PCA</a></li>
@@ -328,10 +329,15 @@ time step.</p>
 <section id="default-recipe">
 <h2>Default Recipe<a class="headerlink" href="#default-recipe" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">Recipe</span><span class="p">(</span>
-</span><span data-line="2">  <span class="n">features</span><span class="o">=</span><span class="n">Identity</span><span class="p">(),</span>
-</span><span data-line="3">  <span class="n">target</span><span class="o">=</span><span class="n">Identity</span><span class="p">(),</span>
-</span><span data-line="4">  <span class="n">output</span><span class="o">=</span><span class="n">Identity</span><span class="p">(),</span>
-</span><span data-line="5"><span class="p">)</span>
+</span><span data-line="2">  <span class="n">features</span><span class="o">=</span><span class="n">StypeDispatch</span><span class="p">(</span>
+</span><span data-line="3">    <span class="n">numerical</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span data-line="4">      <span class="n">PCA</span><span class="p">(),</span>
+</span><span data-line="5">      <span class="n">MinMaxScale</span><span class="p">(),</span>
+</span><span data-line="6">    <span class="p">),</span>
+</span><span data-line="7">  <span class="p">),</span>
+</span><span data-line="8">  <span class="n">target</span><span class="o">=</span><span class="n">Identity</span><span class="p">(),</span>
+</span><span data-line="9">  <span class="n">output</span><span class="o">=</span><span class="n">Identity</span><span class="p">(),</span>
+</span><span data-line="10"><span class="p">)</span>
 </span></pre></div>
 </div>
 </section>
@@ -361,7 +367,7 @@ time step.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=5417a5df"></script>
+      <script src="../../_static/documentation_options.js?v=3d614268"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

@@ -34,7 +34,12 @@ Default Recipe
 .. code-block:: python
 
    Recipe(
-     features=Identity(),
+     features=StypeDispatch(
+       numerical=Sequential(
+         PCA(),
+         MinMaxScale(),
+       ),
+     ),
      target=Identity(),
      output=Identity(),
    )
