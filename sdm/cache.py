@@ -38,7 +38,7 @@ class KVCacheEntry(_KVCacheEntry, DeviceMixin):
         return self.__class__(key=fn(self.key), value=fn(self.value))
 
 
-class Cache(MutableMapping[Hashable, object], DeviceMixin):
+class Cache(Mapping[Hashable, object], DeviceMixin):
     r"""A mutable mapping of model cache values."""
 
     class Mode(StrEnum):
@@ -125,6 +125,13 @@ class Cache(MutableMapping[Hashable, object], DeviceMixin):
 
     def __repr__(self) -> str:
         return repr(self._items)
+
+    # Keep bulk mutations subject to the recording-mode checks.
+    clear = MutableMapping.clear
+    pop = MutableMapping.pop
+    popitem = MutableMapping.popitem
+    setdefault = MutableMapping.setdefault
+    update = MutableMapping.update
 
     def _tensors(self) -> Iterator[Tensor]:
         def _iter_tensors(value: object) -> Iterator[Tensor]:

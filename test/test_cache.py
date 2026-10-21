@@ -3,6 +3,7 @@
 
 from typing import cast
 
+import pytest
 import torch
 
 from sdm.cache import Cache, KVCacheEntry
@@ -45,3 +46,20 @@ def test_cache_size() -> None:
     )
 
     assert cache.size() == 3 * 4 + 2 * 8 + 5 * 1 + 4 * 2
+
+
+@pytest.mark.parametrize("fullgraph", [False, True])
+def test_compiled_cache(compilation: None, fullgraph: bool) -> None:
+    def record(value: torch.Tensor) -> Cache:
+        cache = Cache(nested=Cache(value=value + 1))
+        cache["value"] = value * 2
+        return cache.freeze().to("cpu")
+
+    value = torch.randn(2)
+    compiled = torch.compile(record, backend="inductor", fullgraph=fullgraph)
+    cache = compiled(value)
+    nested = cast(Cache, cache["nested"])
+    assert cache.is_replaying
+    assert nested.is_replaying
+    torch.testing.assert_close(cast(torch.Tensor, cache["value"]), value * 2)
+    torch.testing.assert_close(cast(torch.Tensor, nested["value"]), value + 1)
