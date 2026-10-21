@@ -8,6 +8,7 @@ import torch
 
 from sdm import TableTensor
 from sdm.processing import PCA
+from sdm.testing import withCUDA
 
 
 @pytest.mark.parametrize("shape", [(20, 5), (2, 3, 4, 4)])
@@ -38,3 +39,13 @@ def test_pca_projects_onto_fitted_dominant_direction() -> None:
         out.numerical.abs().squeeze(1),
         (transform_table.numerical - fit_mean).norm(dim=1),
     )
+
+
+@withCUDA
+def test_sign(device: torch.device) -> None:
+    steps = torch.arange(10, dtype=torch.float, device=device)
+    data = steps.unsqueeze(-1) * torch.tensor([1.0, -2.0], device=device)
+
+    out = PCA(num_components=1).fit_transform(TableTensor.from_tensor(data))
+    expected = (steps - steps.mean()) * -(5**0.5)
+    torch.testing.assert_close(out.numerical.squeeze(-1), expected)

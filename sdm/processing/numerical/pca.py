@@ -13,6 +13,9 @@ from sdm.processing import Processor
 class PCA(Processor):
     r"""Project numerical columns onto their principal components.
 
+    As in scikit-learn, the sign of each component is chosen such that its
+    largest-magnitude loading is positive.
+
     Args:
         num_components: Number of principal components to keep.
     """
@@ -45,10 +48,10 @@ class PCA(Processor):
             full_matrices=False,
         )
         num_components = min(self.num_components, table.numerical.size(-2))
-        self._set_buffer(
-            name="components",
-            value=vh[..., :num_components, :].transpose(-2, -1),
-        )
+        vh = vh[..., :num_components, :]
+        index = vh.abs().argmax(dim=-1, keepdim=True)
+        vh = vh * vh.gather(dim=-1, index=index).sign()
+        self._set_buffer(name="components", value=vh.transpose(-2, -1))
 
     def _transform(self, table: TableTensor) -> TableTensor:
         if table.numerical.size(-1) <= self.num_components:
