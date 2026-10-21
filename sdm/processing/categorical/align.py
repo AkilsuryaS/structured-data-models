@@ -346,7 +346,9 @@ class AlignCategories(EnsembleProcessor):
         lookup = _string_category_lookup(
             inputs, input_layout, fitted, fitted_layout, codes
         )
-        return lookup.split(input_layout[::3])
+        return lookup.split(
+            [category.numel() for category in input_categories]
+        )
 
     @staticmethod
     def _category_lookup(

@@ -506,7 +506,7 @@ def test_align_categories_ensemble_matches_member_fits(
         assert fitted_query_output[member_id].equal(expected_query)
 
 
-def test_string_category_lookups_compile() -> None:
+def test_string_category_lookups_compile(compilation: None) -> None:
     fitted = (
         StringTensor.from_list(["a", "b"]),
         StringTensor.from_list(["a", "x"]),

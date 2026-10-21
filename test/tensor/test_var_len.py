@@ -484,7 +484,7 @@ def test_equal_allclose() -> None:
     assert torch.allclose(tensor, other[:, ::2])
 
 
-def test_compiled_equal_independent_views() -> None:
+def test_compiled_equal_independent_views(compilation: None) -> None:
     values = [[1], [2, 3]]
     tensor = VarLenTensor.from_list(values)
     other = VarLenTensor.from_list([[0], *values, [0]])[1:-1]
@@ -494,7 +494,7 @@ def test_compiled_equal_independent_views() -> None:
     assert not equal(tensor, VarLenTensor.from_list([[99]] * len(values)))
 
 
-def test_equal_subclass_override() -> None:
+def test_equal_subclass_override(compilation: None) -> None:
     class CustomVarLenTensor(VarLenTensor):
         pass
 

@@ -599,9 +599,8 @@ class VarLenTensor(Tensor):
             and not kwargs
             and len(args) == 2
             and type(args[0]) is type(args[1])
-            and cls.HANDLED_FUNCTIONS.get(aten.equal.default) is _equal
         ):
-            return _equal(args[0], args[1])
+            return cls.HANDLED_FUNCTIONS[aten.equal.default](*args)
         if func is torch.isfinite or func is Tensor.isfinite:
             assert isinstance(args[0], VarLenTensor)
             return _isfinite(args[0])
