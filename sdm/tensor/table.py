@@ -834,6 +834,31 @@ class TableTensor(Tensor):
     # Properties ##############################################################
 
     @property
+    def numerical_columns(self) -> tuple[str, ...]:
+        r"""Return numerical column names as an immutable tuple."""
+        return self._columns[Stype.numerical]
+
+    @property
+    def categorical_columns(self) -> tuple[str, ...]:
+        r"""Return categorical column names as an immutable tuple."""
+        return self._columns[Stype.categorical]
+
+    @property
+    def datetime_columns(self) -> tuple[str, ...]:
+        r"""Return datetime column names as an immutable tuple."""
+        return self._columns[Stype.datetime]
+
+    @property
+    def text_columns(self) -> tuple[str, ...]:
+        r"""Return text column names as an immutable tuple."""
+        return self._columns[Stype.text]
+
+    @property
+    def id_columns(self) -> tuple[str, ...]:
+        r"""Return identifier column names as an immutable tuple."""
+        return self._columns[Stype.id]
+
+    @property
     def columns(self) -> Mapping[Stype, tuple[str, ...]]:
         r"""Return column names grouped by semantic type."""
         return self._columns.copy()
@@ -976,10 +1001,10 @@ class TableTensor(Tensor):
 
         .. testcode:: drop_stypes
 
-            assert table.columns[Stype.categorical] == ("country", "segment")
+            assert table.categorical_columns == ("country", "segment")
             table = table.drop_stypes("categorical")
-            assert table.columns[Stype.categorical] == ()
-            assert table.columns[Stype.numerical] == ("age", "income")
+            assert table.categorical_columns == ()
+            assert table.numerical_columns == ("age", "income")
 
         Args:
             stypes: The semantic type or semantic types to drop.

@@ -55,6 +55,12 @@ def test_init() -> None:
         Stype.text: (),
         Stype.id: (),
     }
+    assert tensor.numerical_columns == ("age", "income")
+    assert tensor.categorical_columns == ("country", "segment")
+    assert tensor.datetime_columns == ()
+    assert tensor.text_columns == ()
+    assert tensor.id_columns == ()
+
     assert tensor._column_to_loc == {
         "age": (Stype.numerical, 0),
         "income": (Stype.numerical, 1),
@@ -1482,8 +1488,8 @@ def test_from_pandas_nullable_and_categorical_dtypes(
         device=device,
     )
 
-    assert tensor.columns[Stype.numerical] == ("number",)
-    assert tensor.columns[Stype.categorical] == (
+    assert tensor.numerical_columns == ("number",)
+    assert tensor.categorical_columns == (
         "category",
         "string",
         "boolean",
@@ -1596,7 +1602,7 @@ def test_text() -> None:
     )
 
     assert tensor.size() == (3, 3)
-    assert tensor.columns[Stype.text] == ("title", "body")
+    assert tensor.text_columns == ("title", "body")
     assert tensor.text.size() == (3, 2)
 
     assert tensor.to_arrow().to_pydict() == data
