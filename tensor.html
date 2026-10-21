@@ -325,13 +325,16 @@ In addition to the dataframe itself, each column must be assigned a semantic typ
 </span><span data-line="38"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">numerical</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
 </span><span data-line="39"><span class="c1"># torch.Size([3, 2])</span>
 </span><span data-line="40">
-</span><span data-line="41"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">categorical</span><span class="o">.</span><span class="n">code</span><span class="p">)</span>
-</span><span data-line="42"><span class="c1"># tensor([[0],</span>
-</span><span data-line="43"><span class="c1">#         [1],</span>
-</span><span data-line="44"><span class="c1">#         [0]])</span>
-</span><span data-line="45">
-</span><span data-line="46"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">categorical</span><span class="o">.</span><span class="n">categories</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
-</span><span data-line="47"><span class="c1"># ["US", "DE"]</span>
+</span><span data-line="41"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">numerical_columns</span><span class="p">)</span>
+</span><span data-line="42"><span class="c1"># ("age", "income")</span>
+</span><span data-line="43">
+</span><span data-line="44"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">categorical</span><span class="o">.</span><span class="n">code</span><span class="p">)</span>
+</span><span data-line="45"><span class="c1"># tensor([[0],</span>
+</span><span data-line="46"><span class="c1">#         [1],</span>
+</span><span data-line="47"><span class="c1">#         [0]])</span>
+</span><span data-line="48">
+</span><span data-line="49"><span class="nb">print</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">categorical</span><span class="o">.</span><span class="n">categories</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+</span><span data-line="50"><span class="c1"># ["US", "DE"]</span>
 </span></pre></div>
 </div>
 <div class="admonition note">
@@ -341,6 +344,10 @@ For fully deterministic category mappings, align categories at the processing le
 </div>
 <section id="column-semantics">
 <h3>Column Semantics<a class="headerlink" href="#column-semantics" title="Link to this heading">#</a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">numerical_columns</span></code>, <code class="docutils literal notranslate"><span class="pre">categorical_columns</span></code>, <code class="docutils literal notranslate"><span class="pre">datetime_columns</span></code>, <code class="docutils literal notranslate"><span class="pre">text_columns</span></code>, or <code class="docutils literal notranslate"><span class="pre">id_columns</span></code> to read the names in one semantic block.
+In the example above, <code class="docutils literal notranslate"><span class="pre">table.numerical_columns</span></code> is <code class="docutils literal notranslate"><span class="pre">(&quot;age&quot;,</span> <span class="pre">&quot;income&quot;)</span></code>, so <code class="docutils literal notranslate"><span class="pre">table.numerical[:,</span> <span class="pre">0]</span></code> contains ages and <code class="docutils literal notranslate"><span class="pre">table.numerical[:,</span> <span class="pre">1]</span></code> contains incomes.
+Each property returns an immutable tuple of strings, or <code class="docutils literal notranslate"><span class="pre">()</span></code> when the block has no columns, without copying the full column mapping.
+The existing <code class="docutils literal notranslate"><span class="pre">.columns</span></code> property still returns a copy of the mapping for all semantic types.</p>
 <p>Because columns are stored in semantic blocks, <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> does not treat the original dataframe column order as a stable invariant.
 Prefer column-name selection over positional assumptions.
 Otherwise, PyTorch syntactic sugar is fully preserved.
@@ -424,7 +431,7 @@ You can learn more about data processing and model execution in the <a class="re
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=2ad74575"></script>
+      <script src="_static/documentation_options.js?v=dc2d1c7c"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>

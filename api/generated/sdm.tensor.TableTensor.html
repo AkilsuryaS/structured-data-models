@@ -206,6 +206,11 @@ data-aria-dark="Switch to auto color mode">
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.from_tensor"><code class="docutils literal notranslate"><span class="pre">TableTensor.from_tensor()</span></code></a></li>
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.from_cudf"><code class="docutils literal notranslate"><span class="pre">TableTensor.from_cudf()</span></code></a></li>
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.to_cudf"><code class="docutils literal notranslate"><span class="pre">TableTensor.to_cudf()</span></code></a></li>
+<li><a class="reference internal" href="#sdm.tensor.TableTensor.numerical_columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.numerical_columns</span></code></a></li>
+<li><a class="reference internal" href="#sdm.tensor.TableTensor.categorical_columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.categorical_columns</span></code></a></li>
+<li><a class="reference internal" href="#sdm.tensor.TableTensor.datetime_columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.datetime_columns</span></code></a></li>
+<li><a class="reference internal" href="#sdm.tensor.TableTensor.text_columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.text_columns</span></code></a></li>
+<li><a class="reference internal" href="#sdm.tensor.TableTensor.id_columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.id_columns</span></code></a></li>
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.columns"><code class="docutils literal notranslate"><span class="pre">TableTensor.columns</span></code></a></li>
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.column_names"><code class="docutils literal notranslate"><span class="pre">TableTensor.column_names</span></code></a></li>
 <li><a class="reference internal" href="#sdm.tensor.TableTensor.stypes"><code class="docutils literal notranslate"><span class="pre">TableTensor.stypes</span></code></a></li>
@@ -482,6 +487,36 @@ in <code class="docutils literal notranslate"><span class="pre">df</span></code>
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="sdm.tensor.TableTensor.numerical_columns">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">numerical_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.numerical_columns" title="Link to this definition">#</a></dt>
+<dd><p>Return numerical column names as an immutable tuple.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sdm.tensor.TableTensor.categorical_columns">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">categorical_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.categorical_columns" title="Link to this definition">#</a></dt>
+<dd><p>Return categorical column names as an immutable tuple.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sdm.tensor.TableTensor.datetime_columns">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">datetime_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.datetime_columns" title="Link to this definition">#</a></dt>
+<dd><p>Return datetime column names as an immutable tuple.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sdm.tensor.TableTensor.text_columns">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">text_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.text_columns" title="Link to this definition">#</a></dt>
+<dd><p>Return text column names as an immutable tuple.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="sdm.tensor.TableTensor.id_columns">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">id_columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.id_columns" title="Link to this definition">#</a></dt>
+<dd><p>Return identifier column names as an immutable tuple.</p>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="sdm.tensor.TableTensor.columns">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">columns</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="sdm.Stype.html#sdm.Stype" title="sdm.stype.Stype"><span class="pre">Stype</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.columns" title="Link to this definition">#</a></dt>
 <dd><p>Return column names grouped by semantic type.</p>
@@ -630,10 +665,10 @@ constructor.</p>
 <dt class="sig sig-object py" id="sdm.tensor.TableTensor.drop_stypes">
 <span class="sig-name descname"><span class="pre">drop_stypes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stypes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="sdm.Stype.html#sdm.Stype" title="sdm.stype.Stype"><span class="pre">Stype</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterable" title="(in Python v3.15)"><span class="pre">Iterable</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="sdm.Stype.html#sdm.Stype" title="sdm.stype.Stype"><span class="pre">Stype</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Self" title="(in Python v3.15)"><span class="pre">Self</span></a></span></span><a class="headerlink" href="#sdm.tensor.TableTensor.drop_stypes" title="Link to this definition">#</a></dt>
 <dd><p>Return a table with <code class="docutils literal notranslate"><span class="pre">stypes</span></code> columns removed.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">Stype</span><span class="o">.</span><span class="n">categorical</span><span class="p">]</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"country"</span><span class="p">,</span> <span class="s2">"segment"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">categorical_columns</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"country"</span><span class="p">,</span> <span class="s2">"segment"</span><span class="p">)</span>
 </span><span data-line="2"><span class="n">table</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">drop_stypes</span><span class="p">(</span><span class="s2">"categorical"</span><span class="p">)</span>
-</span><span data-line="3"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">Stype</span><span class="o">.</span><span class="n">categorical</span><span class="p">]</span> <span class="o">==</span> <span class="p">()</span>
-</span><span data-line="4"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">Stype</span><span class="o">.</span><span class="n">numerical</span><span class="p">]</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"age"</span><span class="p">,</span> <span class="s2">"income"</span><span class="p">)</span>
+</span><span data-line="3"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">categorical_columns</span> <span class="o">==</span> <span class="p">()</span>
+</span><span data-line="4"><span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">numerical_columns</span> <span class="o">==</span> <span class="p">(</span><span class="s2">"age"</span><span class="p">,</span> <span class="s2">"income"</span><span class="p">)</span>
 </span></pre></div>
 </div>
 <dl class="field-list simple">
@@ -712,7 +747,7 @@ constructor.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=2ad74575"></script>
+      <script src="../../_static/documentation_options.js?v=dc2d1c7c"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
