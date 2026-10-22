@@ -126,7 +126,9 @@ class Cache(Mapping[Hashable, object], DeviceMixin):
     def __repr__(self) -> str:
         return repr(self._items)
 
-    # Keep bulk mutations subject to the recording-mode checks.
+    # Retain the mutation helpers previously inherited from MutableMapping.
+    # TODO: Find a cleaner approach, or restore MutableMapping inheritance
+    # after dropping PyTorch 2.7 support and checking the remaining versions.
     clear = MutableMapping.clear
     pop = MutableMapping.pop
     popitem = MutableMapping.popitem
