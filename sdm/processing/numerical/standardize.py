@@ -27,6 +27,7 @@ class Standardize(Processor, InvertibleMixin):
 
     handles_stypes = (Stype.numerical,)
     requires_fit = True
+    _packed_state = False
 
     mean: Tensor
     scale: Tensor
@@ -87,7 +88,11 @@ class Standardize(Processor, InvertibleMixin):
         unexpected_keys: list[str],
         error_msgs: list[str],
     ) -> None:
-        self._packed_state = False
+        if self._packed_state:
+            mean, scale = self.mean, self.scale
+            self._packed_state = False
+            super()._set_buffer("mean", mean)
+            super()._set_buffer("scale", scale)
         super()._load_from_state_dict(
             state_dict,
             prefix,
@@ -125,12 +130,12 @@ class Standardize(Processor, InvertibleMixin):
 
     def _supports_conditional_fit(self, table: TableTensor) -> bool:
         numerical = table.numerical
-        return all(
-            value.numel() == 0
-            or (
+        return self.requires_fit and all(
+            (
                 value.dtype == numerical.dtype
                 and value.device == numerical.device
             )
+            or value.numel() == 0
             for value in (
                 cast(Tensor, self._buffers["mean"]),
                 cast(Tensor, self._buffers["scale"]),

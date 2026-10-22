@@ -38,6 +38,7 @@ class EnsembleProcessorAdapter(EnsembleProcessor, EnsembleInvertibleMixin):
 
     _conditional_count: torch.Tensor
     _conditional_locations: torch.Tensor
+    _conditional_state = False
 
     def __init__(self, processor: Processor) -> None:
         super().__init__()
@@ -179,7 +180,7 @@ class EnsembleProcessorAdapter(EnsembleProcessor, EnsembleInvertibleMixin):
         aligned = padded.index_select(0, index)
         count_matches = torch.scalar_tensor(
             saved.size(0), device=saved.device, dtype=torch.int64
-        ) == current.size(0)
+        ) >= current.size(0)
         batch_matches = (aligned[:, 1] == current[:, 1]).all()
         shared_batch = (aligned[:, 1] == aligned[0, 1]).all()
         valid = (
