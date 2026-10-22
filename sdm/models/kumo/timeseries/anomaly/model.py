@@ -256,8 +256,9 @@ class _KumoAnomaly(torch.nn.Module):
             dim=0,
         )
 
-        out = out.view(x.size())[:, :R, :D]
-        out = (out - x[:, :R, :D]).abs().mean(dim=-1)
+        out = out.view(x.size())[:, :R, :D].clamp(-1e8, 1e8)
+        x = x[:, :R, :D].clamp(-1e8, 1e8)
+        out = (out - x).abs().mean(dim=-1).clamp(max=1e8)
         return out.view(*B, R)
 
     def reconstruct(
