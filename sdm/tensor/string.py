@@ -534,7 +534,16 @@ def _sort_indices(inp: StringTensor, *, descending: bool = False) -> Tensor:
     )
 
 
-@torch.library.custom_op("sdm::string_sort_indices", mutates_args=())
+@torch.library.custom_op(
+    "sdm::string_sort_indices",
+    mutates_args=(),
+    # Arrow sorting can copy to the CPU; keep it outside CUDA graph capture.
+    **(
+        {"tags": (torch.Tag.cudagraph_unsafe,)}
+        if hasattr(torch.Tag, "cudagraph_unsafe")
+        else {}
+    ),
+)
 def _sort_indices_op(
     data: Tensor,
     offset: Tensor,
