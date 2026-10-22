@@ -103,6 +103,19 @@ class Exchange:
         if self.world == 1:
             return local.clone(memory_format=torch.contiguous_format)
         dim %= local.ndim
+        if (
+            dim == 0
+            and lengths[0] > 0
+            and all(size == lengths[0] for size in lengths)
+        ):
+            contiguous, result = self.attempt(
+                lambda: (
+                    local.contiguous(),
+                    local.new_empty((sum(lengths), *local.shape[1:])),
+                )
+            )
+            dist.all_gather_into_tensor(result, contiguous, group=self.group)
+            return result
         shape = list(local.shape)
         shape[dim] = max(lengths)
         padded = self.attempt(lambda: local.new_zeros(shape))
