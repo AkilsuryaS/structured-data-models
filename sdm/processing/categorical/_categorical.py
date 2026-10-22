@@ -5,7 +5,7 @@ import os
 
 from torch import Tensor
 
-from sdm import TableTensor
+from sdm import StringTensor, TableTensor
 from sdm.nn._buffer import BufferList
 from sdm.tensor.categorical import _iter_categories
 
@@ -53,6 +53,9 @@ def _check_categories(
     for index, (actual, expected) in enumerate(
         zip(_iter_categories(categorical), categories)
     ):
+        # Aligned tables reuse fitted vocabularies; avoid comparing them again.
+        if actual is expected and type(actual) is StringTensor:
+            continue
         expected = expected.to(device=actual.device)
         if not actual.equal(expected):
             raise ValueError(
