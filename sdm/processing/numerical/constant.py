@@ -51,6 +51,16 @@ class DropConstantColumns(EnsembleProcessor):
         self._shared_members = 0
         self._keep_all = False
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        super().__setstate__(state)
+        if not hasattr(self, "_shared_keep"):
+            self.register_buffer(
+                "_shared_keep", self._fitted_state.new_empty(0)
+            )
+            self._shared_members = 0
+            self._keep_all = False
+        self.register_buffer("_shared_index", None, persistent=False)
+
     def get_extra_state(self) -> object:
         r""":meta private:"""  # noqa: D415
         return (self._kept_indices, self._shared_members, self._keep_all)
