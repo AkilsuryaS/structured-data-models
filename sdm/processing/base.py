@@ -42,10 +42,12 @@ class Processor(torch.nn.Module, abc.ABC):
     def __init__(self) -> None:
         super().__init__()
         self.register_buffer("_fitted_state", torch.tensor(False))
-        self.__fitted = False
+        self.__fitted: bool | None = False
 
     @property
     def _fitted(self) -> bool:
+        if self.__fitted is None:
+            return bool(self._fitted_state)
         return self.__fitted
 
     @_fitted.setter
@@ -135,6 +137,10 @@ class Processor(torch.nn.Module, abc.ABC):
         )
         self._update_fitted(True)
 
+    def _defer_fitted(self) -> None:
+        # Conditional fitting computes the fitted flag as a tensor.
+        self.__fitted = None
+
     def _check_is_fitted(self) -> None:
         if not self.is_fitted:
             raise RuntimeError(
@@ -163,6 +169,22 @@ class Processor(torch.nn.Module, abc.ABC):
         if self.requires_fit:
             self._fit(table, generator=generator)
         return self._transform(table)
+
+    def _fit_transform_conditional(
+        self, table: TableTensor
+    ) -> tuple[TableTensor, Tensor]:
+        raise NotImplementedError
+
+    def _supports_conditional_fit(self, table: TableTensor) -> bool:
+        return False
+
+    def _supports_conditional_transform(self, table: TableTensor) -> bool:
+        return False
+
+    def _transform_conditional(
+        self, table: TableTensor, valid_state: Tensor
+    ) -> TableTensor:
+        raise NotImplementedError
 
     def _handles_table(self, table: TableTensor) -> bool:
         # Check column counts directly so torch.compile can trace this without
