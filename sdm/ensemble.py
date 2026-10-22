@@ -145,6 +145,8 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
     def _pack_tables(
         tables: Sequence[TableTensor],
     ) -> tuple[tuple[TableTensor, ...], tuple[tuple[int, int], ...]]:
+        if len(tables) == 1:
+            return (cast(TableTensor, tables[0].unsqueeze(0)),), ((0, 0),)
         compatible_groups: dict[tuple[object, ...], list[int]] = {}
         vocabularies: list[tuple[Tensor, ...]] = []
         for index, table in enumerate(tables):
