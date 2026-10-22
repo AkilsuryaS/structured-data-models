@@ -16,7 +16,7 @@ _UNSIGNED_DTYPES = frozenset({torch.uint16, torch.uint32, torch.uint64})
 
 
 class ValueColumn:
-    """Fresh sorted storage with one shared full-retention slot."""
+    """Fresh sorted storage sharing full retention across members."""
 
     size: int
     original: Tensor | None
@@ -65,27 +65,20 @@ class ValueColumn:
         selected_first = torch.where(observed, logical, k).argsort(
             dim=1, stable=True
         )
-        self.rows = torch.where(
-            observed.all(dim=1), 0, torch.arange(b, device=codes.device) + 1
-        )
+        members = torch.arange(b, device=codes.device)
+        full = observed.all(dim=1)
+        first_full = torch.where(full, members, b).amin()
+        self.rows = torch.where(full, first_full, members)
         self.counts = observed.sum(dim=1)
         self.kind = type(ordered)
         if isinstance(ordered, VarLenTensor):
-            orders = torch.cat(
-                (
-                    torch.arange(k, device=codes.device).view(1, -1),
-                    selected_first,
-                )
-            )
             # Compose selection with the sort permutation before packing, so
             # payload bounds still come from the original backing storage.
             self.bank = _permute_banks(
-                cast(VarLenTensor, categories), permutation[orders]
+                cast(VarLenTensor, categories), permutation[selected_first]
             )
         else:
-            self.bank = torch.cat(
-                (ordered.view(1, -1), ordered[selected_first])
-            )
+            self.bank = ordered[selected_first]
         rank = observed.cumsum(dim=1, dtype=codes.dtype) - 1
         lookup = torch.full_like(frequencies, -1)
         lookup.scatter_(1, order, torch.where(observed, rank, -1))
@@ -97,7 +90,7 @@ class ValueColumn:
         row = cast(int, self.rows[index].item())
         count = cast(int, self.counts[index].item())
         torch._check(row >= 0)
-        torch._check(row <= self.rows.size(0))
+        torch._check(row < self.rows.size(0))
         torch._check(count >= 0)
         torch._check(count <= self.size)
         if isinstance(self.bank, tuple):
