@@ -28,6 +28,7 @@ class DropConstantColumns(EnsembleProcessor):
     """
 
     _shared_keep: torch.Tensor
+    _shared_index: torch.Tensor | None
 
     handles_stypes = (Stype.numerical,)
     requires_fit = True
@@ -46,6 +47,7 @@ class DropConstantColumns(EnsembleProcessor):
         # verify that the numerical schema and order match fit.
         self._kept_indices: tuple[tuple[int, ...], ...] = ()
         self.register_buffer("_shared_keep", torch.empty(0, dtype=torch.bool))
+        self.register_buffer("_shared_index", None, persistent=False)
         self._shared_members = 0
         self._keep_all = False
 
@@ -91,6 +93,14 @@ class DropConstantColumns(EnsembleProcessor):
             unexpected_keys,
             error_msgs,
         )
+        self.register_buffer("_shared_index", None, persistent=False)
+
+    def _get_shared_index(self) -> torch.Tensor:
+        index = getattr(self, "_shared_index", None)
+        if index is None:
+            index = self._shared_keep.nonzero().flatten()
+            self.register_buffer("_shared_index", index, persistent=False)
+        return index
 
     def _keep_mask(self, data: torch.Tensor) -> torch.Tensor:
         # [N, C] or [..., N, C] -> [C] or [..., C].
@@ -152,7 +162,7 @@ class DropConstantColumns(EnsembleProcessor):
             return self._select_columns(table, self._kept_indices[0])
         # Dynamic compaction preserves values and names, but does not preserve
         # eager storage aliases when the selected columns form a slice.
-        return table._select_numerical_mask(self._shared_keep)
+        return table._select_numerical_indices(self._get_shared_index())
 
     def _fit(
         self,
@@ -164,6 +174,9 @@ class DropConstantColumns(EnsembleProcessor):
         self._shared_members = 1
         self._keep_all = table.numerical.size(-2) <= self.threshold
         self._kept_indices = ()
+        self.register_buffer("_shared_index", None, persistent=False)
+        if torch.compiler.is_compiling() and not self._keep_all:
+            self._get_shared_index()
         if not torch.compiler.is_compiling():
             self._cache_shared_indices()
 
@@ -200,12 +213,16 @@ class DropConstantColumns(EnsembleProcessor):
             self._shared_members = len(ensemble_table)
             self._keep_all = group.numerical.size(-2) <= self.threshold
             self._kept_indices = ()
+            self.register_buffer("_shared_index", None, persistent=False)
+            if torch.compiler.is_compiling() and not self._keep_all:
+                self._get_shared_index()
             if not torch.compiler.is_compiling():
                 self._cache_shared_indices()
             return
 
         self._shared_members = 0
         self._keep_all = False
+        self.register_buffer("_shared_index", None, persistent=False)
         masks = ensemble_table.replace_groups(
             [
                 TableTensor.from_tensor(

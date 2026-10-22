@@ -1309,7 +1309,9 @@ class TableTensor(Tensor):
         )
 
     def _select_numerical_mask(self, keep: Tensor) -> Self:
-        index = keep.nonzero().flatten()
+        return self._select_numerical_indices(keep.nonzero().flatten())
+
+    def _select_numerical_indices(self, index: Tensor) -> Self:
         names = self._column_schema[Stype.numerical]
         if isinstance(names, _ColumnNames):
             indices = (
