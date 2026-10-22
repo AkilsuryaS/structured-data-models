@@ -589,3 +589,30 @@ def test_value_alignment_preserves_full_and_partial_vocabulary_aliases(
             assert categories[i].tolist() == ["cat"]
             assert torch.equal(observed[i], categories[i]._data)
         assert category.tolist() == ["cat", "ant", "dog"]
+
+
+@pytest.mark.parametrize("method", ["fit", "fit_transform"])
+def test_value_alignment_refits_with_another_order(method: str) -> None:
+    code = torch.tensor([[0], [1], [2]])
+    processor = AlignCategories(sort_by="value")
+    processor.fit(
+        TableTensor(
+            categorical=CategoricalTensor(
+                code,
+                (torch.tensor([30, 10, 20]),),
+            )
+        )
+    )
+    processor.sort_by = "code"
+    table = TableTensor(
+        categorical=CategoricalTensor(
+            code,
+            (torch.tensor([7, 8, 9]),),
+        )
+    )
+    getattr(processor, method)(table)
+    assert processor.transform(table).categorical.categories[0].tolist() == [
+        7,
+        8,
+        9,
+    ]

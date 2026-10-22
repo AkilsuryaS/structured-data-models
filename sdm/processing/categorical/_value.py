@@ -18,16 +18,29 @@ _UNSIGNED_DTYPES = frozenset({torch.uint16, torch.uint32, torch.uint64})
 class ValueColumn:
     """Fresh sorted storage with one shared full-retention slot."""
 
-    def __init__(self, categories: Tensor, codes: Tensor, min_frequency: int):
-        self.original = categories
-        self.known_empty = statically_known_true(categories.numel() == 0)
+    size: int
+    original: Tensor | None
+    rows: Tensor
+    counts: Tensor
+    kind: type[Tensor]
+    bank: Tensor | tuple[Tensor, Tensor, Tensor | None]
+
+    @classmethod
+    def fit(
+        cls,
+        categories: Tensor,
+        codes: Tensor,
+        min_frequency: int,
+    ) -> tuple["ValueColumn", Tensor]:
+        self = cls()
         b, _ = codes.shape
         k = categories.numel()
-        if self.known_empty:
+        self.size = k
+        self.original = categories if statically_known_true(k == 0) else None
+        if self.original is not None:
             self.rows = codes.new_zeros(b, dtype=torch.long)
             self.counts = self.rows
-            self.aligned = torch.full_like(codes, -1)
-            return
+            return self, torch.full_like(codes, -1)
         # An unknown zero input would require choosing an input alias.
         # Keep that unsupported case explicit; retained counts may be zero.
         torch._check(k > 0)
@@ -76,17 +89,17 @@ class ValueColumn:
         rank = observed.cumsum(dim=1, dtype=codes.dtype) - 1
         lookup = torch.full_like(frequencies, -1)
         lookup.scatter_(1, order, torch.where(observed, rank, -1))
-        self.aligned = torch.where(mask, lookup.gather(1, indices), -1)
+        return self, torch.where(mask, lookup.gather(1, indices), -1)
 
     def member(self, index: int) -> Tensor:
-        if self.known_empty:
+        if self.original is not None:
             return self.original
         row = cast(int, self.rows[index].item())
         count = cast(int, self.counts[index].item())
         torch._check(row >= 0)
         torch._check(row <= self.rows.size(0))
         torch._check(count >= 0)
-        torch._check(count <= self.original.numel())
+        torch._check(count <= self.size)
         if isinstance(self.bank, tuple):
             data, offset, valid = self.bank
             offsets = offset.narrow(0, row, 1).squeeze(0)

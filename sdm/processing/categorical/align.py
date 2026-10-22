@@ -279,6 +279,7 @@ class AlignCategories(EnsembleProcessor):
                 EnsembleTable.from_table(table, num_members=1)
             )
             return
+        self._value_categories = None
         fitted_categories, _ = self._fit_columns(
             table,
             align_codes=False,
@@ -297,6 +298,7 @@ class AlignCategories(EnsembleProcessor):
             return self._fit_value_ensemble(
                 EnsembleTable.from_table(table, num_members=1)
             )[0]
+        self._value_categories = None
         fitted_categories, aligned_tables = self._fit_and_align(table)
         self._categories = BufferList(
             BufferList(categories) for categories in fitted_categories
@@ -388,8 +390,8 @@ class AlignCategories(EnsembleProcessor):
         columns_by_group = []
         codes_by_group = []
         for group in source._iter_groups():
-            columns = tuple(
-                ValueColumn(
+            fitted = tuple(
+                ValueColumn.fit(
                     category,
                     group.categorical.code[..., column],
                     self.min_frequency,
@@ -398,9 +400,12 @@ class AlignCategories(EnsembleProcessor):
                     _iter_categories(group.categorical)
                 )
             )
-            columns_by_group.append(columns)
+            columns_by_group.append(tuple(column for column, _ in fitted))
             codes_by_group.append(
-                torch.stack([column.aligned for column in columns], dim=-1)
+                torch.stack(
+                    [code for _, code in fitted],
+                    dim=-1,
+                )
             )
         storage = ValueCategories(columns_by_group, source._locations)
         self._value_categories = storage
