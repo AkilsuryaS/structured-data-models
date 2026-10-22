@@ -120,7 +120,7 @@ def _unpack_category(
         return NullableTensor(
             cast(Tensor, tensors[0]), cast(Tensor, tensors[1])
         )
-    return cls(
+    category = cls(
         data=cast(Tensor, tensors[0]),
         offset=cast(Tensor, tensors[1]),
         valid=tensors[2],
@@ -128,6 +128,7 @@ def _unpack_category(
         stride=(layout[2],),
         storage_offset=layout[3],
     )
+    return category if category.is_contiguous() else _contiguous(category)
 
 
 @torch.library.custom_op("sdm::check_category_values", mutates_args=())
@@ -140,10 +141,6 @@ def _check_category_values(
 ) -> Tensor:
     actual_category = _unpack_category(actual, actual_layout)
     expected_category = _unpack_category(expected, expected_layout)
-    if isinstance(actual_category, VarLenTensor):
-        actual_category = _contiguous(actual_category)
-    if isinstance(expected_category, VarLenTensor):
-        expected_category = _contiguous(expected_category)
     if not actual_category.equal(expected_category):
         raise ValueError(message)
     return torch.ones((), dtype=torch.bool, device="cpu")
