@@ -296,6 +296,8 @@ def _draw_codebooks_fake(
         )
     else:
         num_codes = torch.library.get_ctx().new_dynamic_size(min=1)
+        # Bound both the sampled tasks and the single identity task.
+        torch._check(num_codes <= 4 * num_classes + 1)
     return reference.new_empty(
         (num_members, num_codes, num_classes), dtype=torch.long
     )
