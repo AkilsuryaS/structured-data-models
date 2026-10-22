@@ -95,15 +95,21 @@ class AlignCategories(EnsembleProcessor):
         align_codes: bool,
     ) -> tuple[tuple[Tensor, ...], Tensor | None]:
         batch_size = codes.size(0)
-        if input_categories.numel() == 0:
-            aligned_codes = torch.full_like(codes, -1) if align_codes else None
-            return (input_categories,) * batch_size, aligned_codes
-
         mask = codes >= 0
         indices = codes.clamp_min(0).long()
         # Count categories independently per batch: [B, N] -> [B, K].
-        counts = codes.new_zeros((batch_size, input_categories.numel()))
-        counts.scatter_add_(1, indices, mask.to(codes.dtype))
+        # Reserve column zero for missing codes so an empty vocabulary can
+        # take the same path without indexing into a zero-width table.
+        # Keep the vocabulary-size predicate on the tensor path when K is
+        # data-dependent during compiled fitting.
+        has_categories = (
+            torch.scalar_tensor(input_categories.numel(), device=codes.device)
+            > 0
+        )
+        scatter_indices = torch.where(mask & has_categories, indices + 1, 0)
+        counts = codes.new_zeros((batch_size, input_categories.numel() + 1))
+        counts.scatter_add_(1, scatter_indices, mask.to(codes.dtype))
+        counts = counts[:, 1:]
 
         if self.sort_by == "frequency":
             order = counts.argsort(dim=1, descending=True, stable=True)
@@ -174,9 +180,9 @@ class AlignCategories(EnsembleProcessor):
             return tuple(fitted_categories), None
 
         rank = observed.cumsum(dim=1, dtype=codes.dtype) - 1
-        lookup = torch.full_like(counts, -1)
-        lookup.scatter_(1, order, torch.where(observed, rank, -1))
-        aligned_codes = torch.where(mask, lookup.gather(1, indices), -1)
+        lookup = codes.new_full((batch_size, input_categories.numel() + 1), -1)
+        lookup.scatter_(1, order + 1, torch.where(observed, rank, -1))
+        aligned_codes = lookup.gather(1, scatter_indices)
         return tuple(fitted_categories), aligned_codes
 
     def _fit_columns(
