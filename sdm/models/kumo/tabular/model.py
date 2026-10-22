@@ -29,6 +29,7 @@ from sdm.models._huggingface import download_checkpoint
 from sdm.models.kumo.tabular.icl import ICLBlock
 from sdm.models.kumo.tabular.recipe import default_recipe
 from sdm.models.kumo.tabular.row_embedding import RowEmbedding
+from sdm.tensor.categorical import _iter_categories
 
 MODEL_KWARGS: dict[str, dict[str, Any]] = {
     "small": {
@@ -205,7 +206,7 @@ class KumoTabular(ICLModel):
         classes: Tensor | None = None
         if y_context is not None and y_context.categorical.size(-1) > 0:
             y = y_context.categorical.code.squeeze(-1)
-            classes = y_context.categorical.categories[0]
+            classes = next(_iter_categories(y_context.categorical))
         elif y_context is not None and y_context.numerical.size(-1) > 0:
             y = y_context.numerical.squeeze(-1)
         else:
