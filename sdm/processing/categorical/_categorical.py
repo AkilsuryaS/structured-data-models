@@ -3,6 +3,7 @@
 
 import os
 
+import torch
 from torch import Tensor
 
 from sdm import TableTensor
@@ -22,13 +23,22 @@ def _check_categorical_codes(table: TableTensor) -> None:
         return
     columns = table.categorical_columns
     categorical = table.categorical
-    for index, category in enumerate(_iter_categories(categorical)):
-        codes = categorical.code[..., index]
-        if (codes >= category.numel()).any():
-            raise ValueError(
-                f"Categorical column {columns[index]!r} contains a code "
-                "outside its category vocabulary."
-            )
+    codes = categorical.code
+    if codes.numel() == 0:
+        return
+    sizes = codes.new_tensor(
+        [category.numel() for category in _iter_categories(categorical)],
+        dtype=torch.int64,
+    )
+    maxima = codes.amax(dim=tuple(range(codes.dim() - 1)))
+    invalid = maxima >= sizes
+    # Synchronize once; identify the first invalid column only on failure.
+    if invalid.any():
+        index = int(invalid.long().argmax())
+        raise ValueError(
+            f"Categorical column {columns[index]!r} contains a code "
+            "outside its category vocabulary."
+        )
 
 
 def _check_categories(
