@@ -80,6 +80,23 @@ class ICLBlock(torch.nn.Module):
             cache_key = f"icl_block.layer{i}"
             last_layer = i == len(self.layers) - 1
 
+            if cache is not None and cache.is_recording:
+                query = x[..., R_train:, :] if last_layer else x
+                result, key, value = _forward_context_layer(
+                    layer=layer,
+                    x=x,
+                    num_context_rows=R_train,
+                    num_cache_heads=self.kv_heads,
+                    last_layer=last_layer,
+                )
+                if torch.is_grad_enabled():
+                    x = result
+                else:
+                    query.copy_(result)
+                    x = query
+                cache[cache_key] = KVCacheEntry(key, value)
+                continue
+
             if self.kv_heads is None or cache is not None:
                 result = layer(
                     query=x[..., R_train:, :] if last_layer else x,
@@ -96,15 +113,7 @@ class ICLBlock(torch.nn.Module):
                     else x,
                 )
 
-                if cache is not None and cache.is_recording:
-                    x, (key, value) = result
-                    if self.kv_heads is not None:
-                        key = key[..., : self.kv_heads, :].contiguous()
-                        value = value[..., : self.kv_heads, :].contiguous()
-                    cache[cache_key] = KVCacheEntry(key, value)
-                    del key, value
-                else:
-                    x = result
+                x = result
                 del result
                 continue
 
@@ -134,3 +143,36 @@ class ICLBlock(torch.nn.Module):
                 x = torch.cat([x_context, x_query], -2)
 
         return self.head(self.norm(x))
+
+
+def _forward_context_layer(
+    layer: torch.nn.Module,
+    x: Tensor,
+    num_context_rows: int,
+    num_cache_heads: int | None,
+    last_layer: bool,
+) -> tuple[Tensor, Tensor, Tensor]:
+    query = x[..., num_context_rows:, :] if last_layer else x
+    out = None
+    if not torch.is_grad_enabled():
+        # Compiled regions cannot return an alias of their input buffer.
+        out = (
+            torch.empty_like(query) if torch.compiler.is_compiling() else query
+        )
+    x, (key, value) = layer(
+        query=query,
+        key_value=x[..., :num_context_rows, :],
+        return_key_value=True,
+        out=out,
+    )
+    if num_cache_heads is not None:
+        key = key[..., :num_cache_heads, :].contiguous()
+        value = value[..., :num_cache_heads, :].contiguous()
+    return x, key, value
+
+
+if hasattr(torch.compiler, "nested_compile_region"):
+    # Compact each layer's cache before proceeding to the next compiled layer.
+    _forward_context_layer = torch.compiler.nested_compile_region(
+        _forward_context_layer
+    )
