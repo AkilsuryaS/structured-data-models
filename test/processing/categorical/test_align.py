@@ -526,16 +526,20 @@ def test_string_category_lookups_compile(
     compiled = torch.compile(lookups, backend=backend, fullgraph=True)
     first, second = compiled(StringTensor.from_list(["b", "z", "a"]))
     torch.testing.assert_close(
-        first, torch.tensor([1, -1, 0], dtype=codes.dtype)
+        actual=first,
+        expected=torch.tensor([1, -1, 0], dtype=codes.dtype),
     )
     torch.testing.assert_close(
-        second, torch.tensor([-1, -1, 0], dtype=codes.dtype)
+        actual=second,
+        expected=torch.tensor([-1, -1, 0], dtype=codes.dtype),
     )
 
     first, second = compiled(StringTensor.from_list(["x", "z", "q"]))
     torch.testing.assert_close(
-        first, torch.tensor([-1, -1, -1], dtype=codes.dtype)
+        actual=first,
+        expected=torch.tensor([-1, -1, -1], dtype=codes.dtype),
     )
     torch.testing.assert_close(
-        second, torch.tensor([1, -1, -1], dtype=codes.dtype)
+        actual=second,
+        expected=torch.tensor([1, -1, -1], dtype=codes.dtype),
     )

@@ -538,7 +538,8 @@ def _unflatten_strings(
 
 
 def _concatenate_strings(categories: tuple[StringTensor, ...]) -> StringTensor:
-    # Call SDM's concatenation directly; torch.cat would dispatch again.
+    # Calling torch.cat here fails on StringTensor during compiled execution.
+    # Call SDM's concatenation implementation directly.
     contiguous = tuple(
         category if category.is_contiguous() else _contiguous(category)
         for category in categories
