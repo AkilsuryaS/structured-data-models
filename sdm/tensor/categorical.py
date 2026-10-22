@@ -374,7 +374,21 @@ class CategoricalTensor(Tensor):
             "code",
             *(f"_category_{i}" for i in range(self.code.size(-1))),
         ]
-        return attrs, (self.__class__,)
+        # Record vocabulary buffer sharing in compiler cache metadata.
+        pending = list(reversed(self._categories))
+        seen: dict[int, int] = {}
+        aliases: list[int] = []
+        while pending:
+            tensor = pending.pop()
+            flatten = getattr(tensor, "__tensor_flatten__", None)
+            if flatten is not None:
+                names, _ = flatten()
+                pending.extend(
+                    getattr(tensor, name) for name in reversed(names)
+                )
+            else:
+                aliases.append(seen.setdefault(id(tensor), len(seen)))
+        return attrs, (self.__class__, tuple(aliases))
 
     @staticmethod
     def __tensor_unflatten__(
@@ -383,7 +397,7 @@ class CategoricalTensor(Tensor):
         outer_size: tuple[int, ...],
         outer_stride: tuple[int, ...],
     ) -> CategoricalTensor:
-        (cls,) = ctx
+        cls, _ = ctx
         code = inner_tensors["code"]
         return cls(
             code=code,
