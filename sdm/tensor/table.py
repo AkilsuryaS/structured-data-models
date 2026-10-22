@@ -40,11 +40,11 @@ class _ColumnNames:
 
     @property
     def width(self) -> int:
-        return (
-            self.indices.size(0)
-            if self.indices is not None
-            else len(self.pool)
-        )
+        if self.indices is not None:
+            return self.indices.size(0)
+        if isinstance(self.pool, Tensor):
+            return self.pool.size(0)
+        return len(self.pool)
 
     def resolve(self) -> tuple[str, ...]:
         pool = self.pool
