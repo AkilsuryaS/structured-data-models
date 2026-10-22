@@ -27,6 +27,34 @@ if TYPE_CHECKING:
     import cudf
     import pandas as pd
 
+
+@dataclass(frozen=True)
+class _ColumnNames:
+    """Names derived from an already unique pool by unique tensor indices.
+
+    Private construction paths preserve uniqueness without resolving tensors.
+    """
+
+    pool: tuple[str, ...] | Tensor
+    indices: Tensor | None = None
+
+    @property
+    def width(self) -> int:
+        return (
+            self.indices.size(0)
+            if self.indices is not None
+            else len(self.pool)
+        )
+
+    def resolve(self) -> tuple[str, ...]:
+        pool = self.pool
+        if isinstance(pool, Tensor):
+            pool = tuple(str(value) for value in pool.tolist())
+        if self.indices is None:
+            return pool
+        return tuple(pool[index] for index in self.indices.tolist())
+
+
 aten = torch.ops.aten
 
 _NUMPY_TORCH_DTYPES = {
@@ -212,8 +240,30 @@ class TableTensor(Tensor):
     _datetime: Tensor
     _text: StringTensor
     _id: ColumnarTensor
-    _columns: dict[Stype, tuple[str, ...]]
-    _column_to_loc: dict[str, tuple[Stype, int]]
+    _column_schema: dict[Stype, tuple[str, ...] | _ColumnNames]
+    _static_columns: dict[Stype, tuple[str, ...]] | None
+    _static_column_to_loc: dict[str, tuple[Stype, int]] | None
+
+    @property
+    def _columns(self) -> dict[Stype, tuple[str, ...]]:
+        if self._static_columns is not None:
+            return self._static_columns
+        return {
+            stype: names.resolve()
+            if isinstance(names, _ColumnNames)
+            else names
+            for stype, names in self._column_schema.items()
+        }
+
+    @property
+    def _column_to_loc(self) -> dict[str, tuple[Stype, int]]:
+        if self._static_column_to_loc is not None:
+            return self._static_column_to_loc
+        return {
+            name: (stype, i)
+            for stype, names in self._columns.items()
+            for i, name in enumerate(names)
+        }
 
     # Route tensor operations through `__torch_dispatch__` only.
     __torch_function__ = torch._C._disabled_torch_function_impl  # type: ignore
@@ -223,7 +273,8 @@ class TableTensor(Tensor):
     def __init__(
         self,
         size: Sequence[int] | None = None,
-        columns: Mapping[StypeLike, Sequence[str]] | None = None,
+        columns: Mapping[StypeLike, Sequence[str] | _ColumnNames]
+        | None = None,
         numerical: Tensor | None = None,
         categorical: CategoricalTensor | None = None,
         datetime: Tensor | None = None,
@@ -236,7 +287,8 @@ class TableTensor(Tensor):
     def __new__(
         cls,
         size: Sequence[int] | None = None,
-        columns: Mapping[StypeLike, Sequence[str]] | None = None,
+        columns: Mapping[StypeLike, Sequence[str] | _ColumnNames]
+        | None = None,
         numerical: Tensor | None = None,
         categorical: CategoricalTensor | None = None,
         datetime: Tensor | None = None,
@@ -311,7 +363,9 @@ class TableTensor(Tensor):
             id = ColumnarTensor((), size=size, device=device)
 
         columns = {
-            Stype(stype): tuple(names)
+            Stype(stype): names
+            if isinstance(names, _ColumnNames)
+            else tuple(names)
             for stype, names in (columns or {}).items()
         }
 
@@ -327,20 +381,52 @@ class TableTensor(Tensor):
                     f"{name}_{i}" for i in range(block.size(-1))
                 )
 
-            if block.size(-1) != len(columns[stype]):
-                _columns = "column" if len(columns[stype]) == 1 else "columns"
+            names = columns[stype]
+            width = (
+                names.width if isinstance(names, _ColumnNames) else len(names)
+            )
+            if block.size(-1) != width:
+                label = "column" if width == 1 else "columns"
                 raise ValueError(
                     f"Expected {str(stype)!r} block to hold "
-                    f"{len(columns[stype])} {_columns} (got {block.size(-1)})"
+                    f"{width} {label} (got {block.size(-1)})"
                 )
 
-        column_names = list(chain.from_iterable(columns.values()))
+        # Deferred groups come from an already validated schema (or unique
+        # class labels). Static pools can still be checked without a sync.
+        pools = [
+            names.pool if isinstance(names, _ColumnNames) else names
+            for names in columns.values()
+        ]
+        column_names = list(
+            chain.from_iterable(
+                pool for pool in pools if isinstance(pool, tuple)
+            )
+        )
         if len(column_names) != len(set(column_names)):
             raise ValueError("Expected column names to be unique")
 
         # Keep enum objects out of captured graph arguments.
         return TableTensor._make_table_tensor(
-            columns={str(stype): names for stype, names in columns.items()},
+            columns={
+                str(stype): names.pool
+                if isinstance(names, _ColumnNames)
+                and isinstance(names.pool, tuple)
+                else (() if isinstance(names, _ColumnNames) else names)
+                for stype, names in columns.items()
+            },
+            column_pools={
+                str(stype): names.pool
+                for stype, names in columns.items()
+                if isinstance(names, _ColumnNames)
+                and isinstance(names.pool, Tensor)
+            },
+            column_indices={
+                str(stype): names.indices
+                for stype, names in columns.items()
+                if isinstance(names, _ColumnNames)
+                and names.indices is not None
+            },
             numerical=numerical,
             categorical=categorical,
             datetime=datetime,
@@ -360,19 +446,28 @@ class TableTensor(Tensor):
         text: StringTensor,
         id: ColumnarTensor,
         cls: type[TableTensor] | None = None,
+        column_pools: dict[str, Tensor] | None = None,
+        column_indices: dict[str, Tensor] | None = None,
     ) -> TableTensor:
         cls = TableTensor if cls is None else cls
-        stype_columns = {
+        stype_columns: dict[Stype, tuple[str, ...] | _ColumnNames] = {
             Stype(stype): names for stype, names in columns.items()
         }
-        column_to_loc = {
-            name: (stype, i)
-            for stype, names in stype_columns.items()
-            for i, name in enumerate(names)
-        }
+        column_pools = column_pools or {}
+        column_indices = column_indices or {}
+        for name in column_pools.keys() | column_indices.keys():
+            stype_columns[Stype(name)] = _ColumnNames(
+                column_pools.get(name, columns[name]), column_indices.get(name)
+            )
         out = Tensor._make_wrapper_subclass(
             cls=cls,
-            size=(*numerical.size()[:-1], len(column_to_loc)),
+            size=(
+                *numerical.size()[:-1],
+                sum(
+                    block.size(-1)
+                    for block in (numerical, categorical, datetime, text, id)
+                ),
+            ),
             dtype=numerical.dtype,
             device=numerical.device,
             requires_grad=False,
@@ -382,8 +477,23 @@ class TableTensor(Tensor):
         out._datetime = datetime
         out._text = text
         out._id = id
-        out._columns = stype_columns
-        out._column_to_loc = column_to_loc
+        out._column_schema = stype_columns
+        if not column_pools and not column_indices:
+            out._static_columns = cast(
+                dict[Stype, tuple[str, ...]], stype_columns
+            )
+            out._static_column_to_loc = {
+                name: (stype, i)
+                for stype, names in out._static_columns.items()
+                for i, name in enumerate(names)
+            }
+        else:
+            out._static_columns = None
+            out._static_column_to_loc = None
+        for name, value in column_pools.items():
+            setattr(out, f"_column_pool_{name}", value)
+        for name, value in column_indices.items():
+            setattr(out, f"_column_indices_{name}", value)
         return out
 
     @classmethod
@@ -1154,11 +1264,29 @@ class TableTensor(Tensor):
         attrs = ["numerical", "categorical", "datetime", "text", "id"]
         # Let torch.compile track backing fields and their public properties.
         attrs = [f"_{name}" for name in attrs] + attrs
-        columns = tuple(
-            (str(stype), names) for stype, names in self._columns.items()
+        columns = []
+        pools = []
+        indices = []
+        for stype, names in self._column_schema.items():
+            name = str(stype)
+            if isinstance(names, _ColumnNames):
+                columns.append(
+                    (name, names.pool if isinstance(names.pool, tuple) else ())
+                )
+                if isinstance(names.pool, Tensor):
+                    pools.append(name)
+                    attrs.append(f"_column_pool_{name}")
+                if names.indices is not None:
+                    indices.append(name)
+                    attrs.append(f"_column_indices_{name}")
+            else:
+                columns.append((name, names))
+        return attrs, (
+            self.__class__,
+            tuple(columns),
+            tuple(pools),
+            tuple(indices),
         )
-        ctx = (self.__class__, columns)
-        return attrs, ctx
 
     @staticmethod
     def __tensor_unflatten__(
@@ -1167,15 +1295,59 @@ class TableTensor(Tensor):
         outer_size: tuple[int, ...],
         outer_stride: tuple[int, ...],
     ) -> TableTensor:
-        cls, columns = ctx
-        return cls(
-            size=outer_size[:-1],
+        cls, columns, pools, indices = ctx
+        return TableTensor._make_table_tensor(
             columns=dict(columns),
             numerical=inner_tensors["numerical"],
             categorical=inner_tensors["categorical"],
             datetime=inner_tensors["datetime"],
             text=inner_tensors["text"],
             id=inner_tensors["id"],
+            cls=None if cls is TableTensor else cls,
+            column_pools={
+                name: inner_tensors[f"_column_pool_{name}"] for name in pools
+            },
+            column_indices={
+                name: inner_tensors[f"_column_indices_{name}"]
+                for name in indices
+            },
+        )
+
+    def _select_numerical_mask(self, keep: Tensor) -> Self:
+        index = keep.nonzero().flatten()
+        names = self._column_schema[Stype.numerical]
+        if isinstance(names, _ColumnNames):
+            indices = (
+                index
+                if names.indices is None
+                else names.indices.index_select(0, index)
+            )
+            names = _ColumnNames(names.pool, indices)
+        else:
+            names = _ColumnNames(names, index)
+        columns = dict(self._column_schema)
+        columns[Stype.numerical] = names
+        return self.__class__(
+            columns=cast(
+                Mapping[StypeLike, Sequence[str] | _ColumnNames], columns
+            ),
+            numerical=self.numerical.index_select(-1, index),
+            categorical=self.categorical,
+            datetime=self.datetime,
+            text=self.text,
+            id=self.id,
+        )
+
+    @classmethod
+    def _from_named_tensor(
+        cls,
+        numerical: Tensor,
+        pool: tuple[str, ...] | Tensor,
+        indices: Tensor | None = None,
+    ) -> Self:
+        return cls(
+            numerical=numerical,
+            columns={Stype.numerical: _ColumnNames(pool, indices)},
         )
 
     def __reduce_ex__(self, proto: SupportsIndex) -> Any:
@@ -1333,7 +1505,7 @@ def _alias(inp: TableTensor) -> TableTensor:
         stype: aten.alias.default(tensor) for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1394,7 +1566,7 @@ def _to_dtype_layout(
         for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1497,7 +1669,7 @@ def _contiguous(
         for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1516,7 +1688,7 @@ def _pin_memory(inp: TableTensor) -> TableTensor:
         for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1613,7 +1785,7 @@ def _view(inp: TableTensor, size: Sequence[int]) -> TableTensor:
         for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1680,7 +1852,7 @@ def _squeeze_dims(inp: TableTensor, dim: Sequence[int]) -> TableTensor:
         )
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1697,7 +1869,7 @@ def _unsqueeze(inp: TableTensor, dim: int) -> TableTensor:
         )
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1727,7 +1899,7 @@ def _expand(
         for stype, tensor in inp.items()
     }
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1748,7 +1920,7 @@ def _transpose(inp: TableTensor, dim0: int, dim1: int) -> TableTensor:
         )
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1766,7 +1938,7 @@ def _permute(inp: TableTensor, dims: Sequence[int]) -> TableTensor:
         )
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1808,7 +1980,7 @@ def _select(inp: TableTensor, dim: int, index: int) -> TableTensor:
     }
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1845,7 +2017,7 @@ def _slice(
     }
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1873,7 +2045,7 @@ def _narrow(
     }
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -1891,7 +2063,7 @@ def _unbind(inp: TableTensor, dim: int = 0) -> tuple[TableTensor, ...]:
     stypes = tuple(tensors_dict.keys())
     return tuple(
         inp.__class__(
-            columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+            columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
             **dict(zip(stypes, blocks)),
         )
         for blocks in zip(*tensors_dict.values())
@@ -1927,7 +2099,7 @@ def _split(
     stypes = tuple(tensors_dict.keys())
     return tuple(
         inp.__class__(
-            columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+            columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
             **dict(zip(stypes, blocks)),
         )
         for blocks in zip(*tensors_dict.values())
@@ -1956,7 +2128,7 @@ def _split_with_sizes(
     stypes = tuple(blocks_dict.keys())
     return tuple(
         inp.__class__(
-            columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+            columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
             **dict(zip(stypes, blocks)),
         )
         for blocks in zip(*blocks_dict.values())
@@ -1979,7 +2151,7 @@ def _index_select(
     }
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 
@@ -2011,7 +2183,7 @@ def _index(
     }
 
     return inp.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], inp._columns),
+        columns=cast(dict[StypeLike, tuple[str, ...]], inp._column_schema),
         **blocks,
     )
 

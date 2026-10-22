@@ -27,6 +27,8 @@ class DropConstantColumns(EnsembleProcessor):
             Must be positive.
     """
 
+    _shared_keep: torch.Tensor
+
     handles_stypes = (Stype.numerical,)
     requires_fit = True
 
@@ -43,14 +45,28 @@ class DropConstantColumns(EnsembleProcessor):
         # TODO: Consider recording the fitted column names if transforms should
         # verify that the numerical schema and order match fit.
         self._kept_indices: tuple[tuple[int, ...], ...] = ()
+        self.register_buffer("_shared_keep", torch.empty(0, dtype=torch.bool))
+        self._shared_members = 0
+        self._keep_all = False
 
-    def get_extra_state(self) -> tuple[tuple[int, ...], ...]:
+    def get_extra_state(self) -> object:
         r""":meta private:"""  # noqa: D415
-        return self._kept_indices
+        return (self._kept_indices, self._shared_members, self._keep_all)
 
     def set_extra_state(self, state: object) -> None:
         r""":meta private:"""  # noqa: D415
-        self._kept_indices = cast(tuple[tuple[int, ...], ...], state)
+        if (
+            isinstance(state, tuple)
+            and len(state) == 3
+            and isinstance(state[1], int)
+        ):
+            self._kept_indices, self._shared_members, self._keep_all = cast(
+                tuple[tuple[tuple[int, ...], ...], int, bool], state
+            )
+        else:
+            self._kept_indices = cast(tuple[tuple[int, ...], ...], state)
+            self._shared_members = 0
+            self._keep_all = False
 
     def _keep_mask(self, data: torch.Tensor) -> torch.Tensor:
         # [N, C] or [..., N, C] -> [C] or [..., C].
@@ -99,12 +115,16 @@ class DropConstantColumns(EnsembleProcessor):
         *,
         generator: torch.Generator | None = None,
     ) -> None:
-        keep = self._keep_mask(table.numerical).tolist()
-        self._kept_indices = (
-            tuple(index for index, kept in enumerate(keep) if kept),
-        )
+        self._set_buffer("_shared_keep", self._keep_mask(table.numerical))
+        self._shared_members = 1
+        self._keep_all = table.numerical.size(-2) <= self.threshold
+        self._kept_indices = ()
 
     def _transform(self, table: TableTensor) -> TableTensor:
+        if self._shared_members:
+            if self._keep_all:
+                return table
+            return table._select_numerical_mask(self._shared_keep)
         return self._select_columns(table, self._kept_indices[0])
 
     def _fit_transform(
@@ -125,13 +145,16 @@ class DropConstantColumns(EnsembleProcessor):
         groups = tuple(ensemble_table._iter_groups())
         if sum(group.size(0) for group in groups) == 1:
             group = groups[0]
-            keep = self._keep_mask(group.numerical)[0].tolist()
-            kept_indices = tuple(
-                index for index, kept in enumerate(keep) if kept
+            self._set_buffer(
+                "_shared_keep", self._keep_mask(group.numerical)[0]
             )
-            self._kept_indices = (kept_indices,) * len(ensemble_table)
+            self._shared_members = len(ensemble_table)
+            self._keep_all = group.numerical.size(-2) <= self.threshold
+            self._kept_indices = ()
             return
 
+        self._shared_members = 0
+        self._keep_all = False
         masks = ensemble_table.replace_groups(
             [
                 TableTensor.from_tensor(
@@ -174,6 +197,22 @@ class DropConstantColumns(EnsembleProcessor):
         self,
         ensemble_table: EnsembleTable,
     ) -> EnsembleTable:
+        if self._shared_members:
+            if self._shared_members != len(ensemble_table):
+                raise RuntimeError(
+                    "DropConstantColumns must be fitted with the same "
+                    "number of "
+                    "ensemble members before transform."
+                )
+            if self._keep_all:
+                return ensemble_table
+            return ensemble_table.replace_groups(
+                [
+                    group._select_numerical_mask(self._shared_keep)
+                    for group in ensemble_table._iter_groups()
+                ]
+            )
+
         if len(self._kept_indices) != len(ensemble_table):
             raise RuntimeError(
                 "DropConstantColumns must be fitted with the same number of "
