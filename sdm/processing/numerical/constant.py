@@ -133,6 +133,14 @@ class DropConstantColumns(EnsembleProcessor):
         ]
         return table.select_columns(columns)
 
+    def _select_shared_columns(self, table: TableTensor) -> TableTensor:
+        if not torch.compiler.is_compiling():
+            indices = tuple(self._shared_keep.nonzero().flatten().tolist())
+            return self._select_columns(table, indices)
+        # Dynamic compaction preserves values and names, but does not preserve
+        # eager storage aliases when the selected columns form a slice.
+        return table._select_numerical_mask(self._shared_keep)
+
     def _fit(
         self,
         table: TableTensor,
@@ -150,7 +158,7 @@ class DropConstantColumns(EnsembleProcessor):
                 table.numerical.size(-1) == self._shared_keep.size(0)
             ):
                 return table
-            return table._select_numerical_mask(self._shared_keep)
+            return self._select_shared_columns(table)
         return self._select_columns(table, self._kept_indices[0])
 
     def _fit_transform(
@@ -236,7 +244,7 @@ class DropConstantColumns(EnsembleProcessor):
                 return ensemble_table
             return ensemble_table.replace_groups(
                 [
-                    group._select_numerical_mask(self._shared_keep)
+                    self._select_shared_columns(group)
                     for group in ensemble_table._iter_groups()
                 ]
             )
