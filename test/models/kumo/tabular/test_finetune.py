@@ -17,6 +17,7 @@ from sdm.models.kumo.tabular.finetune import (
     _context_order,
     _context_rows,
     _split,
+    _validation_rows,
 )
 from sdm.models.kumo.tabular.model import MODEL_KWARGS
 from sdm.processing.execution import RecipeExecution
@@ -51,7 +52,7 @@ def test_split_imbalanced(counts: tuple[int, int]) -> None:
 def test_split_rejects_insufficient_classes() -> None:
     with pytest.raises(ValueError, match="two classes"):
         _split(torch.tensor([0, 0, 1]), None)
-    with pytest.raises(ValueError, match="10% validation"):
+    with pytest.raises(ValueError, match="validation holdout"):
         _split(torch.tensor([0, 0, 1, 1]), None)
 
 
@@ -95,7 +96,11 @@ def cuda_model(monkeypatch: pytest.MonkeyPatch) -> KumoTabular:
         },
     )
     model = KumoTabular(
-        task="classification", size="small", pretrained=False, device="cuda"
+        task="classification",
+        size="small",
+        pretrained=False,
+        device="cuda",
+        n_estimators=1,
     )
     for p in model.parameters():
         if not p.any():
@@ -116,8 +121,8 @@ def _recipe() -> Recipe:
     [
         (0, 24, 0),
         (False, 24, 0),
-        (True, 24, 21),
-        (True, 36_408, 32_767),
+        (True, 24, 22),
+        (True, 36_408, 32_768),
         (True, 36_409, 32_768),
         (True, 100_000, 32_768),
         (0.0, 24, 0),
@@ -143,7 +148,7 @@ def test_invalid_context_rows(value: int | float) -> None:
 
 @pytest.mark.parametrize(
     ("value", "expected"),
-    [(True, 21), (2, 2), (10, 10), (0.5, 12), (0.875, 21)],
+    [(True, 22), (2, 2), (10, 10), (0.5, 12), (0.875, 21)],
 )
 def test_requested_context_always_tunes(
     cuda_model: KumoTabular,
@@ -184,13 +189,13 @@ def test_requested_context_always_tunes(
     assert cuda_model.predict(x[:3]).numerical.isfinite().all()
 
 
-@pytest.mark.parametrize("value", [22, 0.95])
+@pytest.mark.parametrize("value", [23, 0.99])
 def test_requested_context_exceeds_training_pool(
     cuda_model: KumoTabular, value: int | float
 ) -> None:
     x = torch.randn(24, 3)
     y = torch.arange(24).remainder(2).reshape(-1, 1)
-    with pytest.raises(ValueError, match="after the 10% validation holdout"):
+    with pytest.raises(ValueError, match="after the validation holdout"):
         cuda_model.fit(x, y, finetune=value)
     assert cuda_model.finetune_result_ is None
 
@@ -234,7 +239,7 @@ def test_tuned_prediction_and_lifecycle(
         x,
         y,
         recipe=_recipe(),
-        finetune=21,
+        finetune=22,
         query_batch_size=8,
         max_epochs=3,
         min_epochs=2,
@@ -378,23 +383,9 @@ def test_requested_context_oom_does_not_shrink_and_restores_flags(
         model.predict(x[:1])
 
 
-@pytest.mark.parametrize("case", ["multiclass", "regression"])
-def test_unsupported_tuning_requests(
-    cuda_model: KumoTabular, monkeypatch: pytest.MonkeyPatch, case: str
-) -> None:
-    def oom(*args: Any, **kwargs: Any) -> None:
-        raise torch.cuda.OutOfMemoryError("Full inference failed")
-
-    x = torch.randn(24, 3)
-    y = torch.arange(24).remainder(3 if case == "multiclass" else 2)
-    y = y.reshape(-1, 1).float() if case == "regression" else y.reshape(-1, 1)
-    with pytest.raises(NotImplementedError):
-        cuda_model.fit(
-            x,
-            y,
-            finetune=21,
-            n_estimators=1,
-        )
+def test_missing_regression_head(cuda_model: KumoTabular) -> None:
+    with pytest.raises(ValueError, match="head is not initialized"):
+        cuda_model.fit(torch.randn(24, 3), torch.randn(24, 1), finetune=8)
 
 
 def test_fp16_scaling_and_nonfinite_failure(
@@ -403,7 +394,9 @@ def test_fp16_scaling_and_nonfinite_failure(
     def oom(*args: Any, **kwargs: Any) -> None:
         raise torch.cuda.OutOfMemoryError("Full inference failed")
 
-    monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: False)
+    monkeypatch.setattr(
+        torch.cuda, "is_bf16_supported", lambda **kwargs: False
+    )
     x = torch.randn(24, 3)
     y = torch.arange(24).remainder(2).reshape(-1, 1)
     cuda_model.fit(
@@ -508,6 +501,7 @@ def test_observer_exports_restored_context(
         finetune=21,
         query_batch_size=8,
         max_epochs=2,
+        patience=7,
         _finetune_observer=observer,
     )
     assert len(epochs) == 2
@@ -613,6 +607,167 @@ def test_smoke_run_update_budget(
     assert torch.isfinite(cuda_model.predict(x[:3]).numerical).all()
 
 
+@pytest.mark.parametrize(
+    ("rows", "losses", "best_step", "reason", "patience", "alpha"),
+    [
+        (80, [1.0] * 4, 0, "ema", 3, 0.98),
+        (80, [1.0, 0.9, 2.0, 2.0], 1, "ema", 3, 0.98),
+        # A temporary increase does not stop a still-improving EMA.
+        (80, [1.0, 0.5, 0.5, 1.5, 0.5, 1.5], 1, "ema", 3, 0.98),
+        # Tiny improvements remain improvements, without a delta threshold.
+        (
+            80,
+            [1.0 - step * 0.00005 for step in range(10)],
+            9,
+            "epoch_limit",
+            3,
+            0.98,
+        ),
+        (
+            80,
+            [1.0 - step * 0.01 for step in range(10)],
+            9,
+            "epoch_limit",
+            None,
+            0.98,
+        ),
+        (
+            81,
+            [1.0 - step * 0.01 for step in range(11)],
+            10,
+            "epoch_limit",
+            None,
+            0.98,
+        ),
+        (160, [1.0] * 11, 0, "ema", 10, 0.98),
+        (240, [1.0] * 21, 0, "ema", None, 0.98),
+        (400, [1.0] + [0.9] * 20 + [1.5] * 3, 1, "ema", None, 0.98),
+        (80, [1.0, 0.9, 1.1], 1, "ema", 1, 0.0),
+        (80, [1.0, 0.5, 1.0, 1.0, 1.0], 1, "ema", 3, 0.5),
+    ],
+)
+def test_batch_validation_stopping_and_best_context(
+    cuda_model: KumoTabular,
+    monkeypatch: pytest.MonkeyPatch,
+    rows: int,
+    losses: list[float],
+    best_step: int,
+    reason: str,
+    patience: int | None,
+    alpha: float,
+) -> None:
+    # Control only the holdout scores; gradients and Adam updates stay real.
+    train = ft._train
+    cross_entropy = ft.cross_entropy
+    adam_step = torch.optim.Adam.step
+    probing = True
+    validation_losses = iter(losses)
+    updates = []
+    validations = []
+    restored: dict[str, Any] = {}
+    preflight: dict[str, Any] = {}
+
+    def run(*args: Any, **kwargs: Any) -> Any:
+        nonlocal probing
+        probing = kwargs["probing"]
+        return train(*args, **kwargs)
+
+    def objective(output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        if not probing and not torch.is_grad_enabled():
+            return output.new_tensor(next(validation_losses))
+        return cross_entropy(output, target)
+
+    def step(optimizer: torch.optim.Adam, *args: Any, **kwargs: Any) -> Any:
+        result = adam_step(optimizer, *args, **kwargs)
+        if not probing:
+            parameter = optimizer.param_groups[0]["params"][0]
+            updates.append(parameter.detach().clone())
+        return result
+
+    def observer(event: str, data: dict[str, Any]) -> None:
+        if event == "validation":
+            validations.append(data)
+        elif event == "restored":
+            restored.update(data)
+        elif event == "preflight":
+            preflight.update(data)
+
+    monkeypatch.setattr(ft, "_train", run)
+    monkeypatch.setattr(ft, "cross_entropy", objective)
+    monkeypatch.setattr(torch.optim.Adam, "step", step)
+    options: dict[str, Any] = (
+        {} if patience is None else {"patience": patience}
+    )
+    cuda_model.fit(
+        torch.randn(rows, 3),
+        torch.arange(rows).remainder(2).reshape(-1, 1),
+        recipe=_recipe(),
+        finetune=16,
+        query_batch_size=8,
+        ema_alpha=alpha,
+        _finetune_observer=observer,
+        **options,
+    )
+    report = cuda_model.finetune_result_
+    assert report is not None
+    budget = (rows - 8 + 7) // 8
+    assert report["planned_steps"] == report["steps_per_epoch"] == budget
+    assert preflight["planned_steps"] == budget
+    assert preflight["planned_validation_checks"] == budget + 1
+    timings = preflight["timings"]
+    assert preflight["projected_seconds"] == pytest.approx(
+        timings["prepare_seconds"]
+        + timings["step_seconds"] * budget
+        + timings["validation_seconds"] * (budget + 1)
+        + timings["cache_seconds"]
+    )
+    assert report["completed_steps"] == len(updates) == len(losses) - 1
+    assert report["validation_checks"] == len(losses)
+    assert len(validations) == len(report["history"]) == len(updates)
+    assert [v["steps"] for v in validations] == list(range(1, len(losses)))
+    assert [v["validation_loss"] for v in validations] == pytest.approx(
+        losses[1:]
+    )
+    ema = losses[0]
+    expected_emas = [ema]
+    for loss in losses[1:]:
+        ema = alpha * ema + (1 - alpha) * loss
+        expected_emas.append(ema)
+    assert [v["validation_loss_ema"] for v in validations] == pytest.approx(
+        expected_emas[1:]
+    )
+    lookback = patience if patience is not None else 20
+    assert report["ema_alpha"] == alpha
+    assert report["ema_lookback"] == lookback
+    assert report["final_validation_loss_ema"] == pytest.approx(ema)
+    for index, entry in enumerate(validations, 1):
+        reference = entry["reference_validation_loss_ema"]
+        if index < lookback:
+            assert reference is None
+        else:
+            assert reference == pytest.approx(expected_emas[index - lookback])
+            if index < len(updates) or reason == "epoch_limit":
+                assert entry["validation_loss_ema"] < reference
+    if reason == "ema":
+        assert ema >= expected_emas[len(updates) - lookback]
+    assert report["stop_reason"] == reason
+    assert report["best_step"] == restored["best_step"] == best_step
+    assert report["best_validation_loss"] == pytest.approx(min(losses))
+    assert report["completed_epochs"] == len(updates) // budget
+    expected = (
+        updates[best_step - 1] if best_step else torch.zeros_like(updates[0])
+    )
+    torch.testing.assert_close(
+        restored["adjustment"], expected, rtol=0, atol=0
+    )
+    if reason == "epoch_limit":
+        assert report["history"][-1]["learning_rate"] == pytest.approx(1e-5)
+        assert not report["history"][-1]["partial_epoch"]
+    else:
+        assert report["history"][-1]["partial_epoch"]
+    assert cuda_model.predict(torch.randn(4, 3)).numerical.isfinite().all()
+
+
 def test_capacity_counts_backward_with_adam_state(
     cuda_model: KumoTabular, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -646,6 +801,7 @@ def test_capacity_counts_backward_with_adam_state(
         finetune=10,
         query_batch_size=4,
         max_epochs=1,
+        patience=10,
     )
     result = cuda_model.finetune_result_
     assert result is not None
@@ -753,6 +909,7 @@ def test_tuned_ensemble_predictions_and_lifecycle(
 def test_estimator_defaults_and_alias(
     cuda_model: KumoTabular, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    cuda_model.n_estimators = 8
     counts = []
 
     def fit(*args: Any, **kwargs: Any) -> None:
@@ -766,6 +923,7 @@ def test_estimator_defaults_and_alias(
     cuda_model.fit(x, y, n_estimators=3)
     cuda_model.fit(x, y, num_estimators=2)
     assert counts == [8, 8, 3, 2]
+    cuda_model.n_estimators = 1
     cuda_model.fit(x, y, finetune=8, recipe=_recipe(), _finetune_max_steps=1)
     assert cuda_model.finetune_result_ is not None
     assert cuda_model.finetune_result_["num_estimators"] == 1
@@ -903,17 +1061,567 @@ def test_automatic_stratified_ensemble(cuda_model: KumoTabular) -> None:
     assert len(contexts) == 2
     assert validation[0].equal(validation[1])
     for indices in contexts:
-        assert len(indices) == 90
-        assert int((y[indices] == 0).sum()) == 72
-        assert int((y[indices] == 1).sum()) == 18
+        assert len(indices) == 95
+        assert int((y[indices] == 0).sum()) == 76
+        assert int((y[indices] == 1).sum()) == 19
         assert not torch.isin(indices, validation[0]).any()
     report = cuda_model.finetune_result_
     assert report is not None
     assert report["selection"] == "stratified"
-    assert report["context_size"] == 90
-    assert report["total_context_rows"] == 180
+    assert report["context_size"] == 95
+    assert report["total_context_rows"] == 190
     prediction = cuda_model.predict(x[:5]).numerical
     assert prediction.isfinite().all()
     torch.testing.assert_close(
         prediction.sum(-1), torch.ones(5, device=prediction.device)
     )
+
+
+@pytest.mark.parametrize("num_classes", [3, 10, 12])
+def test_multiclass_selection(num_classes: int) -> None:
+    counts = torch.arange(2, num_classes + 2) * 10
+    labels = torch.repeat_interleave(torch.arange(num_classes), counts)
+    generator = torch.Generator().manual_seed(17)
+    train, validation = _split(labels, generator)
+    assert len(validation) == (len(labels) + 9) // 10
+    assert labels[train].unique().numel() == num_classes
+    assert labels[validation].unique().numel() == num_classes
+    size = num_classes * 3
+    context = _context_order(train, labels, generator, context_rows=size)[
+        :size
+    ]
+    assert len(context.unique()) == size
+    assert labels[context].unique().numel() == num_classes
+    assert not torch.isin(context, validation).any()
+    generator.manual_seed(17)
+    repeated_train, repeated_validation = _split(labels, generator)
+    assert train.equal(repeated_train)
+    assert validation.equal(repeated_validation)
+    assert context.equal(
+        _context_order(train, labels, generator, context_rows=size)[:size]
+    )
+    with pytest.raises(ValueError, match="every class"):
+        _context_order(train, labels, generator, context_rows=num_classes - 1)
+
+
+@pytest.mark.parametrize(
+    "kind", ["native", "native10", "ecoc", "regression", "constant"]
+)
+@pytest.mark.parametrize("shuffle", [False, True])
+def test_all_task_prediction_and_serialization(
+    cuda_model: KumoTabular,
+    kind: str,
+    shuffle: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    regression = kind in ("regression", "constant")
+    model = (
+        KumoTabular(
+            task="regression",
+            size="small",
+            pretrained=False,
+            device="cuda",
+            n_estimators=1,
+        )
+        if regression
+        else cuda_model
+    )
+    if regression:
+        for parameter in model.parameters():
+            if not parameter.any():
+                torch.nn.init.normal_(parameter, std=0.1)
+    x = torch.randn(160, 4)
+    if regression:
+        y = (
+            torch.full((160, 1), 123.0)
+            if kind == "constant"
+            else (100 + 30 * x[:, :1])
+        )
+        recipe = Recipe(
+            features=sp.Standardize(),
+            target=[sp.Standardize(), sp.FlipSign(probability=1.0)],
+            output=[sp.SortQuantiles(), sp.AverageEstimators()],
+        )
+    else:
+        count = 12 if kind == "ecoc" else 10 if kind == "native10" else 3
+        y = torch.arange(160).remainder(count).reshape(-1, 1) * 10 + 5
+        recipe = _recipe()
+    before = [p.detach().clone() for p in model.parameters()]
+    flags = [p.requires_grad for p in model.parameters()]
+    events: dict[str, Any] = {}
+    updated = []
+    adam_step = torch.optim.Adam.step
+
+    def step(optimizer: torch.optim.Adam, *args: Any, **kwargs: Any) -> Any:
+        parameter = optimizer.param_groups[0]["params"][0]
+        assert parameter.shape == (24, 16)
+        assert parameter.dtype == torch.float32
+        assert parameter.grad is not None
+        assert parameter.grad.isfinite().all()
+        old = parameter.detach().clone()
+        out = adam_step(optimizer, *args, **kwargs)
+        updated.append(not old.equal(parameter))
+        return out
+
+    monkeypatch.setattr(torch.optim.Adam, "step", step)
+
+    def observer(event: str, data: dict[str, Any]) -> None:
+        if event in ("selection", "context", "restored"):
+            events.update(data)
+
+    model.fit(
+        x,
+        y,
+        recipe=recipe,
+        finetune=24,
+        query_batch_size=16,
+        shuffle_columns=shuffle,
+        _finetune_max_steps=3,
+        _finetune_observer=observer,
+        generator=torch.Generator().manual_seed(17),
+    )
+    assert any(updated)
+    report = model.finetune_result_
+    assert report is not None
+    assert report["completed_steps"] == 3
+    assert report["loss_name"] == (
+        "pinball" if regression else "cross_entropy"
+    )
+    assert report["best_validation_loss"] <= report["initial_validation_loss"]
+    assert (
+        report["ecoc_tasks"] > 1
+        if kind == "ecoc"
+        else report["ecoc_tasks"] == 1
+    )
+    if kind == "ecoc":
+        assert events["base"].dim() == 3
+        assert not events["base"][0].equal(events["base"][1])
+        assert model._cache is not None
+        assert events["codebook"].equal(
+            cast(Cache, model._cache[0])["ecoc_codebook"]
+        )
+    train, validation = events["train_indices"], events["validation_indices"]
+    assert not torch.isin(events["context_indices"], validation).any()
+    assert not torch.isin(train, validation).any()
+    for parameter, old, flag in zip(
+        model.parameters(), before, flags, strict=True
+    ):
+        assert parameter.equal(old)
+        assert parameter.requires_grad == flag
+        assert parameter.grad is None
+    assert not model.training
+    actual = model.predict(x[:7])
+    torch.testing.assert_close(
+        actual.numerical, model.predict(x[:7].cuda()).numerical
+    )
+    net = model.models["regression" if regression else "classification"]
+    execution = events["execution"]
+    features = execution.transform(x[:7], None)[0].x.numerical.cuda()
+    cy = events["icl_labels"]
+    if events["codebook"] is not None:
+        features = features.expand(len(events["codebook"]), *features.shape)
+    dtype = (
+        torch.bfloat16
+        if torch.cuda.is_bf16_supported(including_emulation=False)
+        else torch.float16
+    )
+    with torch.no_grad(), torch.autocast("cuda", dtype=dtype):
+        query = net.encode(
+            features,
+            cy[..., :0],
+            events["categorical_mask"],
+            cache=events["encoder_cache"],
+        )
+        context = (events["base"].float() + events["adjustment"]).to(dtype)
+        direct = net.icl_block(torch.cat([context, query], dim=-2), cy).float()
+    if events["codebook"] is not None:
+        direct = model.ecoc._decode(direct, events["codebook"])
+    elif not regression:
+        direct = direct[..., : report["num_classes"]]
+    raw = TableTensor(
+        columns={Stype.numerical: actual.numerical_columns}, numerical=direct
+    )
+    if regression:
+        raw = execution.inverse_transform_target([raw])[0]
+    expected = execution.transform_output([raw])
+    torch.testing.assert_close(
+        actual.numerical, expected.numerical, rtol=0.02, atol=0.02
+    )
+    if regression:
+        assert actual.shape == (7, 999)
+        assert (actual.numerical.diff(dim=-1) >= 0).all()
+    else:
+        assert actual.shape == (7, report["num_classes"])
+        torch.testing.assert_close(
+            actual.numerical.sum(-1), torch.ones(7, device="cuda")
+        )
+    path = tmp_path / "fitted.pt"
+    torch.save(model, path)
+    restored = torch.load(path, weights_only=False)
+    torch.testing.assert_close(
+        actual.numerical, restored.predict(x[:7]).numerical
+    )
+    model.clear()
+    assert model.finetune_result_ is None
+    with pytest.raises(RuntimeError, match="not yet fitted"):
+        model.predict(x[:7])
+
+
+@pytest.mark.parametrize("kind", ["ecoc", "regression"])
+def test_task_ensemble_target_inversion(
+    cuda_model: KumoTabular, kind: str
+) -> None:
+    regression = kind == "regression"
+    model = (
+        KumoTabular(
+            task="regression",
+            size="small",
+            pretrained=False,
+            device="cuda",
+            n_estimators=1,
+        )
+        if regression
+        else cuda_model
+    )
+    x = torch.randn(160, 3)
+    y = (
+        (500 + 100 * x[:, :1])
+        if regression
+        else torch.arange(160).remainder(12).reshape(-1, 1)
+    )
+    members = []
+
+    def observer(event: str, data: dict[str, Any]) -> None:
+        if event == "restored":
+            members.append(model._cache)
+
+    model.fit(
+        x,
+        y,
+        finetune=24,
+        n_estimators=3,
+        query_batch_size=16,
+        _finetune_max_steps=2,
+        _finetune_observer=observer,
+        generator=torch.Generator().manual_seed(17),
+    )
+    ensemble = model._cache
+    try:
+        predictions = []
+        for cache in members:
+            model._cache = cache
+            predictions.append(model.predict(x[:8]))
+    finally:
+        model._cache = ensemble
+    output = model.predict(x[:8])
+    actual = output.numerical
+    expected = torch.stack(
+        [
+            prediction.numerical[
+                :,
+                [
+                    prediction.numerical_columns.index(column)
+                    for column in output.numerical_columns
+                ],
+            ]
+            for prediction in predictions
+        ]
+    ).mean(0)
+    torch.testing.assert_close(actual, expected)
+    assert actual.isfinite().all()
+    assert model.finetune_result_ is not None
+    assert model.finetune_result_["completed_steps"] == 6
+
+
+@pytest.mark.parametrize(
+    "invalid", ["rare", "small_holdout", "missing", "nonfinite", "multiple"]
+)
+def test_task_target_errors(cuda_model: KumoTabular, invalid: str) -> None:
+    x = torch.randn(40, 3)
+    y = torch.arange(40).remainder(3).reshape(-1, 1)
+    match = ""
+    if invalid == "rare":
+        y[-1] = 99
+        match = "two rows each"
+    elif invalid == "small_holdout":
+        y = torch.arange(40).remainder(5).reshape(-1, 1)
+        match = "validation holdout"
+    elif invalid == "missing":
+        y = TableTensor.from_tensor(y)
+        y.categorical.code[-1] = -1
+        match = "nonmissing"
+    elif invalid == "nonfinite":
+        cuda_model = KumoTabular(
+            task="regression",
+            size="small",
+            pretrained=False,
+            device="cuda",
+            n_estimators=1,
+        )
+        y = torch.randn(40, 1)
+        y[-1] = torch.inf
+        match = "finite regression"
+    else:
+        y = torch.cat([y, y], dim=-1)
+        match = "one target"
+    with pytest.raises(ValueError, match=match):
+        cuda_model.fit(x, y, finetune=12, _finetune_max_steps=1)
+    assert cuda_model._cache is None
+
+
+def test_column_permutations_match_context_and_queries(
+    cuda_model: KumoTabular, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    net = cuda_model.models["classification"]
+    encode = net.encode
+    context = None
+    matched = []
+
+    def capture(
+        x: torch.Tensor, y: torch.Tensor, *args: Any, **kwargs: Any
+    ) -> Any:
+        nonlocal context
+        if y.numel():
+            context = x.sort(dim=-2).values
+        elif context is not None and len(x) == len(context):
+            torch.testing.assert_close(x.sort(dim=-2).values, context)
+            matched.append(True)
+        return encode(x, y, *args, **kwargs)
+
+    monkeypatch.setattr(net, "encode", capture)
+    cuda_model.fit(
+        torch.randn(24, 4),
+        torch.arange(24).remainder(2).reshape(-1, 1),
+        recipe=_recipe(),
+        finetune=True,
+        shuffle_columns=True,
+        query_batch_size=4096,
+        max_epochs=2,
+        _finetune_max_steps=2,
+    )
+    assert len(matched) == 4  # Two preflight steps and two real updates.
+
+
+@pytest.mark.parametrize(
+    ("rows", "context", "queries", "expected"),
+    [
+        (100000, 32768, 4096, 4096),
+        (36864, 32768, 4096, 1844),
+        (36865, 32768, 4096, 4096),
+        (1000, 950, 64, 50),
+        (1000, 128, 64, 64),
+        (41, 39, 4096, 3),
+        (40, 38, 4096, 2),
+    ],
+)
+def test_validation_sizing_rule(
+    rows: int, context: int, queries: int, expected: int
+) -> None:
+    assert _validation_rows(rows, context, queries) == expected
+
+
+@pytest.mark.parametrize(
+    ("rows", "queries"),
+    [(100, 1), (5000, 128), (34000, 64), (34000, 4096), (36864, 4096)],
+)
+def test_automatic_context_and_holdout_are_consistent(
+    rows: int, queries: int
+) -> None:
+    context = _context_rows(True, rows, queries)
+    holdout = _validation_rows(rows, context, queries)
+    assert context <= min(32768, rows - holdout)
+    if context < 32768:
+        larger = context + 1
+        assert larger > rows - _validation_rows(rows, larger, queries)
+
+
+@pytest.mark.parametrize("regression", [False, True])
+@pytest.mark.parametrize(
+    ("rows", "context", "queries", "expected"),
+    [(80, 24, 16, 16), (40, 30, 16, 2), (40, 24, 16, 2)],
+)
+def test_fit_validation_partition(
+    cuda_model: KumoTabular,
+    regression: bool,
+    rows: int,
+    context: int,
+    queries: int,
+    expected: int,
+) -> None:
+    model = (
+        KumoTabular(
+            task="regression",
+            size="small",
+            pretrained=False,
+            device="cuda",
+            n_estimators=2,
+        )
+        if regression
+        else cuda_model
+    )
+    selection = []
+    x = torch.randn(rows, 3)
+    y = (
+        torch.randn(rows, 1)
+        if regression
+        else torch.arange(rows).remainder(2).reshape(-1, 1)
+    )
+
+    def observer(event: str, data: dict[str, Any]) -> None:
+        if event == "selection":
+            selection.append(data)
+
+    model.fit(
+        x,
+        y,
+        finetune=context,
+        query_batch_size=queries,
+        n_estimators=2,
+        _finetune_max_steps=1,
+        _finetune_observer=observer,
+        generator=torch.Generator().manual_seed(17),
+    )
+    report = model.finetune_result_
+    assert report is not None
+    assert report["validation_rows"] == expected
+    assert report["query_batch_size"] == queries
+    assert len(selection) == 2
+    assert selection[0]["validation_indices"].equal(
+        selection[1]["validation_indices"]
+    )
+    for member in selection:
+        validation = member["validation_indices"]
+        assert len(validation) == expected
+        assert not torch.isin(validation, member["train_indices"]).any()
+        assert not torch.isin(
+            validation, member["context_order"][:context]
+        ).any()
+    assert model.predict(x[:3]).numerical.isfinite().all()
+
+
+@pytest.mark.parametrize("count", [1, 3, 8])
+def test_constructor_estimators_used_for_tuning(
+    cuda_model: KumoTabular, count: int
+) -> None:
+    # Use the constructor itself so the eight-member default is exercised.
+    options = {} if count == 8 else {"n_estimators": count}
+    model = KumoTabular(
+        task="classification",
+        size="small",
+        pretrained=False,
+        device="cuda",
+        **options,
+    )
+    assert model.n_estimators == count
+    x = torch.randn(80, 3)
+    y = torch.arange(80).remainder(2).reshape(-1, 1)
+    model.fit(x, y, finetune=8, query_batch_size=16, _finetune_max_steps=1)
+    result = model.finetune_result_
+    assert result is not None
+    assert result["num_estimators"] == count
+    assert result["completed_steps"] == count
+    assert model.predict(x[:4]).numerical.isfinite().all()
+    model.fit(
+        x,
+        y,
+        finetune=8,
+        n_estimators=1,
+        query_batch_size=16,
+        _finetune_max_steps=1,
+    )
+    assert model.n_estimators == count
+    assert model.finetune_result_ is not None
+    assert model.finetune_result_["num_estimators"] == 1
+
+
+@pytest.mark.parametrize("count", [0, -1, 1.5, True])
+def test_invalid_constructor_estimators(count: Any) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        KumoTabular(n_estimators=count)
+
+
+@pytest.mark.parametrize("bf16", [False, True])
+def test_native_mixed_precision_and_scaling(
+    cuda_model: KumoTabular,
+    monkeypatch: pytest.MonkeyPatch,
+    bf16: bool,
+) -> None:
+    if bf16 and not torch.cuda.is_bf16_supported(including_emulation=False):
+        pytest.skip("Native BF16 hardware required")
+    dtype = torch.bfloat16 if bf16 else torch.float16
+    checks = []
+    capabilities = []
+    scalers = []
+    scaler = torch.amp.GradScaler
+    loss = ft.cross_entropy
+
+    def supported(*, including_emulation: bool = True) -> bool:
+        capabilities.append(including_emulation)
+        return bf16
+
+    def make_scaler(*args: Any, **kwargs: Any) -> Any:
+        scalers.append(kwargs["enabled"])
+        return scaler(*args, **kwargs)
+
+    def check_loss(
+        output: torch.Tensor, target: torch.Tensor, **kwargs: Any
+    ) -> Any:
+        assert output.dtype == torch.float32
+        return loss(output, target, **kwargs)
+
+    def capture(
+        module: torch.nn.Module, args: Any, output: torch.Tensor
+    ) -> None:
+        assert torch.is_autocast_enabled("cuda")
+        assert torch.get_autocast_dtype("cuda") == dtype
+        assert output.dtype == dtype
+        checks.append(True)
+
+    monkeypatch.setattr(torch.cuda, "is_bf16_supported", supported)
+    monkeypatch.setattr(torch.amp, "GradScaler", make_scaler)
+    monkeypatch.setattr(ft, "cross_entropy", check_loss)
+    net = cuda_model.models["classification"]
+    hook = net.icl_block.register_forward_hook(capture)
+    try:
+        x = torch.randn(80, 3)
+        y = torch.arange(80).remainder(2).reshape(-1, 1)
+        cuda_model.fit(
+            x, y, finetune=8, query_batch_size=16, _finetune_max_steps=1
+        )
+        assert cuda_model.predict(x[:4]).numerical.isfinite().all()
+    finally:
+        hook.remove()
+    assert checks
+    assert capabilities[0] is False
+    assert scalers == [not bf16, not bf16]
+    assert cuda_model.finetune_result_ is not None
+    assert cuda_model.finetune_result_["precision"] == str(dtype).removeprefix(
+        "torch."
+    )
+
+
+def test_constructor_estimator_zero_shot_default(
+    cuda_model: KumoTabular, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = KumoTabular(
+        task="classification",
+        size="small",
+        pretrained=False,
+        device="cuda",
+        n_estimators=3,
+    )
+    counts = []
+
+    def fit(*args: Any, **kwargs: Any) -> None:
+        counts.append(kwargs["num_estimators"])
+
+    monkeypatch.setattr(ICLModel, "fit", fit)
+    x = torch.randn(40, 3)
+    y = torch.arange(40).remainder(2).reshape(-1, 1)
+    model.fit(x, y)
+    model.fit(x, y, n_estimators=2)
+    model.fit(x, y, num_estimators=1)
+    model.fit(x, y, finetune=False)
+    assert counts == [3, 2, 1, 3]
+    assert model.n_estimators == 3

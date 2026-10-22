@@ -17,7 +17,8 @@ from sdm import Recipe, RelatedTables, Stype, TableTensor, Task, TaskLike
 from sdm.cache import Cache
 from sdm.models import ECOC, ICLModel
 from sdm.models._huggingface import download_checkpoint
-from sdm.models.callback import Callback
+from sdm.models.base import Callback
+from sdm.models.base.model import _Prefetcher
 from sdm.models.kumo.tabular.finetune import _context_rows, fit_context
 from sdm.models.kumo.tabular.icl import ICLBlock
 from sdm.models.kumo.tabular.recipe import default_recipe
@@ -104,6 +105,8 @@ class KumoTabular(ICLModel):
         pretrained: Whether to load pretrained checkpoints.
         device: The device for model parameters. If ``None``, uses PyTorch's
             default device.
+        n_estimators: Default number of estimators for :meth:`fit`, including
+            embedding tuning. Must be a positive integer; defaults to eight.
     """
 
     supported_feature_stypes: ClassVar[frozenset[Stype]] = frozenset(
@@ -122,8 +125,17 @@ class KumoTabular(ICLModel):
         size: Literal["small", "medium", "large"] = "large",
         pretrained: bool = True,
         device: torch.device | str | None = None,
+        *,
+        n_estimators: int = 8,
     ) -> None:
+        if (
+            isinstance(n_estimators, bool)
+            or not isinstance(n_estimators, Integral)
+            or n_estimators < 1
+        ):
+            raise ValueError("n_estimators must be a positive integer.")
         super().__init__(task=task)
+        self.n_estimators = int(n_estimators)
         if Task.classification in self.tasks:
             self.ecoc = ECOC(max_classes=10)
 
@@ -163,9 +175,10 @@ class KumoTabular(ICLModel):
         query_batch_size: int = 4096,
         learning_rate: float = 1e-3,
         min_learning_rate: float = 1e-5,
-        max_epochs: int = 20,
-        patience: int = 5,
-        min_epochs: int = 5,
+        max_epochs: int = 1,
+        patience: int = 20,
+        ema_alpha: float = 0.98,
+        min_epochs: int = 0,
         min_improvement: float = 1e-4,
         shuffle_columns: bool = False,
         memory_fraction: float = 0.9,
@@ -174,15 +187,26 @@ class KumoTabular(ICLModel):
         """Fit examples, optionally optimizing a compressed context.
 
         ``finetune=False`` (or zero) performs ordinary zero-shot fitting.
-        ``finetune=True`` tunes min(32,768, available training rows), after
-        reserving the fixed 10% validation holdout. Contexts are sampled
-        randomly within each class, preserving training class proportions
-        subject to including both classes. A positive whole
-        number requests exactly that many context rows; a fraction in (0, 1)
-        requests floor(fraction * supplied training rows). Positive values
-        always tune binary context embeddings on CUDA. Each estimator receives
-        the requested context size and its own optimization budget.
-        Context sampling excludes a fixed 10% validation holdout.
+        ``finetune=True`` chooses up to 32,768 context rows after reserving
+        the validation holdout. Classification contexts are sampled within
+        each class, preserving training class proportions while
+        retaining every class. Regression contexts are sampled uniformly. A
+        positive whole number requests exactly that many context rows; a
+        fraction in (0, 1) requests floor(fraction * supplied training rows).
+        Positive values always tune context embeddings on CUDA. Each
+        estimator receives the requested context size and its own optimization
+        budget.
+        When rows exceed context size plus query batch size, validation holds
+        one query batch; otherwise it holds ceil(5% of rows). Context
+        sampling and training queries exclude this fixed holdout.
+        Validation runs before training and after every update. By default,
+        tuning stops when validation loss EMA does not decrease over twenty
+        validation checks, or after one sampling epoch. It restores the
+        lowest-loss context, including
+        the initial context. An epoch is an update budget, not guaranteed
+        row coverage.
+        Classification uses cross-entropy, including ECOC above ten classes;
+        regression uses pinball loss over the 999 normalized-target quantiles.
         Unavailable rows or insufficient memory raise an error without reducing
         the requested count. ``finetune_result_`` reports the tuned outcome.
 
@@ -191,9 +215,10 @@ class KumoTabular(ICLModel):
             y: Training targets.
             related_tables: Related context tables for ordinary fitting.
             recipe: Preprocessing and output recipe.
-            n_estimators: Number of estimators. Defaults to eight for zero-shot
-                fitting and one for tuning. Tuned estimators share a fixed
-                validation holdout and average their output probabilities.
+            n_estimators: Override the constructor's estimator count for this
+                fit. By default, use the constructor value (eight). Tuned
+                estimators share a fixed validation holdout and average
+                postprocessed predictions.
             num_estimators: Alias for n_estimators; specify only one name.
             context_only_columns: Context-only features for ordinary fitting.
             estimator_batch_size: Estimators per ordinary inference batch.
@@ -206,10 +231,18 @@ class KumoTabular(ICLModel):
                 of available training rows.
             learning_rate: Adam learning rate (without weight decay).
             min_learning_rate: Cosine schedule's final learning rate.
-            max_epochs: Maximum sampling epochs.
-            patience: Epochs without sufficient validation improvement.
-            min_epochs: Minimum epochs before early stopping.
-            min_improvement: Required decrease in validation cross-entropy.
+            max_epochs: Maximum sampling epochs (default one). Each epoch
+                budgets ceil(non_validation_rows / query_batch_size) updates.
+            patience: EMA lookback in batch validation checks (default twenty).
+                Stop when the current loss EMA is at least its value this many
+                checks earlier.
+            ema_alpha: Weight of the previous loss EMA (default 0.98). The
+                initial validation loss initializes the EMA; each later check
+                contributes weight ``1 - ema_alpha``.
+            min_epochs: Completed sampling epochs required before early
+                stopping is allowed (default zero).
+            min_improvement: Retained for compatibility; unused by EMA
+                stopping.
             shuffle_columns: Permute processed columns jointly each update.
             memory_fraction: Fraction of available CUDA memory to use.
             finetune: False or zero for ordinary fitting; True to tune up to
@@ -219,7 +252,7 @@ class KumoTabular(ICLModel):
 
         Other arguments follow :meth:`ICLModel.fit`. Returns ``None``.
         """
-        context_rows = _context_rows(finetune, x.size(-2))
+        context_rows = _context_rows(finetune, x.size(-2), query_batch_size)
         if n_estimators is not None and num_estimators is not None:
             raise ValueError(
                 "Specify only one of n_estimators and num_estimators."
@@ -228,7 +261,7 @@ class KumoTabular(ICLModel):
             n_estimators if n_estimators is not None else num_estimators
         )
         if estimators is None:
-            estimators = 1 if context_rows else 8
+            estimators = self.n_estimators
         if (
             isinstance(estimators, bool)
             or not isinstance(estimators, Integral)
@@ -258,8 +291,8 @@ class KumoTabular(ICLModel):
                 min_learning_rate=min_learning_rate,
                 max_epochs=max_epochs,
                 patience=patience,
+                ema_alpha=ema_alpha,
                 min_epochs=min_epochs,
-                min_improvement=min_improvement,
                 shuffle_columns=shuffle_columns,
                 memory_fraction=memory_fraction,
             )
@@ -281,6 +314,17 @@ class KumoTabular(ICLModel):
         """Discard fitted context and its tuning report."""
         super().clear()
         self.finetune_result_: dict[str, Any] | None = None
+
+    def _prefetch(
+        self, items: Sequence[Any], device: torch.device
+    ) -> _Prefetcher[Any]:
+        if isinstance(items[0], Cache) and "finetune_dtype" in items[0]:
+            device = next(self.parameters()).device
+        elif self._cache is not None:
+            device = cast(dict[str, Any], self._cache["kwargs"]).get(
+                "_context_device", device
+            )
+        return super()._prefetch(items, device)
 
     def _load_from_pretrained(
         self,
@@ -357,18 +401,28 @@ class KumoTabular(ICLModel):
             with torch.autocast(
                 "cuda", dtype=cast(torch.dtype, cache["finetune_dtype"])
             ):
-                out = self.models[Task.classification](
+                return self._forward_rows(
                     x=x,
                     y=y,
+                    classes=classes,
                     categorical_mask=categorical_mask,
                     cache=cache,
-                )[..., :2]
-            assert classes is not None
-            return TableTensor(
-                columns={Stype.numerical: [str(i) for i in classes.tolist()]},
-                numerical=out,
-            )
+                    generator=generator,
+                )
 
+        return self._forward_rows(
+            x, y, classes, categorical_mask, cache, generator
+        )
+
+    def _forward_rows(
+        self,
+        x: Tensor,
+        y: Tensor,
+        classes: Tensor | None,
+        categorical_mask: Tensor,
+        cache: Cache | None,
+        generator: torch.Generator | None,
+    ) -> TableTensor:
         categorical_mask = categorical_mask.expand(*x.size()[:-2], -1)
 
         if classes is None:

@@ -125,9 +125,15 @@ class ECOC(torch.nn.Module):
                 .movedim(1, 0)
             )  # [T, E, ..., R_context]
         logits = model(x=x.expand(T, *x.shape), y=y, **kwargs)
+        return self._decode(logits, codebook)
+
+    def _decode(self, logits: Tensor, codebook: Tensor) -> Tensor:
+        """Decode task logits without breaking their gradient graph."""
+        T, num_classes = codebook.shape[-2:]
         if codebook.dim() == 2:
             index = codebook.view(T, *(1,) * (logits.dim() - 2), num_classes)
         else:
+            E = codebook.size(0)
             index = codebook.movedim(1, 0).reshape(
                 T, E, *(1,) * (logits.dim() - 3), num_classes
             )
