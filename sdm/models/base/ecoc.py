@@ -25,6 +25,13 @@ from torch import Tensor
 from sdm.cache import Cache
 
 
+def _num_codes(num_classes: int, max_classes: int) -> int:
+    return max(
+        math.ceil(num_classes / (max_classes - 1)),
+        4 * math.ceil(math.log(num_classes, max_classes)),
+    )
+
+
 class ECOC(torch.nn.Module):
     """Extend a classifier with `error-correcting output codes <https://arxiv.org/abs/cs/9501101>`_.
 
@@ -81,11 +88,58 @@ class ECOC(torch.nn.Module):
             Scores of shape ``[..., R_query, K]`` for the query rows: model
             logits within class capacity, otherwise averaged log probabilities.
         """
+        if cache is None and torch.compiler.is_compiling():
+            codebooks = _draw_codebooks(
+                x, num_classes, self.max_classes, num_members, generator
+            )
+            return torch.cond(
+                num_classes <= self.max_classes,
+                lambda x, y: model(x, y, **kwargs).index_select(
+                    -1, torch.arange(num_classes, device=x.device)
+                ),
+                lambda x, y: self._extended(
+                    model=model,
+                    x=x,
+                    y=y,
+                    num_classes=num_classes,
+                    num_members=num_members,
+                    cache=None,
+                    generator=generator,
+                    codebooks=codebooks,
+                    **kwargs,
+                ),
+                (x, y),
+            )
+
         if num_classes <= self.max_classes:
             if cache is not None:
                 kwargs["cache"] = cache
             return model(x, y, **kwargs)[..., :num_classes]
 
+        return self._extended(
+            model=model,
+            x=x,
+            y=y,
+            num_classes=num_classes,
+            num_members=num_members,
+            cache=cache,
+            generator=generator,
+            **kwargs,
+        )
+
+    def _extended(
+        self,
+        model: torch.nn.Module,
+        x: Tensor,
+        y: Tensor,
+        *,
+        num_classes: int,
+        num_members: int,
+        cache: Cache | None,
+        generator: torch.Generator | None,
+        codebooks: Tensor | None = None,
+        **kwargs: Any,
+    ) -> Tensor:
         if cache is not None and cache.is_replaying:
             codebook = cast(Tensor, cache["ecoc_codebook"])
             if num_classes != codebook.size(-1):
@@ -94,6 +148,8 @@ class ECOC(torch.nn.Module):
                     f"(expected {codebook.size(-1)}, got {num_classes})"
                 )
             kwargs["cache"] = cast(Cache, cache["ecoc_model"])
+        elif codebooks is not None:
+            codebook = codebooks[0] if num_members == 1 else codebooks
         elif num_members == 1:
             # [T, K]
             codebook = self._draw_codebook(num_classes, x.device, generator)
@@ -145,11 +201,7 @@ class ECOC(torch.nn.Module):
         generator: torch.Generator | None,
     ) -> Tensor:
         rest_idx = self.max_classes - 1
-        num_codes = max(
-            # Give every class its own output in at least one task.
-            math.ceil(num_classes / rest_idx),
-            4 * math.ceil(math.log(num_classes, self.max_classes)),
-        )
+        num_codes = _num_codes(num_classes, self.max_classes)
         # Bound the quadratic distance search for large targets.
         num_draws = 50 if num_classes <= 200 else 1
         codebook = torch.full(
@@ -195,3 +247,53 @@ class ECOC(torch.nn.Module):
             pairwise.size(-1) * num_codes + 1
         ) + pairwise.sum(dim=-1)
         return codebook.index_select(0, score.argmax().view(1)).squeeze(0)
+
+
+@torch.library.custom_op(
+    "sdm::ecoc_codebooks",
+    mutates_args=(),
+    schema="(Tensor reference, SymInt num_classes, int max_classes, "
+    "SymInt num_members, Generator? generator=None) -> Tensor",
+    tags=(torch.Tag.nondeterministic_seeded,),
+)
+def _draw_codebooks(
+    reference: Tensor,
+    num_classes: int,
+    max_classes: int,
+    num_members: int,
+    generator: torch.Generator | None = None,
+) -> Tensor:
+    if num_classes <= max_classes:
+        return (
+            torch.arange(num_classes, device=reference.device)
+            .expand(num_members, 1, num_classes)
+            .clone()
+        )
+    ecoc = ECOC(max_classes)
+    return torch.stack(
+        [
+            ecoc._draw_codebook(num_classes, reference.device, generator)
+            for _ in range(num_members)
+        ]
+    )
+
+
+@_draw_codebooks.register_fake
+def _draw_codebooks_fake(
+    reference: Tensor,
+    num_classes: int,
+    max_classes: int,
+    num_members: int,
+    generator: torch.Generator | None = None,
+) -> Tensor:
+    if isinstance(num_classes, int):
+        num_codes = (
+            1
+            if num_classes <= max_classes
+            else _num_codes(num_classes, max_classes)
+        )
+    else:
+        num_codes = torch.library.get_ctx().new_dynamic_size(min=1)
+    return reference.new_empty(
+        (num_members, num_codes, num_classes), dtype=torch.long
+    )
