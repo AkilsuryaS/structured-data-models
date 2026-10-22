@@ -92,7 +92,7 @@ class ECOC(torch.nn.Module):
             codebooks = _draw_codebooks(
                 x, num_classes, self.max_classes, num_members, generator
             )
-            return torch.cond(
+            out = torch.cond(
                 num_classes <= self.max_classes,
                 lambda x, y: model(x, y, **kwargs).index_select(
                     -1, torch.arange(num_classes, device=x.device)
@@ -110,6 +110,8 @@ class ECOC(torch.nn.Module):
                 ),
                 (x, y),
             )
+            torch._check(out.size(-1) == num_classes)
+            return out
 
         if num_classes <= self.max_classes:
             if cache is not None:
