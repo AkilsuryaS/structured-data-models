@@ -380,3 +380,35 @@ def test_member_context_exposes_input_stypes() -> None:
 
     assert context.input_stypes == x.stypes
     assert context.x.numerical_columns == ("n", "c")
+
+
+def test_compiled_learned_target_preserves_execution_state(
+    compilation: None,
+) -> None:
+    execution = RecipeExecution(
+        Recipe(
+            target=[
+                sp.AlignCategories(sort_by="value"),
+                sp.ShuffleCategories("shift"),
+            ],
+            output=sp.TaskDispatch(classification=sp.Identity()),
+        )
+    )
+    x = TableTensor(numerical=torch.zeros(3, 1))
+
+    def fit(code: torch.Tensor):
+        y = TableTensor(
+            categorical=CategoricalTensor(code, (torch.arange(3),))
+        )
+        return execution.fit_transform(x, y, None, num_members=4)
+
+    # This exercises Dynamo's state tracking rather than kernel generation.
+    compiled = torch.compile(fit, backend="eager", fullgraph=True)
+    for values in ([[0], [1], [-1]], [[0], [0], [-1]]):
+        contexts = compiled(torch.tensor(values))
+        assert execution.num_members == len(contexts) == 4
+        queries = execution.transform(x, None)
+        assert all(query.x.equal(x) for query in queries)
+        outputs = [TableTensor(numerical=torch.ones(3, 1)) for _ in range(4)]
+        actual = execution.transform_output(outputs)
+        assert torch.equal(actual.numerical, torch.ones(4, 3, 1))

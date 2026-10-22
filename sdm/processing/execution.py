@@ -37,6 +37,22 @@ class MemberQuery(NamedTuple):
 class RecipeExecution:
     """Recipe execution manager during model processing."""
 
+    # Fixed state fields remain traceable across conditional graph capture.
+    __slots__ = (
+        "_num_estimators",
+        "_related_locations",
+        "_related_processors",
+        "_y_locations",
+        "recipe",
+    )
+
+    def __getstate__(self) -> dict[str, object]:
+        return {name: getattr(self, name) for name in self.__slots__}
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        for name, value in state.items():
+            setattr(self, name, value)
+
     def __init__(self, recipe: Recipe) -> None:
         self.recipe = recipe
 
@@ -45,7 +61,7 @@ class RecipeExecution:
             Mapping[str, tuple[tuple[int, int], ...]] | None
         ) = None
         self._num_estimators: int | None = None
-        self._y_locations: tuple[tuple[int, int], ...] | None = None
+        self._y_locations: tuple[tuple[int, int], ...] | Tensor | None = None
 
     @property
     def num_members(self) -> int:
@@ -115,7 +131,8 @@ class RecipeExecution:
             y = self.recipe.target.fit_transform_ensemble(
                 y, generator=generator
             )
-            self._y_locations = y._locations
+            routes = y._route_locations
+            self._y_locations = y._locations if routes is None else routes
 
             task_dispatchers = tuple(
                 module
@@ -124,19 +141,16 @@ class RecipeExecution:
                 if isinstance(module, sp.TaskDispatch)
             )
             if len(task_dispatchers) > 0:
-                if any(group.size(-1) != 1 for group in y._iter_groups()):
+                if any(y[i].size(-1) != 1 for i in range(len(y))):
                     raise ValueError(
                         "Expected the transformed target to contain exactly "
                         "one column"
                     )
 
-                if all(
-                    group.numerical.size(-1) == 1 for group in y._iter_groups()
-                ):
+                if all(y[i].numerical.size(-1) == 1 for i in range(len(y))):
                     task = "regression"
                 elif all(
-                    group.categorical.size(-1) == 1
-                    for group in y._iter_groups()
+                    y[i].categorical.size(-1) == 1 for i in range(len(y))
                 ):
                     task = "classification"
                 else:
@@ -301,13 +315,16 @@ class RecipeExecution:
 
         # Reconstruct the group layout of the transformed target:
         assert self._y_locations is not None
-        num_groups = max(group for group, _ in self._y_locations) + 1
+        locations = self._y_locations
+        if isinstance(locations, Tensor):
+            locations = tuple(tuple(row) for row in locations.tolist())
+        num_groups = max(group for group, _ in locations) + 1
         groups: list[list[TableTensor | None]] = [
             [] for _ in range(num_groups)
         ]
-        for group_id, _ in self._y_locations:
+        for group_id, _ in locations:
             groups[group_id].append(None)
-        for i, (group_id, position) in enumerate(self._y_locations):
+        for i, (group_id, position) in enumerate(locations):
             groups[group_id][position] = outputs[i]
 
         table = EnsembleTable(
@@ -320,7 +337,7 @@ class RecipeExecution:
                 )
                 for group in groups
             ],
-            locations=self._y_locations,
+            locations=locations,
         )
 
         if not isinstance(self.recipe.target, EnsembleInvertibleMixin):

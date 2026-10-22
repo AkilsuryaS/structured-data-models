@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
+from typing import Literal, cast
 
 import pytest
 import torch
@@ -13,6 +13,7 @@ from sdm import (
     TableTensor,
 )
 from sdm.processing import ShuffleCategories
+from sdm.tensor.categorical import _iter_categories
 from sdm.testing import withCUDA
 
 
@@ -230,3 +231,58 @@ def test_shuffle_categories_shift_uses_each_offset_before_reuse(
     for cycle in shifts.split(num_classes):
         for column in range(shifts.size(1)):
             assert cycle[:, column].unique().numel() == cycle.size(0)
+
+
+@pytest.mark.parametrize("fullgraph", [False, True])
+def test_shuffle_ensemble_replays_shared_mutable_views(
+    fullgraph: bool, compilation: None
+) -> None:
+    processor = ShuffleCategories("shift")
+    code = torch.tensor([[0], [1], [-1]], dtype=torch.int32)
+    category = StringTensor.from_list(["alpha", "beta"])
+
+    def source() -> EnsembleTable:
+        return EnsembleTable.from_table(
+            TableTensor(categorical=CategoricalTensor(code, (category,))),
+            num_members=4,
+        )
+
+    def consume(output: EnsembleTable):
+        output[0].categorical.code[0, 0] = 1 - output[0].categorical.code[0, 0]
+        for vocabulary in _iter_categories(output[0].categorical):
+            cast(StringTensor, vocabulary)._data.add_(1)
+        return (
+            output,
+            torch.stack([output[i].categorical.code for i in range(4)]),
+            tuple(
+                cast(StringTensor, vocabulary)
+                for i in range(4)
+                for vocabulary in _iter_categories(output[i].categorical)
+            ),
+        )
+
+    def run():
+        return consume(processor.fit_transform_ensemble(source()))
+
+    compiled = torch.compile(run, fullgraph=fullgraph)
+    for seed in (0, 1):
+        torch.manual_seed(seed)
+        expected, expected_codes, expected_categories = consume(
+            ShuffleCategories("shift").fit_transform_ensemble(source())
+        )
+        expected_rng = torch.get_rng_state()
+        torch.manual_seed(seed)
+        actual, codes, categories = compiled()
+        assert torch.equal(torch.get_rng_state(), expected_rng)
+        assert actual._locations == expected._locations
+        assert actual.num_groups == 2
+        assert torch.equal(codes, expected_codes)
+        for i in range(4):
+            assert actual[i].equal(expected[i])
+            assert categories[i].equal(expected_categories[i])
+        # A separately returned vocabulary must alias its ensemble member.
+        categories[0]._data.add_(1)
+        expected_categories[0]._data.add_(1)
+        for i in range(4):
+            assert actual[i].equal(expected[i])
+        assert category.tolist() == ["alpha", "beta"]
