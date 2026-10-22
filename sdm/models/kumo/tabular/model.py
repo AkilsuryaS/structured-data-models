@@ -12,7 +12,17 @@ import torch
 from torch import Tensor
 from torch.nn import Identity, Linear, ModuleDict
 
-from sdm import Recipe, RelatedTables, Stype, TableTensor, Task, TaskLike
+from sdm import (
+    NullableTensor,
+    Recipe,
+    RelatedTables,
+    StringTensor,
+    Stype,
+    TableTensor,
+    Task,
+    TaskLike,
+    VarLenTensor,
+)
 from sdm.cache import Cache
 from sdm.models import ECOC, ICLModel
 from sdm.models._huggingface import download_checkpoint
@@ -233,17 +243,116 @@ class KumoTabular(ICLModel):
             categorical_mask=categorical_mask,
         )
         if cache is not None and cache.is_replaying:
-            columns = cast(tuple[str, ...], cache["class_columns"])
+            columns = cast("tuple[str, ...] | Tensor", cache["class_columns"])
         else:
-            columns = tuple(str(i) for i in classes.tolist())
+            columns = _class_column_pool(classes)
 
         if cache is not None and cache.is_recording:
             cache["class_columns"] = columns
 
-        return TableTensor(
-            columns={"numerical": columns},
-            numerical=out,
+        return TableTensor._from_named_tensor(out, columns)
+
+
+def _class_column_pool(classes: Tensor) -> Tensor | tuple[str, ...]:
+    if type(classes) not in (
+        Tensor,
+        NullableTensor,
+        StringTensor,
+        VarLenTensor,
+    ):
+        return tuple(str(value) for value in classes.tolist())
+
+    variable_length = isinstance(classes, VarLenTensor)
+    nullable = isinstance(classes, NullableTensor)
+    data, offset, valid, checked = _snapshot_class_labels(
+        classes._data if variable_length or nullable else classes,
+        classes._offset if variable_length else None,
+        classes._valid if variable_length or nullable else None,
+        list(classes.size()),
+        list(classes.stride()),
+        classes._logical_storage_offset if variable_length else 0,
+        isinstance(classes, StringTensor),
+    )
+    # Retain validation when callers only consume the prediction scores.
+    torch._assert_async(checked, "Expected column names to be unique")
+    if variable_length:
+        return type(classes)(
+            data=data,
+            offset=offset,
+            valid=valid,
+            size=classes.size(),
+            stride=classes.stride(),
+            storage_offset=classes._logical_storage_offset,
         )
+    if nullable:
+        return NullableTensor(data=data, valid=valid)
+    return data
+
+
+@torch.library.custom_op(
+    "sdm::snapshot_class_labels",
+    mutates_args=(),
+    schema="(Tensor data, Tensor? offset, Tensor? valid, SymInt[] size, "
+    "SymInt[] stride, SymInt storage_offset, bool string) -> "
+    "(Tensor, Tensor?, Tensor?, Tensor)",
+    tags=(torch.Tag.cudagraph_unsafe,),
+)
+def _snapshot_class_labels(
+    data: Tensor,
+    offset: Tensor | None,
+    valid: Tensor | None,
+    size: list[int],
+    stride: list[int],
+    storage_offset: int,
+    string: bool,
+) -> tuple[Tensor, Tensor | None, Tensor | None, Tensor]:
+    if offset is not None:
+        values = data.tolist()
+        boundaries = offset.tolist()
+        validity = None if valid is None else valid.tolist()
+        labels = []
+        for index in range(size[0]):
+            position = storage_offset + index * stride[0]
+            value = values[boundaries[position] : boundaries[position + 1]]
+            if string:
+                value = bytes(value).decode()
+            labels.append(
+                None
+                if validity is not None and not validity[position]
+                else value
+            )
+    else:
+        labels = (
+            data if valid is None else NullableTensor(data, valid)
+        ).tolist()
+    names = tuple(str(value) for value in labels)
+    if len(names) != len(set(names)):
+        raise ValueError("Expected column names to be unique")
+    # Snapshot labels without converting their values to strings in the graph.
+    return (
+        data.clone(),
+        None if offset is None else offset.clone(),
+        None if valid is None else valid.clone(),
+        data.new_ones((), dtype=torch.bool),
+    )
+
+
+@_snapshot_class_labels.register_fake
+def _snapshot_class_labels_fake(
+    data: Tensor,
+    offset: Tensor | None,
+    valid: Tensor | None,
+    size: list[int],
+    stride: list[int],
+    storage_offset: int,
+    string: bool,
+) -> tuple[Tensor, Tensor | None, Tensor | None, Tensor]:
+    return (
+        torch.empty_like(data),
+        None if offset is None else torch.empty_like(offset),
+        None if valid is None else torch.empty_like(valid),
+        data.new_empty((), dtype=torch.bool),
+    )
 
 
 class _KumoTabular(torch.nn.Module):
