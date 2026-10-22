@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import cast
+from typing import Any, cast
 
 import torch
 
@@ -67,6 +67,30 @@ class DropConstantColumns(EnsembleProcessor):
             self._kept_indices = cast(tuple[tuple[int, ...], ...], state)
             self._shared_members = 0
             self._keep_all = False
+
+    def _load_from_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        prefix: str,
+        local_metadata: dict[str, Any],
+        strict: bool,
+        missing_keys: list[str],
+        unexpected_keys: list[str],
+        error_msgs: list[str],
+    ) -> None:
+        # Older checkpoints store only the Python selection in extra state.
+        key = f"{prefix}_shared_keep"
+        if key not in state_dict:
+            state_dict[key] = self._shared_keep.new_empty(0)
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def _keep_mask(self, data: torch.Tensor) -> torch.Tensor:
         # [N, C] or [..., N, C] -> [C] or [..., C].
