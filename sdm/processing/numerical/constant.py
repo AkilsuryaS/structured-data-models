@@ -133,10 +133,23 @@ class DropConstantColumns(EnsembleProcessor):
         ]
         return table.select_columns(columns)
 
+    def _cache_shared_indices(self) -> None:
+        if not self._kept_indices:
+            indices = tuple(
+                index
+                for index, kept in enumerate(self._shared_keep.tolist())
+                if kept
+            )
+            self._kept_indices = (indices,) * self._shared_members
+
     def _select_shared_columns(self, table: TableTensor) -> TableTensor:
+        # A fitted Python selection with static names keeps the native views.
+        _, _, pools, indices = table._column_context
+        if self._kept_indices and not (pools or indices):
+            return self._select_columns(table, self._kept_indices[0])
         if not torch.compiler.is_compiling():
-            indices = tuple(self._shared_keep.nonzero().flatten().tolist())
-            return self._select_columns(table, indices)
+            self._cache_shared_indices()
+            return self._select_columns(table, self._kept_indices[0])
         # Dynamic compaction preserves values and names, but does not preserve
         # eager storage aliases when the selected columns form a slice.
         return table._select_numerical_mask(self._shared_keep)
@@ -151,6 +164,8 @@ class DropConstantColumns(EnsembleProcessor):
         self._shared_members = 1
         self._keep_all = table.numerical.size(-2) <= self.threshold
         self._kept_indices = ()
+        if not torch.compiler.is_compiling():
+            self._cache_shared_indices()
 
     def _transform(self, table: TableTensor) -> TableTensor:
         if self._shared_members:
@@ -185,6 +200,8 @@ class DropConstantColumns(EnsembleProcessor):
             self._shared_members = len(ensemble_table)
             self._keep_all = group.numerical.size(-2) <= self.threshold
             self._kept_indices = ()
+            if not torch.compiler.is_compiling():
+                self._cache_shared_indices()
             return
 
         self._shared_members = 0
