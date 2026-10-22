@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 import pytest
@@ -543,3 +543,35 @@ def test_string_category_lookups_compile(
         actual=second,
         expected=torch.tensor([1, -1, -1], dtype=codes.dtype),
     )
+
+
+@withCUDA
+@pytest.mark.parametrize("dtype", [torch.int32, torch.int64])
+def test_string_category_lookup_exact_views(
+    device: torch.device,
+    dtype: torch.dtype,
+) -> None:
+    # Raw lookups support nulls even though category vectors reject them.
+    input_values = ["", "é", None, "未知", "unknown", "a\x00b"]
+    fitted_values = ["未知", "", "é", None, "a\x00b", "other"]
+    inputs = StringTensor.from_list(
+        [item for value in input_values for item in ("skip", value)],
+        device=device,
+    )[1::2]
+    fitted = StringTensor.from_list(
+        [item for value in fitted_values for item in ("skip", value)],
+        device=device,
+    )[1::2]
+    lookup, empty_lookup = AlignCategories._string_category_lookups(
+        input_categories=(
+            cast(StringTensor, inputs),
+            cast(StringTensor, inputs),
+        ),
+        fitted_categories=(fitted, StringTensor.from_list([], device=device)),
+        codes=torch.empty((), dtype=dtype, device=device),
+    )
+    torch.testing.assert_close(
+        lookup,
+        torch.tensor([1, 2, -1, 0, -1, 4], dtype=dtype, device=device),
+    )
+    torch.testing.assert_close(empty_lookup, torch.full_like(lookup, -1))

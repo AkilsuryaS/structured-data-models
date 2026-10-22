@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Literal, cast
 
 import torch
@@ -20,6 +20,17 @@ from sdm.processing import EnsembleProcessor
 from sdm.relational.join import join_index
 from sdm.tensor.categorical import _iter_categories
 from sdm.tensor.var_len import _cat, _contiguous
+
+_gpu_string_category_lookup: Callable[..., Tensor | None] | None = None
+try:
+    from sdm._kernels.triton.string_category_lookup import (
+        string_category_lookup as _gpu_string_category_lookup_impl,
+    )
+except ImportError:
+    pass
+else:
+    _gpu_string_category_lookup = _gpu_string_category_lookup_impl
+
 
 _UNSIGNED_DTYPES = frozenset({torch.uint16, torch.uint32, torch.uint64})
 
@@ -556,6 +567,16 @@ def _string_category_lookup(
     codes: Tensor,
 ) -> Tensor:
     """Keep the backend join's dynamic row pairs inside a fixed-size lookup."""
+    if _gpu_string_category_lookup is not None:
+        lookup = _gpu_string_category_lookup(
+            inputs,
+            input_layout,
+            fitted,
+            fitted_layout,
+            codes,
+        )
+        if lookup is not None:
+            return lookup
     input_categories = _unflatten_strings(inputs, input_layout)
     fitted_categories = _unflatten_strings(fitted, fitted_layout)
     # Pair IDs for each input category: (total_input_categories,).
