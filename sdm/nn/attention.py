@@ -171,7 +171,13 @@ class SDPA(torch.nn.Module):
         key = key.transpose(-3, -2)  # [B, Hkv, KV, C]
         value = value.transpose(-3, -2)  # [B, Hkv, KV, C]
 
-        # CUDA attention kernels accept at most 65,535 batch entries per call:
+        # CUDA attention kernels accept at most 65,535 batch entries per call.
+        # A fixed loop length also lets torch.compile trace bounded batches.
+        chunk_starts = (
+            (0,)
+            if query.size(0) <= 65_535
+            else range(0, query.size(0), 65_535)
+        )
         outs = [
             F.scaled_dot_product_attention(
                 query=query[i : i + 65_535],
@@ -185,7 +191,7 @@ class SDPA(torch.nn.Module):
                 is_causal=is_causal,
                 scale=self.scale,
             ).transpose(-3, -2)  # [B, Q, Hq, C]
-            for i in range(0, query.size(0), 65_535)
+            for i in chunk_starts
         ]
         out = outs[0] if len(outs) == 1 else torch.cat(outs)
 
