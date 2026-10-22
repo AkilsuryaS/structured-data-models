@@ -1589,3 +1589,72 @@ def _select_unique(inp: VarLenTensor, index: Tensor) -> VarLenTensor:
         valid=inp._valid[positions] if inp._valid is not None else None,
         size=index.shape,
     )
+
+
+def _permute_banks(
+    inp: VarLenTensor, orders: Tensor
+) -> tuple[Tensor, Tensor, Tensor | None]:
+    """Pack full permutations of a one-dimensional input into shared banks.
+
+    Each row of ``orders`` must contain every logical input index once. The
+    resulting rows share one payload length, even when that length is symbolic.
+    """
+    if statically_known_true(inp.numel() == 0):
+        return (
+            inp._data.new_empty((orders.size(0), 0)),
+            inp._offset.new_zeros((orders.size(0), 1)),
+            inp._valid.new_empty((orders.size(0), 0))
+            if inp._valid is not None
+            else None,
+        )
+    positions = (
+        torch.arange(inp.numel(), device=inp.device) * inp.stride(0)
+        + inp._logical_storage_offset
+    )
+    # An empty backing buffer has no indexable payload elements.
+    if statically_known_true(inp._data.numel() == 0):
+        return (
+            inp._data.new_empty((orders.size(0), 0)),
+            inp._offset.new_zeros((orders.size(0), orders.size(1) + 1)),
+            inp._valid[positions][orders] if inp._valid is not None else None,
+        )
+    start = inp._offset[positions].long()
+    count = inp._offset[positions + 1].long() - start
+    total = cast(int, count.sum().item())
+    torch._constrain_as_size(total, min=0, max=torch.iinfo(torch.int64).max)
+    max_total = inp._data.numel()
+    if inp.stride(0) == 0:
+        max_total *= inp.numel()
+    torch._check(total <= max_total)
+    if max_total <= torch.iinfo(torch.int32).max:
+        torch._constrain_as_size(
+            total, min=0, max=torch.iinfo(torch.int32).max
+        )
+
+    count = count[orders]
+    offset = count.new_zeros((orders.size(0), orders.size(1) + 1))
+    offset[:, 1:] = count.cumsum(dim=1)
+    row_base = torch.arange(orders.size(0), device=inp.device) * total
+    global_start = offset[:, :-1] + row_base[:, None]
+    output_size = orders.size(0) * total
+    local = torch.arange(output_size, device=inp.device)
+    local -= global_start.flatten().repeat_interleave(
+        count.flatten(), output_size=output_size
+    )
+    index = (
+        start[orders]
+        .flatten()
+        .repeat_interleave(count.flatten(), output_size=output_size)
+        + local
+    )
+    if (
+        inp._offset.dtype == torch.int32
+        and total <= torch.iinfo(torch.int32).max
+    ):
+        offset = offset.to(torch.int32)
+    valid = inp._valid[positions][orders] if inp._valid is not None else None
+    # Own the bank before exposing row views: returning gather().view()
+    # loses cross-output mutation aliases during compiled reconstruction.
+    data = inp._data.new_empty((orders.size(0), total))
+    data.copy_(inp._data[index].view(orders.size(0), total))
+    return data, offset, valid

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import abc
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from typing import Generic, Self, TypeVar, cast, overload
+from typing import Generic, Protocol, Self, TypeVar, cast, overload
 
 import torch
 from torch import Tensor
@@ -26,16 +26,34 @@ class EnsembleData(abc.ABC, Generic[T]):
         locations: Group index and position for each ensemble member.
     """
 
-    _groups: tuple[T, ...]
-    _locations: tuple[tuple[int, int], ...]
+    _group_data: tuple[T, ...]
+    _member_locations: tuple[tuple[int, int], ...]
 
     def __init__(
         self,
         groups: Sequence[T],
         locations: Sequence[tuple[int, int]],
     ) -> None:
-        self._groups = tuple(groups)
-        self._locations = tuple(locations)
+        self._group_data = tuple(groups)
+        self._member_locations = tuple(locations)
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.__dict__.update(state)
+        # Retain compatibility with saved ensembles predating routed storage.
+        for previous, current in (
+            ("_groups", "_group_data"),
+            ("_locations", "_member_locations"),
+        ):
+            if previous in self.__dict__:
+                self.__dict__[current] = self.__dict__.pop(previous)
+
+    @property
+    def _groups(self) -> tuple[T, ...]:
+        return self._group_data
+
+    @property
+    def _locations(self) -> tuple[tuple[int, int], ...]:
+        return self._member_locations
 
     def __len__(self) -> int:
         return len(self._locations)
@@ -67,6 +85,16 @@ class EnsembleData(abc.ABC, Generic[T]):
         pass
 
 
+class _EnsembleRoutes(Protocol):
+    locations: Tensor
+
+    def __len__(self) -> int: ...
+
+    def member(self, index: int) -> TableTensor: ...
+
+    def materialize(self) -> EnsembleTable: ...
+
+
 class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
     """Store and group input :class:`~sdm.tensor.TableTensor` as an ensemble.
 
@@ -80,6 +108,54 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
             stacked along their leading dimension.
         locations: ``(group, batch)`` location of each ensemble member.
     """
+
+    _routes: _EnsembleRoutes | None = None
+
+    @classmethod
+    def _from_routes(cls, routes: _EnsembleRoutes) -> Self:
+        out = cls(groups=(), locations=())
+        out._routes = routes
+        return out
+
+    @property
+    def _groups(self) -> tuple[TableTensor, ...]:
+        if self._routes is not None:
+            return self._routes.materialize()._groups
+        return self._group_data
+
+    @property
+    def _locations(self) -> tuple[tuple[int, int], ...]:
+        if self._routes is not None:
+            return self._routes.materialize()._locations
+        return self._member_locations
+
+    @property
+    def _route_locations(self) -> Tensor | None:
+        return self._routes.locations if self._routes is not None else None
+
+    def __len__(self) -> int:
+        if self._routes is not None:
+            return len(self._routes)
+        return len(self._member_locations)
+
+    @overload
+    def __getitem__(self, index: int) -> TableTensor: ...
+
+    @overload
+    def __getitem__(self, index: slice | Sequence[int]) -> Self: ...
+
+    def __getitem__(
+        self, index: int | slice | Sequence[int]
+    ) -> TableTensor | Self:
+        if self._routes is not None:
+            if isinstance(index, int):
+                if torch.compiler.is_compiling():
+                    return self._routes.member(index)
+                return self._routes.materialize()[index]
+            return cast(Self, self._routes.materialize()[index])
+        if isinstance(index, int):
+            return super().__getitem__(index)
+        return super().__getitem__(index)
 
     @classmethod
     def from_table(
@@ -395,7 +471,7 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         nonempty_tables = tuple(
             table
             for table in tables
-            if any(group.size(-1) > 0 for group in table._groups)
+            if any(table[i].size(-1) > 0 for i in range(len(table)))
         )
         if len(nonempty_tables) > 0:
             tables = nonempty_tables
