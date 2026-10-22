@@ -14,6 +14,8 @@ import sdm.processing as sp
 from sdm import EnsembleTable, Recipe, RelatedTables, Stype, TableTensor
 from sdm.processing import EnsembleInvertibleMixin, EnsembleProcessor
 from sdm.processing.recipe import _iter_modules
+from sdm.tensor.table import _column_names
+from sdm.tensor.table import _stack as _stack_tables
 
 
 class MemberContext(NamedTuple):
@@ -336,16 +338,17 @@ class RecipeExecution:
         if len(outputs) == 1:
             out = outputs[0].unsqueeze(0)
         else:
-            expected = set(outputs[0].numerical_columns)
+            expected = set(_column_names(outputs[0])[Stype.numerical])
             for output in outputs[1:]:
-                if set(output.numerical_columns) != expected:
+                if set(_column_names(output)[Stype.numerical]) != expected:
                     raise ValueError(
                         "Expected all model outputs to have the same columns "
                         "before applying 'Recipe.output'. Ensure every target "
                         "contains the same set of classes."
                     )
 
-            out = torch.stack(list(outputs), dim=0)
+            # Align runtime class names outside torch.stack tensor dispatch.
+            out = _stack_tables(outputs, dim=0)
 
         return self.recipe.output.transform(cast(TableTensor, out))
 
