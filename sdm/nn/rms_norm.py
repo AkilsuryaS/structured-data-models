@@ -39,8 +39,7 @@ class RMSNorm(torch.nn.RMSNorm):
             cos_sin: tuple[Tensor, Tensor] | None = None
             if rope is not None:
                 if (
-                    not torch.compiler.is_compiling()
-                    and rope.layout == "split_half"
+                    rope.layout == "split_half"
                     and rope.rotary_channels == rope.channels == x.size(-1)
                 ):
                     seq = torch.arange(
