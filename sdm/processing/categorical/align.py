@@ -340,6 +340,8 @@ class AlignCategories(EnsembleProcessor):
     ) -> tuple[Tensor, ...]:
         if not input_categories:
             return ()
+        # StringTensor does not handle this custom op. Pass its underlying
+        # tensors and layout without copying the string data.
         inputs, input_layout = _flatten_strings(input_categories)
         fitted, fitted_layout = _flatten_strings(fitted_categories)
         lookup = _string_category_lookup(
@@ -517,6 +519,7 @@ def _flatten_strings(
 def _unflatten_strings(
     tensors: list[Tensor | None], layout: list[int]
 ) -> tuple[StringTensor, ...]:
+    """Rebuild string views over the same tensors for the join."""
     return tuple(
         StringTensor(
             data=cast(Tensor, tensors[3 * i]),
@@ -531,7 +534,7 @@ def _unflatten_strings(
 
 
 def _concatenate_strings(categories: tuple[StringTensor, ...]) -> StringTensor:
-    # Avoid re-entering subclass dispatch from the opaque operator kernel.
+    # Call SDM's concatenation directly; torch.cat would dispatch again.
     contiguous = tuple(
         category if category.is_contiguous() else _contiguous(category)
         for category in categories
