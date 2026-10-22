@@ -1465,7 +1465,9 @@ def _from_layout_view(inp: VarLenTensor, view: Tensor) -> VarLenTensor:
 def _compact(
     start: Tensor, end: Tensor, *, max_total: int | None = None
 ) -> tuple[Tensor, Tensor]:
-    if statically_known_true(start.numel() == 0) or max_total == 0:
+    if statically_known_true(start.numel() == 0) or statically_known_true(
+        max_total == 0
+    ):
         return start.new_zeros(start.numel() + 1), start.new_empty(0)
     count = end - start
 
@@ -1475,13 +1477,14 @@ def _compact(
 
     total = cast(int, offset[-1].item())
     torch._constrain_as_size(total)
+    torch._check(total <= torch.iinfo(torch.int64).max)
     if max_total is not None:
         torch._check(total <= max_total)
         if (
             start.dtype == torch.int32
             and max_total <= torch.iinfo(torch.int32).max
         ):
-            torch._constrain_as_size(total, max=torch.iinfo(torch.int32).max)
+            torch._check(total <= torch.iinfo(torch.int32).max)
     if start.dtype == torch.int32 and total <= torch.iinfo(torch.int32).max:
         offset = offset.to(torch.int32)
 
