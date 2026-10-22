@@ -491,7 +491,7 @@ def test_compiled_equal_independent_views(compilation: None) -> None:
     equal = torch.compile(torch.equal, backend="eager", fullgraph=False)
 
     assert equal(tensor, other)
-    assert not equal(tensor, VarLenTensor.from_list([[99]] * len(values)))
+    assert not equal(tensor, VarLenTensor.from_list([[99], [2, 3]]))
 
 
 def test_equal_subclass_override(compilation: None) -> None:

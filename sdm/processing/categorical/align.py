@@ -345,7 +345,11 @@ class AlignCategories(EnsembleProcessor):
         inputs, input_layout = _flatten_strings(input_categories)
         fitted, fitted_layout = _flatten_strings(fitted_categories)
         lookup = _string_category_lookup(
-            inputs, input_layout, fitted, fitted_layout, codes
+            inputs=inputs,
+            input_layout=input_layout,
+            fitted=fitted,
+            fitted_layout=fitted_layout,
+            codes=codes,
         )
         return lookup.split(
             [category.numel() for category in input_categories]
