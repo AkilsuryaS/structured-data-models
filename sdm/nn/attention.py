@@ -252,7 +252,9 @@ class SDPA(torch.nn.Module):
         if use_opaque and torch.is_autocast_enabled(query.device.type):
             dtype = torch.get_autocast_dtype(query.device.type)
             query, key, value = (
-                tensor.to(dtype) if tensor.dtype != torch.float64 else tensor
+                tensor.to(dtype)
+                if tensor.is_floating_point() and tensor.dtype != torch.float64
+                else tensor
                 for tensor in (query, key, value)
             )
             if (
