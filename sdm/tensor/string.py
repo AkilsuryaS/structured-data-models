@@ -17,6 +17,7 @@ from typing_extensions import override
 from sdm._warnings import warn_once
 from sdm.tensor import VarLenTensor
 from sdm.tensor.io import arrow_as_tensor, combine_arrow_chunks
+from sdm.tensor.var_len import _contiguous
 
 if TYPE_CHECKING:
     import cudf
@@ -516,6 +517,49 @@ def _sort(
     if inp.dim() != 1:
         raise NotImplementedError("'sort' only supports one-dimensional input")
 
+    perm = _sort_indices(inp, descending=descending)
+    return cast(StringTensor, inp[perm]), perm
+
+
+def _sort_indices(inp: StringTensor, *, descending: bool = False) -> Tensor:
+    # Keep custom subclasses on their original conversion path.
+    if not torch.compiler.is_compiling() or type(inp) is not StringTensor:
+        return _sort_indices_backend(inp, descending=descending)
+    return _sort_indices_op(
+        inp._data,
+        inp._offset,
+        inp._valid,
+        [inp.numel(), inp.stride(0), inp._logical_storage_offset],
+        descending,
+    )
+
+
+@torch.library.custom_op("sdm::string_sort_indices", mutates_args=())
+def _sort_indices_op(
+    data: Tensor,
+    offset: Tensor,
+    valid: Tensor | None,
+    layout: list[int],
+    descending: bool,
+) -> Tensor:
+    size, stride, storage_offset = layout
+    inp = StringTensor(
+        data=data,
+        offset=offset,
+        valid=valid,
+        size=(size,),
+        stride=(stride,),
+        storage_offset=storage_offset,
+    )
+    # Normalize views without re-entering subclass dispatch inside the op.
+    if not inp.is_contiguous():
+        inp = cast(StringTensor, _contiguous(inp))
+    return _sort_indices_backend(inp, descending=descending)
+
+
+def _sort_indices_backend(
+    inp: StringTensor, *, descending: bool = False
+) -> Tensor:
     backend: Literal["arrow", "cudf"] = "arrow"
     if inp.is_cuda:
         if importlib.util.find_spec("cudf") is not None:
@@ -545,4 +589,15 @@ def _sort(
             perm_ser = inp.to_cudf().argsort(ascending=not descending)
             perm = torch.from_dlpack(perm_ser.astype("int64").to_cupy())
 
-    return cast(StringTensor, inp[perm]), perm
+    return perm
+
+
+@_sort_indices_op.register_fake
+def _sort_indices_fake(
+    data: Tensor,
+    offset: Tensor,
+    valid: Tensor | None,
+    layout: list[int],
+    descending: bool,
+) -> Tensor:
+    return data.new_empty((layout[0],), dtype=torch.int64)
