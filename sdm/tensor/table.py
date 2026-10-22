@@ -241,6 +241,7 @@ class TableTensor(Tensor):
     _text: StringTensor
     _id: ColumnarTensor
     _column_schema: dict[Stype, tuple[str, ...] | _ColumnNames]
+    _column_context: tuple[Any, ...]
     _static_columns: dict[Stype, tuple[str, ...]] | None
     _static_column_to_loc: dict[str, tuple[Stype, int]] | None
 
@@ -480,6 +481,12 @@ class TableTensor(Tensor):
         out._text = text
         out._id = id
         out._column_schema = stype_columns
+        out._column_context = (
+            cls,
+            tuple(columns.items()),
+            tuple(column_pools),
+            tuple(column_indices),
+        )
         if not column_pools and not column_indices:
             out._static_columns = cast(
                 dict[Stype, tuple[str, ...]], stype_columns
@@ -1266,29 +1273,10 @@ class TableTensor(Tensor):
         attrs = ["numerical", "categorical", "datetime", "text", "id"]
         # Let torch.compile track backing fields and their public properties.
         attrs = [f"_{name}" for name in attrs] + attrs
-        columns = []
-        pools = []
-        indices = []
-        for stype, names in self._column_schema.items():
-            name = str(stype)
-            if isinstance(names, _ColumnNames):
-                columns.append(
-                    (name, names.pool if isinstance(names.pool, tuple) else ())
-                )
-                if isinstance(names.pool, Tensor):
-                    pools.append(name)
-                    attrs.append(f"_column_pool_{name}")
-                if names.indices is not None:
-                    indices.append(name)
-                    attrs.append(f"_column_indices_{name}")
-            else:
-                columns.append((name, names))
-        return attrs, (
-            self.__class__,
-            tuple(columns),
-            tuple(pools),
-            tuple(indices),
-        )
+        _, _, pools, indices = self._column_context
+        attrs += [f"_column_pool_{name}" for name in pools]
+        attrs += [f"_column_indices_{name}" for name in indices]
+        return attrs, self._column_context
 
     @staticmethod
     def __tensor_unflatten__(
