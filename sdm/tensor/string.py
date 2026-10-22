@@ -17,7 +17,7 @@ from typing_extensions import override
 from sdm._warnings import warn_once
 from sdm.tensor import VarLenTensor
 from sdm.tensor.io import arrow_as_tensor, combine_arrow_chunks
-from sdm.tensor.var_len import _contiguous
+from sdm.tensor.var_len import _contiguous, _select_unique
 
 if TYPE_CHECKING:
     import cudf
@@ -518,6 +518,8 @@ def _sort(
         raise NotImplementedError("'sort' only supports one-dimensional input")
 
     perm = _sort_indices(inp, descending=descending)
+    if torch.compiler.is_compiling() and type(inp) is StringTensor:
+        return cast(StringTensor, _select_unique(inp, perm)), perm
     return cast(StringTensor, inp[perm]), perm
 
 

@@ -19,7 +19,7 @@ from sdm.nn._buffer import BufferList
 from sdm.processing import EnsembleProcessor
 from sdm.relational.join import join_index
 from sdm.tensor.categorical import _iter_categories
-from sdm.tensor.var_len import _cat, _contiguous
+from sdm.tensor.var_len import _cat, _contiguous, _select_unique
 
 _UNSIGNED_DTYPES = frozenset({torch.uint16, torch.uint32, torch.uint64})
 
@@ -135,10 +135,17 @@ class AlignCategories(EnsembleProcessor):
         for batch_index in range(batch_size):
             selected_indices = order[batch_index, observed[batch_index]]
             if (
-                selected_indices.numel() == input_categories.numel()
-                and self.sort_by != "frequency"
+                self.sort_by != "frequency"
+                and selected_indices.numel() == input_categories.numel()
             ):
                 fitted_categories.append(ordered_categories)
+            elif (
+                torch.compiler.is_compiling()
+                and type(input_categories) is StringTensor
+            ):
+                fitted_categories.append(
+                    _select_unique(input_categories, selected_indices)
+                )
             elif (
                 input_categories.dtype in _UNSIGNED_DTYPES
                 and input_categories.is_cpu
