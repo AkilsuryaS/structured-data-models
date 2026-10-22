@@ -14,6 +14,7 @@ from sdm.tensor.var_len import _cat, _contiguous
 def _flatten_strings(
     categories: tuple[Tensor, ...],
 ) -> tuple[list[Tensor | None], list[int]]:
+    """Pack vocabulary tensors and their (length, stride, offset) metadata."""
     tensors: list[Tensor | None] = []
     layout: list[int] = []
     for category in categories:
@@ -29,10 +30,10 @@ def _flatten_strings(
     return tensors, layout
 
 
-def _unflatten_strings(
-    tensors: list[Tensor | None], layout: list[int]
-) -> tuple[StringTensor, ...]:
-    return tuple(
+def _vocabulary_table(
+    tensors: list[Tensor | None], layout: list[int], codes: Tensor
+) -> TableTensor:
+    categories = tuple(
         StringTensor(
             data=cast(Tensor, tensors[3 * i]),
             offset=cast(Tensor, tensors[3 * i + 1]),
@@ -43,15 +44,21 @@ def _unflatten_strings(
         )
         for i in range(len(layout) // 3)
     )
-
-
-def _concatenate_strings(categories: tuple[StringTensor, ...]) -> StringTensor:
-    # Avoid re-entering subclass dispatch from the opaque operator kernel.
+    # Custom operations bypass tensor-subclass dispatch; call the kernels.
     contiguous = tuple(
         category if category.is_contiguous() else _contiguous(category)
         for category in categories
     )
-    return cast(StringTensor, _cat(contiguous))
+    pairs = torch.cat(
+        [
+            codes.new_full((category.numel(),), index)
+            for index, category in enumerate(categories)
+        ]
+    )
+    return TableTensor(
+        columns={"id": ("pair", "value")},
+        id=ColumnarTensor((pairs, _cat(contiguous))),
+    )
 
 
 @torch.library.custom_op("sdm::string_category_lookup", mutates_args=())
@@ -63,54 +70,20 @@ def _string_category_lookup(
     codes: Tensor,
 ) -> Tensor:
     """Keep the backend join's dynamic row pairs inside a fixed-size lookup."""
-    input_categories = _unflatten_strings(inputs, input_layout)
-    fitted_categories = _unflatten_strings(fitted, fitted_layout)
-    # Pair IDs for each input category: (total_input_categories,).
-    left_pair = torch.cat(
-        [
-            codes.new_full((categories.numel(),), pair_index)
-            for pair_index, categories in enumerate(input_categories)
-        ]
-    )
-    # Pair IDs for each fitted category: (total_fitted_categories,).
-    right_pair = torch.cat(
-        [
-            codes.new_full((categories.numel(),), pair_index)
-            for pair_index, categories in enumerate(fitted_categories)
-        ]
-    )
     left_index, right_index = join_index(
-        left_table=TableTensor(
-            columns={"id": ("pair", "value")},
-            id=ColumnarTensor(
-                (left_pair, _concatenate_strings(input_categories)),
-            ),
-        ),
-        right_table=TableTensor(
-            columns={"id": ("pair", "value")},
-            id=ColumnarTensor(
-                (right_pair, _concatenate_strings(fitted_categories)),
-            ),
-        ),
+        left_table=_vocabulary_table(inputs, input_layout, codes),
+        right_table=_vocabulary_table(fitted, fitted_layout, codes),
         left_keys=["pair", "value"],
         right_keys=["pair", "value"],
         dtype=codes.dtype,
     )
     fitted_codes = torch.cat(
         [
-            torch.arange(
-                categories.numel(),
-                dtype=codes.dtype,
-                device=codes.device,
-            )
-            for categories in fitted_categories
+            torch.arange(size, dtype=codes.dtype, device=codes.device)
+            for size in fitted_layout[::3]
         ]
     )
-    # Fitted code for each input category: (total_input_categories,).
-    lookup = codes.new_full(
-        (sum(categories.numel() for categories in input_categories),),
-        -1,
-    )
+    lookup = codes.new_full((sum(input_layout[::3]),), -1)
     lookup[left_index] = fitted_codes[right_index]
     return lookup
 
