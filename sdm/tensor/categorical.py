@@ -329,6 +329,10 @@ class CategoricalTensor(Tensor):
                 for column in tensor.unbind(dim=-1)
             ]
         )
+        # A nonempty column always has at least one unique value.
+        if tensor.numel() > 0:
+            for category in categories:
+                torch._check(category.numel() > 0)
         return cls(
             code=torch.stack(values, dim=-1),
             categories=categories,
