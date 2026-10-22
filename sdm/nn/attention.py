@@ -9,11 +9,80 @@ from typing import Any, Literal, overload
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+from torch.fx.experimental import symbolic_shapes
 from torch.nn import Linear
 
 from sdm._memory import chunk_memory_limit
 from sdm.cache import KVCacheEntry
 from sdm.nn import QueryScaling
+
+
+def _sdpa_chunks(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attn_mask: Tensor | None,
+    dropout_p: float,
+    is_causal: bool,
+    scale: float | None,
+    enable_gqa: bool,
+) -> Tensor:
+    # CUDA attention kernels accept at most 65,535 batch entries per call.
+    chunk_starts = (
+        (0,) if query.size(0) <= 65_535 else range(0, query.size(0), 65_535)
+    )
+    outs = [
+        F.scaled_dot_product_attention(
+            query=query[i : i + 65_535],
+            key=key[i : i + 65_535],
+            value=value[i : i + 65_535],
+            attn_mask=None if attn_mask is None else attn_mask[i : i + 65_535],
+            dropout_p=dropout_p,
+            is_causal=is_causal,
+            scale=scale,
+            enable_gqa=enable_gqa,
+        ).transpose(-3, -2)
+        for i in chunk_starts
+    ]
+    return outs[0] if len(outs) == 1 else torch.cat(outs)
+
+
+if hasattr(symbolic_shapes, "guard_or_false"):
+
+    @torch.library.custom_op(
+        "sdm::_sdpa_chunks",
+        mutates_args=(),
+        tags=(torch.Tag.nondeterministic_seeded,),
+    )
+    def _compiled_sdpa_chunks(
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        attn_mask: Tensor | None,
+        dropout_p: float,
+        is_causal: bool,
+        scale: float | None,
+        enable_gqa: bool,
+    ) -> Tensor:
+        # Normalize the backend-dependent output layout for the fake kernel.
+        return _sdpa_chunks(
+            query,
+            key,
+            value,
+            attn_mask,
+            dropout_p,
+            is_causal,
+            scale,
+            enable_gqa,
+        ).contiguous()
+
+    @_compiled_sdpa_chunks.register_fake
+    def _fake_sdpa_chunks(
+        query, key, value, attn_mask, dropout_p, is_causal, scale, enable_gqa
+    ):
+        return query.new_empty(
+            (query.size(0), query.size(-2), query.size(-3), value.size(-1))
+        )
 
 
 class SDPA(torch.nn.Module):
@@ -171,23 +240,41 @@ class SDPA(torch.nn.Module):
         key = key.transpose(-3, -2)  # [B, Hkv, KV, C]
         value = value.transpose(-3, -2)  # [B, Hkv, KV, C]
 
-        # CUDA attention kernels accept at most 65,535 batch entries per call:
-        outs = [
-            F.scaled_dot_product_attention(
-                query=query[i : i + 65_535],
-                key=key[i : i + 65_535],
-                value=value[i : i + 65_535],
-                attn_mask=None
-                if attn_mask is None
-                else attn_mask[i : i + 65_535],  # [B, Hq, Q, KV]
-                dropout_p=self.dropout if self.training else 0.0,
-                enable_gqa=enable_gqa,
-                is_causal=is_causal,
-                scale=self.scale,
-            ).transpose(-3, -2)  # [B, Q, Hq, C]
-            for i in range(0, query.size(0), 65_535)
-        ]
-        out = outs[0] if len(outs) == 1 else torch.cat(outs)
+        dropout_p = self.dropout if self.training else 0.0
+        use_opaque = (
+            torch.compiler.is_compiling()
+            and not torch.is_grad_enabled()
+            and query.device.type in ("cpu", "cuda")
+            and hasattr(symbolic_shapes, "guard_or_false")
+            and not symbolic_shapes.guard_or_false(query.size(0) <= 65_535)
+        )
+        # Custom ops do not inherit SDPA's autocast dispatch policy.
+        if use_opaque and torch.is_autocast_enabled(query.device.type):
+            dtype = torch.get_autocast_dtype(query.device.type)
+            query, key, value = (
+                tensor.to(dtype) if tensor.dtype != torch.float64 else tensor
+                for tensor in (query, key, value)
+            )
+            if (
+                attn_mask is not None
+                and attn_mask.is_floating_point()
+                and attn_mask.dtype != torch.float64
+                and attn_mask.device.type == query.device.type
+            ):
+                attn_mask = attn_mask.to(dtype)
+        args = (
+            query,
+            key,
+            value,
+            attn_mask,
+            dropout_p,
+            is_causal,
+            self.scale,
+            enable_gqa,
+        )
+        out = (
+            _compiled_sdpa_chunks(*args) if use_opaque else _sdpa_chunks(*args)
+        )
 
         return out.view(batch_shape + out.size()[-3:])  # [..., Q, Hq, C]
 
