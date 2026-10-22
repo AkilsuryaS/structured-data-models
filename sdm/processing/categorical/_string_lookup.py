@@ -49,10 +49,11 @@ def _vocabulary_table(
         category if category.is_contiguous() else _contiguous(category)
         for category in categories
     )
+    # Pair IDs keep join matches within the corresponding vocabulary.
     pairs = torch.cat(
         [
-            codes.new_full((category.numel(),), index)
-            for index, category in enumerate(categories)
+            codes.new_full((category.numel(),), pair_index)
+            for pair_index, category in enumerate(categories)
         ]
     )
     return TableTensor(
