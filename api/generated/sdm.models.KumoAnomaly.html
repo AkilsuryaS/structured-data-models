@@ -331,7 +331,7 @@ time step.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">Recipe</span><span class="p">(</span>
 </span><span data-line="2">  <span class="n">features</span><span class="o">=</span><span class="n">StypeDispatch</span><span class="p">(</span>
 </span><span data-line="3">    <span class="n">numerical</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
-</span><span data-line="4">      <span class="n">PCA</span><span class="p">(),</span>
+</span><span data-line="4">      <span class="n">PCA</span><span class="p">(</span><span class="n">num_components</span><span class="o">=</span><span class="mi">40</span><span class="p">),</span>
 </span><span data-line="5">      <span class="n">MinMaxScale</span><span class="p">(),</span>
 </span><span data-line="6">    <span class="p">),</span>
 </span><span data-line="7">  <span class="p">),</span>
@@ -367,7 +367,7 @@ time step.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=50806a69"></script>
+      <script src="../../_static/documentation_options.js?v=1e2b0451"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
