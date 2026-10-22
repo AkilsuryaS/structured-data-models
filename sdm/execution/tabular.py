@@ -127,6 +127,7 @@ class TabularExecution:
         owner_local_frontend: bool = False,
         shard_row_workspace: bool = False,
         precision: Literal["float32", "float16"] = "float32",
+        gathered_kv_cache_bytes: int = 0,
     ) -> None:
         self.model, self.task, self.exchange = model, task, exchange
         self._core = cast(_KumoTabular, model.models[task])
@@ -137,6 +138,7 @@ class TabularExecution:
         self.owner_local_frontend = owner_local_frontend
         self.shard_row_workspace = shard_row_workspace
         self.precision = precision
+        self.gathered_kv_cache_bytes = gathered_kv_cache_bytes
         self._lock = threading.Lock()
         self._owner_thread = threading.get_ident()
         self._thread: int | None = None
@@ -149,6 +151,7 @@ class TabularExecution:
         self._icl_cache: OwnedCache | None = None
         self._result: Tensor | None = None
         self._fit_started = False
+        self._kv_decision_made = False
         self._identity = exchange.attempt(self._admit)
         signature = tuple(
             (value.shape, value.dtype) for value in self._core.parameters()
@@ -162,6 +165,7 @@ class TabularExecution:
                 owner_local_frontend,
                 shard_row_workspace,
                 precision,
+                gathered_kv_cache_bytes,
                 signature,
             )
         )
@@ -186,6 +190,7 @@ class TabularExecution:
             self.owner_local_frontend,
             self.shard_row_workspace,
             self.precision,
+            self.gathered_kv_cache_bytes,
         )
 
     def _check_precision(self) -> None:
@@ -227,6 +232,13 @@ class TabularExecution:
         ):
             raise ValueError(
                 "Fit head gather window must be a positive integer"
+            )
+        if (
+            type(self.gathered_kv_cache_bytes) is not int
+            or self.gathered_kv_cache_bytes < 0
+        ):
+            raise ValueError(
+                "Gathered KV cache budget must be a nonnegative integer"
             )
         if (
             type(self.model) is not KumoTabular
@@ -294,6 +306,9 @@ class TabularExecution:
                 if cache is not None
                 for value in cache._tensors()
             ),
+            self._icl_cache.replica_state()
+            if self._icl_cache is not None
+            else None,
         )
 
     @contextmanager
@@ -628,10 +643,33 @@ class TabularExecution:
                 return waves
 
             waves = self.exchange.metadata(self.exchange.attempt(plan))
+            if waves:
+                self._materialize_icl()
             outputs = []
             for wave in waves:
                 outputs.extend(self._predict_wave(wave, batches))
             return outputs if self.exchange.rank == 0 else None
+
+    def _materialize_icl(self) -> None:
+        cache = self._icl_cache
+        assert cache is not None
+        if (
+            self._kv_decision_made
+            or self.gathered_kv_cache_bytes == 0
+            or self.exchange.world == 1
+        ):
+            return
+        layout, needed = self.exchange.attempt(cache.replica_plan)
+        decision = (layout, needed <= self.gathered_kv_cache_bytes)
+        decisions = self.exchange.records(decision)
+        if any(other != decision for other in decisions):
+            raise RuntimeError("ICL KV replica plans differ between ranks")
+        self._kv_decision_made = True
+        if not decision[1]:
+            return
+        cache.materialize_replicas(layout)
+        # The owned slices and complete replicas become one boundary identity.
+        self._cache_identity = self._cache_state()
 
     def _predict_wave(
         self, wave: list[int], batches: Sequence[Tensor | TableTensor] | None
@@ -767,6 +805,7 @@ class TabularExecution:
         self._root_cache = self._batch_cache = None
         self._row_cache = self._icl_cache = None
         self._cache_identity = None
+        self._kv_decision_made = False
 
     def clear(self) -> None:
         """Fence and release the fitted generation, keeping the model lease."""
@@ -797,6 +836,7 @@ def tabular_execution(
     owner_local_frontend: bool = False,
     shard_row_workspace: bool = False,
     precision: Literal["float32", "float16"] = "float32",
+    gathered_kv_cache_bytes: int = 0,
 ) -> TabularExecution:
     """Borrow a loaded model for explicit original-wave execution.
 
@@ -821,6 +861,12 @@ def tabular_execution(
             ambient autocast. Explicit float16 owns matching autocast scopes
             on every rank; weights, prepared inputs and original processing
             islands remain FP32. This is not half-stored model support.
+        gathered_kv_cache_bytes: Optional per-rank retained-payload budget
+            for a whole generation's gathered ICL K/V. Default zero keeps
+            per-layer gathers. A positive budget is used only when all full
+            layers fit; owned slices remain resident alongside replicas.
+            This does not bound transient collective workspace or total
+            allocator/device memory.
 
     All ranks construct the executor and call its methods in the same order::
 
@@ -846,4 +892,5 @@ def tabular_execution(
         owner_local_frontend,
         shard_row_workspace,
         precision,
+        gathered_kv_cache_bytes,
     )
