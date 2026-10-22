@@ -2298,8 +2298,13 @@ def _is_column_dim(inp: Tensor, dim: int) -> bool:
 
 
 def _align_like(inp: TableTensor, ref: TableTensor) -> TableTensor:
-    if inp is ref:
-        return inp
+    # Shared name buffers establish equality without reading their values.
+    if inp._column_context == ref._column_context:
+        _, _, pools, indices = inp._column_context
+        attrs = [f"_column_pool_{name}" for name in pools]
+        attrs += [f"_column_indices_{name}" for name in indices]
+        if all(getattr(inp, name) is getattr(ref, name) for name in attrs):
+            return inp
     if inp._columns == ref._columns:
         return inp
 
