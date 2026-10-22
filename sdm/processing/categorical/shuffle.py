@@ -52,37 +52,83 @@ class ShuffleCategories(EnsembleProcessor):
         self,
         table: TableTensor,
         *,
-        unused_offsets: dict[tuple[str, int], Tensor],
+        history: dict[str, list[tuple[int | Tensor, int | Tensor, Tensor]]],
         generator: torch.Generator | None = None,
     ) -> list[Tensor]:
         device = table.categorical.device
+        generator_kwargs = (
+            {"generator": generator} if generator is not None else {}
+        )
         permutations: list[Tensor] = []
-        for column_index, category in enumerate(table.categorical.categories):
+        for column_index, category in enumerate(
+            _iter_categories(table.categorical)
+        ):
             n_classes = category.numel()
-            if n_classes <= 1:
-                permutation = torch.arange(n_classes, device=device)
-            elif self.method == "shift":
+            count = (
+                torch.scalar_tensor(n_classes, dtype=torch.long, device=device)
+                if torch.compiler.is_compiling()
+                else n_classes
+            )
+            if self.method == "random":
+                permutation = torch.cond(
+                    count > 1,
+                    lambda n: torch.randperm(
+                        n, device=device, **generator_kwargs
+                    ),
+                    lambda n: torch.arange(n, device=device),
+                    (n_classes,),
+                )
+            else:
+                assert self.method == "shift"
                 column_name = table.categorical_columns[column_index]
-                key = (column_name, n_classes)
-                offsets = unused_offsets.get(key)
-                if offsets is None or offsets.numel() == 0:
-                    offsets = torch.randperm(
-                        n_classes,
-                        generator=generator,
-                        device=device,
-                    )
-                offset = offsets[:1]
-                unused_offsets[key] = offsets[1:]
+                # Learned sizes stay in tensor history, not Python keys.
+                prior = history.setdefault(column_name, [])
+                rank = count * 0
+                for previous_count, _, _ in prior:
+                    rank = rank + (previous_count == count)
+                denominator = (
+                    count.clamp_min(1)
+                    if isinstance(count, Tensor)
+                    else max(count, 1)
+                )
+                position = rank % denominator
+                draw = torch.cond(
+                    (count > 1) & (position == 0),
+                    lambda n: torch.randperm(
+                        n, device=device, **generator_kwargs
+                    ),
+                    lambda n: torch.arange(n, device=device),
+                    (n_classes,),
+                )
+                prior.append((count, rank, draw))
+                # Reuse the draw that began this column's current offset cycle.
+                cycle_start = rank - position
+                offset = draw.new_zeros(())
+                for previous_count, previous_rank, previous_draw in prior:
+                    if isinstance(position, Tensor):
+                        selected = torch.where(
+                            torch.arange(previous_draw.numel(), device=device)
+                            == position,
+                            previous_draw,
+                            0,
+                        ).sum()
+                        offset = offset + torch.where(
+                            cast(
+                                Tensor,
+                                (previous_count == count)
+                                & (previous_rank == cycle_start),
+                            ),
+                            selected,
+                            0,
+                        )
+                    elif (
+                        previous_count == count
+                        and previous_rank == cycle_start
+                    ):
+                        offset = previous_draw[position : position + 1]
                 permutation = (
                     torch.arange(n_classes, device=device) - offset
-                ) % n_classes
-            else:
-                assert self.method == "random"
-                permutation = torch.randperm(
-                    n_classes,
-                    generator=generator,
-                    device=device,
-                )
+                ) % denominator
             permutations.append(permutation)
         return permutations
 
@@ -97,12 +143,13 @@ class ShuffleCategories(EnsembleProcessor):
         permutation_ids = []
         permutation_id_by_key: dict[tuple[tuple[int, ...], ...], int] = {}
 
-        # (column name, n_classes) -> unused cyclic offsets for that column.
-        unused_offsets: dict[tuple[str, int], Tensor] = {}
+        history: dict[
+            str, list[tuple[int | Tensor, int | Tensor, Tensor]]
+        ] = {}
         for member_id in range(len(ensemble_table)):
             permutations = self._draw_permutations(
                 ensemble_table[member_id],
-                unused_offsets=unused_offsets,
+                history=history,
                 generator=generator,
             )
             key = tuple(
@@ -192,11 +239,17 @@ class ShuffleCategories(EnsembleProcessor):
             permutation = permutations[index]
             codes = code[..., index]
             valid = valid_mask[..., index]
-            if permutation.numel() > 0:
-                mapped = permutation[codes.clamp_min(0).long()]
-                code[..., index] = torch.where(
-                    valid, mapped.to(codes.dtype), codes
-                )
+            nonempty = permutation.numel() > 0
+            code[..., index] = torch.cond(
+                nonempty,
+                lambda values, mask, order: torch.where(
+                    mask,
+                    order[values.clamp_min(0).long()].to(values.dtype),
+                    values,
+                ),
+                lambda values, mask, order: values.clone(),
+                (codes, valid, permutation),
+            )
             categories.append(category[permutation.argsort()])
 
         categorical = CategoricalTensor(
