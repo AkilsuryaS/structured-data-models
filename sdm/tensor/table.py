@@ -46,13 +46,23 @@ class _ColumnNames:
             return self.pool.size(0)
         return len(self.pool)
 
-    def resolve(self) -> tuple[str, ...]:
-        pool = self.pool
-        if isinstance(pool, Tensor):
-            pool = tuple(str(value) for value in pool.tolist())
-        if self.indices is None:
-            return pool
-        return tuple(pool[index] for index in self.indices.tolist())
+
+def _column_names(table: TableTensor) -> dict[Stype, tuple[str, ...]]:
+    if table._static_columns is not None:
+        return table._static_columns
+    _, columns, pools, indices = table._column_context
+    names_by_stype = {}
+    for stype, names in columns:
+        if stype in pools:
+            pool = getattr(table, f"_column_pool_{stype}")
+            # Trace subclass tolist implementations as ordinary Python.
+            names = tuple(str(value) for value in type(pool).tolist(pool))
+        if stype in indices:
+            index = getattr(table, f"_column_indices_{stype}")
+            names = tuple(names[i] for i in index.tolist())
+        names_by_stype[Stype(stype)] = names
+    table._static_columns = names_by_stype
+    return names_by_stype
 
 
 aten = torch.ops.aten
@@ -247,16 +257,7 @@ class TableTensor(Tensor):
 
     @property
     def _columns(self) -> dict[Stype, tuple[str, ...]]:
-        if self._static_columns is not None:
-            return self._static_columns
-        columns = {
-            stype: names.resolve()
-            if isinstance(names, _ColumnNames)
-            else names
-            for stype, names in self._column_schema.items()
-        }
-        self._static_columns = columns
-        return columns
+        return _column_names(self)
 
     @property
     def _column_to_loc(self) -> dict[str, tuple[Stype, int]]:

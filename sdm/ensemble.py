@@ -14,6 +14,7 @@ from sdm import Stype, StypeLike
 from sdm.tensor import TableTensor
 from sdm.tensor.categorical import _iter_categories
 from sdm.tensor.mixin import DeviceMixin
+from sdm.tensor.table import _column_names
 
 T = TypeVar("T")
 
@@ -172,7 +173,7 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
             # Shape, schema, block layout, device, and categorical vocabularies
             # must match for torch.stack to preserve member semantics.
             compatibility_key = (
-                table.column_groups,
+                tuple(_column_names(table).items()),
                 tuple(
                     (
                         stype,

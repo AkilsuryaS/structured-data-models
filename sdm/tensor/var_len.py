@@ -1357,6 +1357,23 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
                 f"{tensor.__class__.__name__!r}"
             )
 
+    tensors = cast(Sequence[VarLenTensor], tensors)
+    if all(tensor.numel() == 0 for tensor in tensors):
+        layout = torch.cat([_layout_view(tensor) for tensor in tensors], dim)
+        return tensor_cls(
+            data=torch.cat([tensor._data[:0] for tensor in tensors]),
+            offset=layout.new_zeros(1),
+            valid=next(
+                (
+                    tensor._valid[:0].clone()
+                    for tensor in tensors
+                    if tensor._valid is not None
+                ),
+                None,
+            ),
+            size=layout.size(),
+        )
+
     tensors = tuple(
         cast(VarLenTensor, tensor.contiguous()) for tensor in tensors
     )
