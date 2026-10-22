@@ -1124,7 +1124,10 @@ class TableTensor(Tensor):
             id: Replacement identifier block with shape ``[..., C_id]``.
         """
         return self.__class__(
-            columns=cast(Mapping[StypeLike, Sequence[str]], self._columns),
+            columns=cast(
+                Mapping[StypeLike, Sequence[str] | _ColumnNames],
+                self._column_schema,
+            ),
             numerical=self.numerical if numerical is None else numerical,
             categorical=(
                 self.categorical if categorical is None else categorical
@@ -1149,7 +1152,7 @@ class TableTensor(Tensor):
 
         return self.__class__(
             size=self.size()[:-1],
-            columns={stype: self._columns[stype] for stype in stypes},
+            columns={stype: self._column_schema[stype] for stype in stypes},
             device=self.device,
             **{stype: getattr(self, stype) for stype in stypes},
         )
@@ -1174,10 +1177,12 @@ class TableTensor(Tensor):
             stypes = (stypes,)
         stypes = {Stype(stype) for stype in stypes}
 
-        keep = tuple(stype for stype in self._columns if stype not in stypes)
+        keep = tuple(
+            stype for stype in self._column_schema if stype not in stypes
+        )
         return self.__class__(
             size=self.size()[:-1],
-            columns={stype: self._columns[stype] for stype in keep},
+            columns={stype: self._column_schema[stype] for stype in keep},
             device=self.device,
             **{stype: getattr(self, stype) for stype in keep},
         )
@@ -2223,7 +2228,7 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> TableTensor:
             else torch.cat(block_list, dim=dim)
         )
 
-    columns = ref._columns
+    columns = ref._column_schema
     if is_column_dim:
         columns = {
             stype: tuple(
@@ -2263,11 +2268,14 @@ def _stack(tensors: Sequence[Tensor], dim: int = 0) -> TableTensor:
 
     blocks = {
         stype: torch.stack([tensor.blocks[stype] for tensor in tensors], dim)
-        for stype in ref._columns
+        for stype in ref._column_schema
     }
 
     return ref.__class__(
-        columns=cast(dict[StypeLike, tuple[str, ...]], ref._columns),
+        columns=cast(
+            Mapping[StypeLike, Sequence[str] | _ColumnNames],
+            ref._column_schema,
+        ),
         **blocks,
     )
 
@@ -2290,6 +2298,8 @@ def _is_column_dim(inp: Tensor, dim: int) -> bool:
 
 
 def _align_like(inp: TableTensor, ref: TableTensor) -> TableTensor:
+    if inp is ref:
+        return inp
     if inp._columns == ref._columns:
         return inp
 
