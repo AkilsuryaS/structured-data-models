@@ -146,7 +146,9 @@ class DropConstantColumns(EnsembleProcessor):
 
     def _transform(self, table: TableTensor) -> TableTensor:
         if self._shared_members:
-            if self._keep_all:
+            if self._keep_all and (
+                table.numerical.size(-1) == self._shared_keep.size(0)
+            ):
                 return table
             return table._select_numerical_mask(self._shared_keep)
         return self._select_columns(table, self._kept_indices[0])
@@ -225,10 +227,12 @@ class DropConstantColumns(EnsembleProcessor):
             if self._shared_members != len(ensemble_table):
                 raise RuntimeError(
                     "DropConstantColumns must be fitted with the same "
-                    "number of "
-                    "ensemble members before transform."
+                    "number of ensemble members before transform."
                 )
-            if self._keep_all:
+            if self._keep_all and all(
+                group.numerical.size(-1) == self._shared_keep.size(0)
+                for group in ensemble_table._iter_groups()
+            ):
                 return ensemble_table
             return ensemble_table.replace_groups(
                 [

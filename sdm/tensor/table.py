@@ -248,22 +248,24 @@ class TableTensor(Tensor):
     def _columns(self) -> dict[Stype, tuple[str, ...]]:
         if self._static_columns is not None:
             return self._static_columns
-        return {
+        columns = {
             stype: names.resolve()
             if isinstance(names, _ColumnNames)
             else names
             for stype, names in self._column_schema.items()
         }
+        self._static_columns = columns
+        return columns
 
     @property
     def _column_to_loc(self) -> dict[str, tuple[Stype, int]]:
-        if self._static_column_to_loc is not None:
-            return self._static_column_to_loc
-        return {
-            name: (stype, i)
-            for stype, names in self._columns.items()
-            for i, name in enumerate(names)
-        }
+        if self._static_column_to_loc is None:
+            self._static_column_to_loc = {
+                name: (stype, i)
+                for stype, names in self._columns.items()
+                for i, name in enumerate(names)
+            }
+        return self._static_column_to_loc
 
     # Route tensor operations through `__torch_dispatch__` only.
     __torch_function__ = torch._C._disabled_torch_function_impl  # type: ignore
@@ -1320,7 +1322,9 @@ class TableTensor(Tensor):
             indices = (
                 index
                 if names.indices is None
-                else names.indices.index_select(0, index)
+                else names.indices.index_select(
+                    0, index.to(names.indices.device)
+                )
             )
             names = _ColumnNames(names.pool, indices)
         else:
@@ -1345,6 +1349,8 @@ class TableTensor(Tensor):
         pool: tuple[str, ...] | Tensor,
         indices: Tensor | None = None,
     ) -> Self:
+        # Callers supply an owned pool with unique string representations and
+        # unique, nonnegative indices. Selection from a table preserves this.
         return cls(
             numerical=numerical,
             columns={Stype.numerical: _ColumnNames(pool, indices)},
