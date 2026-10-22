@@ -92,7 +92,11 @@ class _EnsembleRoutes(Protocol):
 
     def member(self, index: int) -> TableTensor: ...
 
+    def categorical_code(self, index: int) -> Tensor: ...
+
     def materialize(self) -> EnsembleTable: ...
+
+    def schema_tables(self) -> Iterator[TableTensor]: ...
 
 
 class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
@@ -111,6 +115,11 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
 
     _routes: _EnsembleRoutes | None = None
 
+    def _categorical_code(self, index: int) -> Tensor:
+        if self._routes is not None:
+            return self._routes.categorical_code(index)
+        return self[index].categorical.code
+
     @classmethod
     def _from_routes(cls, routes: _EnsembleRoutes) -> Self:
         out = cls(groups=(), locations=())
@@ -128,6 +137,12 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         if self._routes is not None:
             return self._routes.materialize()._locations
         return self._member_locations
+
+    def _iter_schema_tables(self) -> Iterator[TableTensor]:
+        """Visit static column layouts without iterating logical groups."""
+        if self._routes is not None:
+            return self._routes.schema_tables()
+        return iter(self._group_data)
 
     @property
     def _route_locations(self) -> Tensor | None:
@@ -471,7 +486,7 @@ class EnsembleTable(DeviceMixin, EnsembleData[TableTensor]):
         nonempty_tables = tuple(
             table
             for table in tables
-            if any(table[i].size(-1) > 0 for i in range(len(table)))
+            if any(group.size(-1) > 0 for group in table._iter_schema_tables())
         )
         if len(nonempty_tables) > 0:
             tables = nonempty_tables

@@ -128,7 +128,7 @@ class EnsembleProcessor(Processor):
         """
         if not any(
             self._handles_table(group)
-            for group in ensemble_table._iter_groups()
+            for group in ensemble_table._iter_schema_tables()
         ):
             return self
         if self.requires_fit:
@@ -150,7 +150,7 @@ class EnsembleProcessor(Processor):
         """
         if not any(
             self._handles_table(group)
-            for group in ensemble_table._iter_groups()
+            for group in ensemble_table._iter_schema_tables()
         ):
             return ensemble_table
         self._check_is_fitted()
@@ -173,7 +173,7 @@ class EnsembleProcessor(Processor):
         """
         if not any(
             self._handles_table(group)
-            for group in ensemble_table._iter_groups()
+            for group in ensemble_table._iter_schema_tables()
         ):
             return ensemble_table
         output = self._fit_transform_ensemble(

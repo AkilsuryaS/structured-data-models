@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 import pytest
@@ -9,6 +9,7 @@ import torch
 
 from sdm import CategoricalTensor, EnsembleTable, StringTensor, TableTensor
 from sdm.processing import AlignCategories
+from sdm.tensor.categorical import _iter_categories
 from sdm.testing import withCUDA
 
 
@@ -540,3 +541,51 @@ def test_string_category_lookups_compile(compilation: None) -> None:
         actual=second,
         expected=torch.tensor([1, -1, -1], dtype=codes.dtype),
     )
+
+
+@pytest.mark.parametrize("fullgraph", [False, True])
+def test_value_alignment_preserves_full_and_partial_vocabulary_aliases(
+    fullgraph: bool, compilation: None
+) -> None:
+    processor = AlignCategories(sort_by="value")
+    category = StringTensor.from_list(["cat", "ant", "dog"])
+
+    def run(code: torch.Tensor):
+        source = EnsembleTable(
+            groups=(
+                TableTensor(categorical=CategoricalTensor(code, (category,))),
+            ),
+            locations=tuple((0, i) for i in range(4)),
+        )
+        output = processor.fit_transform_ensemble(source)
+        vocabulary = cast(
+            StringTensor, next(_iter_categories(output[0].categorical))
+        )
+        vocabulary._data.add_(1)
+        return output, tuple(
+            cast(
+                StringTensor, next(_iter_categories(output[i].categorical))
+            )._data.clone()
+            for i in range(4)
+        )
+
+    compiled = torch.compile(run, fullgraph=fullgraph)
+    for full_members in ((0, 1), (0, 2)):
+        code = torch.tensor(
+            [[0, 1, 2] if i in full_members else [0, -1, -1] for i in range(4)]
+        ).unsqueeze(-1)
+        output, observed = compiled(code)
+        categories = [
+            cast(StringTensor, next(_iter_categories(output[i].categorical)))
+            for i in range(4)
+        ]
+        assert categories[full_members[0]] is categories[full_members[1]]
+        partial = [i for i in range(4) if i not in full_members]
+        assert categories[partial[0]] is not categories[partial[1]]
+        for i in full_members:
+            assert categories[i].tolist() == ["bou", "dbu", "eph"]
+            assert torch.equal(observed[i], categories[i]._data)
+        for i in partial:
+            assert categories[i].tolist() == ["cat"]
+            assert torch.equal(observed[i], categories[i]._data)
+        assert category.tolist() == ["cat", "ant", "dog"]

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import torch
 from torch import Tensor
@@ -17,6 +17,12 @@ from sdm import (
 )
 from sdm.nn._buffer import BufferList
 from sdm.processing import EnsembleProcessor
+from sdm.processing.categorical._routing import (
+    CategoricalRoutes,
+    grouped_locations,
+    source_locations,
+)
+from sdm.processing.categorical._value import ValueCategories, ValueColumn
 from sdm.relational.join import join_index
 from sdm.tensor.categorical import _iter_categories
 from sdm.tensor.var_len import _cat, _contiguous, _select_unique
@@ -72,6 +78,7 @@ class AlignCategories(EnsembleProcessor):
 
     handles_stypes = (Stype.categorical,)
     requires_fit = True
+    _value_categories: ValueCategories | None = None
 
     def __init__(
         self,
@@ -85,6 +92,42 @@ class AlignCategories(EnsembleProcessor):
         self.sort_by = sort_by
         self.min_frequency = min_frequency
         self._categories: BufferList[BufferList[Tensor]] = BufferList()
+
+    def _apply(self, fn: Any, recurse: bool = True) -> "AlignCategories":
+        previous = tuple(tuple(row) for row in self._categories)
+        output = super()._apply(fn, recurse=recurse)
+        current = tuple(tuple(row) for row in self._categories)
+        if any(
+            old is not new
+            for before, after in zip(previous, current, strict=True)
+            for old, new in zip(before, after, strict=True)
+        ):
+            self._value_categories = None
+        return output
+
+    def _load_from_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        prefix: str,
+        local_metadata: dict[str, Any],
+        strict: bool,
+        missing_keys: list[str],
+        unexpected_keys: list[str],
+        error_msgs: list[str],
+    ) -> None:
+        self._value_categories = None
+        # Loading into a fitted module must not copy different checkpoint rows
+        # into overlapping vocabulary views from the previous fit.
+        self._categories = BufferList()
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def _fit_column(
         self,
@@ -231,6 +274,11 @@ class AlignCategories(EnsembleProcessor):
         *,
         generator: torch.Generator | None = None,
     ) -> None:
+        if self.sort_by == "value":
+            self._fit_value_ensemble(
+                EnsembleTable.from_table(table, num_members=1)
+            )
+            return
         fitted_categories, _ = self._fit_columns(
             table,
             align_codes=False,
@@ -245,6 +293,10 @@ class AlignCategories(EnsembleProcessor):
         *,
         generator: torch.Generator | None = None,
     ) -> TableTensor:
+        if self.sort_by == "value":
+            return self._fit_value_ensemble(
+                EnsembleTable.from_table(table, num_members=1)
+            )[0]
         fitted_categories, aligned_tables = self._fit_and_align(table)
         self._categories = BufferList(
             BufferList(categories) for categories in fitted_categories
@@ -252,6 +304,10 @@ class AlignCategories(EnsembleProcessor):
         return aligned_tables[0]
 
     def _transform(self, table: TableTensor) -> TableTensor:
+        if self._value_categories is not None:
+            return self._transform_ensemble(
+                EnsembleTable.from_table(table, num_members=1)
+            )[0]
         return self._align_to_categories(
             table,
             cast(Sequence[Sequence[Tensor]], self._categories),
@@ -280,6 +336,10 @@ class AlignCategories(EnsembleProcessor):
         *,
         generator: torch.Generator | None = None,
     ) -> None:
+        if self.sort_by == "value" and self._value_eligible(ensemble_table):
+            self._fit_value_ensemble(ensemble_table)
+            return
+        self._value_categories = None
         fitted_categories = []
         for group in ensemble_table._iter_groups():
             group_categories, _ = self._fit_columns(
@@ -297,6 +357,9 @@ class AlignCategories(EnsembleProcessor):
         *,
         generator: torch.Generator | None = None,
     ) -> EnsembleTable:
+        if self.sort_by == "value" and self._value_eligible(ensemble_table):
+            return self._fit_value_ensemble(ensemble_table)
+        self._value_categories = None
         fitted_categories = []
         aligned_tables = []
         for group in ensemble_table._iter_groups():
@@ -313,6 +376,73 @@ class AlignCategories(EnsembleProcessor):
             BufferList(categories) for categories in fitted_categories
         )
         return output
+
+    @staticmethod
+    def _value_eligible(source: EnsembleTable) -> bool:
+        widths = {
+            group.categorical.size(-1) for group in source._iter_groups()
+        }
+        return len(widths) == 1 and next(iter(widths)) > 0
+
+    def _fit_value_ensemble(self, source: EnsembleTable) -> EnsembleTable:
+        columns_by_group = []
+        codes_by_group = []
+        for group in source._iter_groups():
+            columns = tuple(
+                ValueColumn(
+                    category,
+                    group.categorical.code[..., column],
+                    self.min_frequency,
+                )
+                for column, category in enumerate(
+                    _iter_categories(group.categorical)
+                )
+            )
+            columns_by_group.append(columns)
+            codes_by_group.append(
+                torch.stack([column.aligned for column in columns], dim=-1)
+            )
+        storage = ValueCategories(columns_by_group, source._locations)
+        self._value_categories = storage
+        self._categories = BufferList(
+            BufferList(storage.physical_member(group, position))
+            for group, columns in enumerate(columns_by_group)
+            for position in range(columns[0].rows.size(0))
+        )
+        return self._value_output(
+            source,
+            [
+                codes_by_group[group][position]
+                for group, position in source._locations
+            ],
+            storage,
+        )
+
+    @staticmethod
+    def _value_output(
+        source: EnsembleTable,
+        codes: Sequence[Tensor],
+        storage: ValueCategories,
+    ) -> EnsembleTable:
+        locations = source_locations(source)
+        same = (locations[:, 0, None] == locations[None, :, 0]) & (
+            storage.aliases[:, None, :] == storage.aliases[None, :, :]
+        ).all(-1)
+        static_locations = None
+        if all(group.size(0) == 1 for group in source._iter_groups()):
+            referenced = sorted({group for group, _ in source._locations})
+            static_locations = tuple(
+                (referenced.index(group), 0) for group, _ in source._locations
+            )
+        return EnsembleTable._from_routes(
+            CategoricalRoutes(
+                source,
+                codes,
+                grouped_locations(locations, same),
+                storage,
+                static_locations,
+            )
+        )
 
     def _transform_ensemble(
         self,
@@ -334,6 +464,24 @@ class AlignCategories(EnsembleProcessor):
             )
             offset = end
 
+        if self._value_categories is not None:
+            fitted = self._value_categories
+            physical = tuple(
+                (group, position)
+                for group, columns in enumerate(fitted.groups)
+                for position in range(columns[0].rows.size(0))
+            )
+            storage = ValueCategories(
+                fitted.groups, [physical[index] for index in table_ids]
+            )
+            return self._value_output(
+                ensemble_table,
+                [
+                    aligned_tables[index].categorical.code
+                    for index in table_ids
+                ],
+                storage,
+            )
         return ensemble_table.replace_tables(
             tables=aligned_tables,
             member_table_ids=table_ids,

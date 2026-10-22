@@ -12,12 +12,16 @@ from sdm import (
     EnsembleTable,
     Stype,
     TableTensor,
-    VarLenTensor,
 )
 from sdm.nn._buffer import BufferList
 from sdm.processing import EnsembleProcessor
+from sdm.processing.categorical._routing import (
+    CategoricalRoutes,
+    grouped_locations,
+    source_locations,
+)
+from sdm.processing.categorical._storage import PermutedCategories
 from sdm.tensor.categorical import _iter_categories
-from sdm.tensor.var_len import _permute_banks
 
 
 class ShuffleCategories(EnsembleProcessor):
@@ -137,11 +141,11 @@ class ShuffleCategories(EnsembleProcessor):
             if self.method == "random":
                 permutation = torch.cond(
                     count > 1,
-                    lambda n: torch.randperm(
+                    lambda n=n_classes: torch.randperm(
                         n, device=device, **generator_kwargs
                     ),
-                    lambda n: torch.arange(n, device=device),
-                    (n_classes,),
+                    lambda n=n_classes: torch.arange(n, device=device),
+                    (),
                 )
             else:
                 assert self.method == "shift"
@@ -159,11 +163,11 @@ class ShuffleCategories(EnsembleProcessor):
                 position = rank % denominator
                 draw = torch.cond(
                     (count > 1) & (position == 0),
-                    lambda n: torch.randperm(
+                    lambda n=n_classes: torch.randperm(
                         n, device=device, **generator_kwargs
                     ),
-                    lambda n: torch.arange(n, device=device),
-                    (n_classes,),
+                    lambda n=n_classes: torch.arange(n, device=device),
+                    (),
                 )
                 prior.append((count, rank, draw))
                 # Reuse the draw that began this column's current offset cycle.
@@ -267,10 +271,9 @@ class ShuffleCategories(EnsembleProcessor):
                 "ensemble members before transform."
             )
         candidates = [
-            self._permute(
-                ensemble_table[member_id],
+            self._permute_codes(
+                ensemble_table._categorical_code(member_id),
                 self._permutations[member_id],
-                permute_categories=False,
             )
             for member_id in range(len(ensemble_table))
         ]
@@ -284,45 +287,44 @@ class ShuffleCategories(EnsembleProcessor):
         )
 
     @staticmethod
-    def _permute(
-        table: TableTensor,
-        permutations: BufferList[Tensor],
-        *,
-        permute_categories: bool = True,
-    ) -> TableTensor:
-        code = table.categorical.code.clone()
-        valid_mask = table.categorical.isfinite()
-        categories: list[Tensor] = []
-        for index, category in zip(
-            range(len(permutations)),
-            _iter_categories(table.categorical),
-            strict=True,
-        ):
-            permutation = permutations[index]
+    def _permute_codes(
+        code: Tensor, permutations: BufferList[Tensor]
+    ) -> Tensor:
+        code = code.clone()
+        for index, permutation in enumerate(permutations):
             codes = code[..., index]
-            valid = valid_mask[..., index]
-            nonempty = permutation.numel() > 0
             code[..., index] = torch.cond(
-                nonempty,
-                lambda values, mask, order: torch.where(
-                    mask,
+                permutation.numel() > 0,
+                lambda values, order: torch.where(
+                    values >= 0,
                     order[values.clamp_min(0).long()].to(values.dtype),
                     values,
                 ),
-                lambda values, mask, order: values.clone(),
-                (codes, valid, permutation),
+                lambda values, order: values.clone(),
+                (codes, permutation),
             )
-            categories.append(
-                category[permutation.argsort()]
-                if permute_categories
-                else category
-            )
+        return code
 
-        categorical = CategoricalTensor(
-            code=code,
-            categories=categories,
+    @staticmethod
+    def _permute(
+        table: TableTensor,
+        permutations: BufferList[Tensor],
+    ) -> TableTensor:
+        return table.replace_blocks(
+            categorical=CategoricalTensor(
+                ShuffleCategories._permute_codes(
+                    table.categorical.code, permutations
+                ),
+                [
+                    category[permutation.argsort()]
+                    for category, permutation in zip(
+                        _iter_categories(table.categorical),
+                        permutations,
+                        strict=True,
+                    )
+                ],
+            )
         )
-        return table.replace_blocks(categorical=categorical)
 
     def __repr__(self, *, indent: int = 0) -> str:
         return (
@@ -330,183 +332,29 @@ class ShuffleCategories(EnsembleProcessor):
         )
 
 
-class _PermutationRoutes:
-    """Keep banks, not member views, across compiled graph boundaries."""
-
+class _PermutationRoutes(CategoricalRoutes):
     def __init__(
         self,
         source: EnsembleTable,
-        candidates: Sequence[TableTensor],
+        candidates: Sequence[Tensor],
         representatives: Tensor,
         permutations: BufferList[BufferList[Tensor]],
     ) -> None:
-        self.source = source
-        self.locations = representatives.new_empty((len(source), 2))
-        self.code_rows = representatives.new_empty(len(source))
-        self.category_rows = representatives.new_empty(len(source))
-        self.codes: dict[int, Tensor] = {}
-        self.categories: dict[
-            int, list[Tensor | tuple[Tensor, Tensor, Tensor | None]]
-        ] = {}
-        self.materialized: EnsembleTable | None = None
-        offset = representatives.new_zeros(())
-        for group_id, group in enumerate(source._groups):
-            indices = [
-                i
-                for i, (g, _) in enumerate(source._locations)
-                if g == group_id
-            ]
-            if not indices:
-                continue
-            arange = torch.arange(len(indices), device=representatives.device)
-            ids = representatives[indices]
-            positions = ids.new_tensor(
-                [source._locations[i][1] for i in indices]
-            )
-            same_group = ids[:, None] == ids[None, :]
-            first_group = torch.where(same_group, arange, len(indices)).amin(
-                -1
-            )
-            is_first_group = first_group == arange
-            group_ids = is_first_group.long().cumsum(0) - 1
-            same_position = same_group & (
-                positions[:, None] == positions[None, :]
-            )
-            first_position = torch.where(
-                same_position, arange, len(indices)
-            ).amin(-1)
-            is_first_position = first_position == arange
-            position_ids = (
-                same_group
-                & is_first_position[None, :]
-                & (arange[None, :] <= first_position[:, None])
-            ).sum(-1) - 1
-            self.locations[indices, 0] = group_ids[first_group] + offset
-            self.locations[indices, 1] = position_ids
-            offset = offset + is_first_group.sum()
-            # Distinct logical positions occupy a sorted prefix. The unused
-            # duplicate rows are private capacity, not extra logical members.
-            keys = (
-                self.locations[indices, 0] * (len(indices) + 1) + position_ids
-            )
-            order = torch.where(
-                is_first_position, keys, keys.amax() + 1
-            ).argsort(stable=True)
-            self.codes[group_id] = torch.stack(
-                [candidates[i].categorical.code for i in indices]
-            ).index_select(0, order)
-            self.code_rows[indices] = (
-                (keys[:, None] > keys[None, :]) & is_first_position[None, :]
-            ).sum(-1)
-            self.category_rows[indices] = first_group
-            banks = []
-            for column, category in enumerate(
-                _iter_categories(group.categorical)
-            ):
-                orders = torch.stack(
-                    [permutations[i][column].argsort() for i in indices]
-                )
-                banks.append(
-                    _permute_banks(category, orders)
-                    if isinstance(category, VarLenTensor)
-                    else category[orders]
-                )
-            self.categories[group_id] = banks
+        locations = source_locations(source)
+        same = (locations[:, 0, None] == locations[None, :, 0]) & (
+            representatives[:, None] == representatives[None, :]
+        )
+        output_locations = grouped_locations(locations, same)
         arange = torch.arange(len(source), device=representatives.device)
-        all_unique = (representatives == arange).all()
-        self.locations = torch.where(
-            all_unique,
+        output_locations = torch.where(
+            (representatives == arange).all(),
             torch.stack((arange, torch.zeros_like(arange)), dim=-1),
-            self.locations,
+            output_locations,
         )
-
-    def __len__(self) -> int:
-        return len(self.source)
-
-    def _categories(self, group: int, row: int) -> tuple[Tensor, ...]:
-        categories = []
-        originals = tuple(
-            _iter_categories(self.source._groups[group].categorical)
+        super().__init__(
+            source,
+            candidates,
+            output_locations,
+            PermutedCategories(source, permutations, output_locations[:, 0]),
+            ((0, 0),) if len(source) == 1 else None,
         )
-        for original, bank in zip(
-            originals, self.categories[group], strict=True
-        ):
-            if isinstance(bank, tuple):
-                data, offsets, valid = bank
-                categories.append(
-                    cast(VarLenTensor, original).__class__(
-                        data=data.narrow(0, row, 1).squeeze(0),
-                        offset=offsets.narrow(0, row, 1).squeeze(0),
-                        valid=valid.narrow(0, row, 1).squeeze(0)
-                        if valid is not None
-                        else None,
-                        size=original.shape,
-                        storage_offset=0,
-                    )
-                )
-            else:
-                categories.append(bank.narrow(0, row, 1).squeeze(0))
-        return tuple(categories)
-
-    def member(self, index: int) -> TableTensor:
-        group, position = self.source._locations[index]
-        code_row = cast(int, self.code_rows[index].item())
-        category_row = cast(int, self.category_rows[index].item())
-        torch._check(code_row >= 0)
-        torch._check(code_row < self.codes[group].size(0))
-        torch._check(category_row >= 0)
-        torch._check(category_row < self.codes[group].size(0))
-        # Recreate views here: retaining them in an ephemeral object lets
-        # resumed graphs retain an earlier invocation's alias pattern.
-        return self.source._groups[group][position].replace_blocks(
-            categorical=CategoricalTensor(
-                code=self.codes[group].narrow(0, code_row, 1).squeeze(0),
-                categories=self._categories(group, category_row),
-            ),
-        )
-
-    def materialize(self) -> EnsembleTable:
-        if self.materialized is not None:
-            return self.materialized
-        if torch.compiler.is_compiling():
-            raise RuntimeError(
-                "Logical group iteration needs a tensor-aware consumer"
-            )
-        locations = tuple(tuple(row) for row in self.locations.tolist())
-        groups = []
-        for group_id in range(max(row[0] for row in locations) + 1):
-            members = [
-                i for i, (g, _) in enumerate(locations) if g == group_id
-            ]
-            source_group = self.source._locations[members[0]][0]
-            by_position = {
-                locations[i][1]: self.source._locations[i][1] for i in members
-            }
-            positions = tuple(by_position[i] for i in range(len(by_position)))
-            source = self.source._groups[source_group]
-            start = positions[0]
-            step = positions[1] - start if len(positions) > 1 else 1
-            stop = start + step * len(positions)
-            if step > 0 and positions == tuple(range(start, stop, step)):
-                group = source[start:stop:step]
-            else:
-                group = cast(
-                    TableTensor,
-                    torch.stack([source[pos] for pos in positions]),
-                )
-            code_row = int(self.code_rows[members[0]])
-            category_row = int(self.category_rows[members[0]])
-            groups.append(
-                group.replace_blocks(
-                    categorical=CategoricalTensor(
-                        code=self.codes[source_group].narrow(
-                            0, code_row, len(positions)
-                        ),
-                        categories=self._categories(
-                            source_group, category_row
-                        ),
-                    )
-                )
-            )
-        self.materialized = EnsembleTable(groups=groups, locations=locations)
-        return self.materialized
