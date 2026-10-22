@@ -30,6 +30,9 @@ class Exchange:
             raise ValueError("Tensor and control group membership must match")
         if dist.get_backend(control_group) != "gloo":
             raise ValueError("The control group must use Gloo")
+        # Reused only by the owning thread; nested attempt frames complete
+        # their inner control phase before the outer phase begins.
+        self._status = torch.zeros(1, dtype=torch.int32, device="cpu")
 
     def records(self, value: T) -> list[T]:
         return self._records(value)
@@ -42,6 +45,17 @@ class Exchange:
         values: list[Any] = [None] * self.world
         record = (None if error is None else str(error), value)
         try:
+            # Every rank takes the same reduction before deciding whether the
+            # full envelope is needed. An inner agree(error) may meet a peer's
+            # records(value), so neither side can skip this phase alone.
+            self._status.fill_(error is not None or value is not None)
+            dist.all_reduce(
+                self._status,
+                op=dist.ReduceOp.MAX,
+                group=self.control_group,
+            )
+            if self._status.item() == 0:
+                return [None] * self.world
             dist.all_gather_object(values, record, group=self.control_group)
         except BaseException as collective_error:
             self._failure = error if error is not None else collective_error
