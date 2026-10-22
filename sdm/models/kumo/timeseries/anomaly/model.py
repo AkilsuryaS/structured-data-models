@@ -7,16 +7,22 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Sequence
-from typing import ClassVar
+from functools import partial
+from typing import Any, ClassVar, cast
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 from sdm import Recipe, Stype, TableTensor
 from sdm._inference import inference_mode
 from sdm.models import Callback, Model
 from sdm.models._huggingface import download_checkpoint
+from sdm.models.kumo.timeseries.anomaly.denoiser import DiffusionDenoiser
+from sdm.models.kumo.timeseries.anomaly.embedding import SideEmbedding
 from sdm.models.kumo.timeseries.anomaly.recipe import default_recipe
+from sdm.models.kumo.timeseries.anomaly.sampling import DPMSolver
+from sdm.models.kumo.timeseries.anomaly.schedule import DiffusionSchedule
 from sdm.processing.execution import MemberQuery, RecipeExecution
 
 
@@ -154,11 +160,13 @@ class KumoAnomaly(Model):
 
             out = TableTensor(
                 columns={Stype.numerical: ("mae",)},
-                numerical=out.to(query.x.numerical),
+                numerical=out.unsqueeze(-1),
             )
 
             for callback in callbacks:
                 out = callback.on_model_forward_end(self, out)
+
+            out = cast(TableTensor, out.to(query.x.dtype))
 
         with (
             torch.amp.autocast(x.device.type, enabled=False),
@@ -170,16 +178,137 @@ class KumoAnomaly(Model):
 class _KumoAnomaly(torch.nn.Module):
     def __init__(
         self,
+        in_channels: int = 40,
+        time_channels: int = 256,
+        feature_channels: int = 64,
+        channels: int = 128,
+        num_layers: int = 6,
+        num_heads: int = 8,
+        embedding_channels: int = 256,
+        num_steps: int = 500,
         device: torch.device | str | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
         super().__init__()
+        factory_kwargs: dict[str, Any] = {"device": device, "dtype": dtype}
+        self.in_channels = in_channels
+
+        self.side_embedding = SideEmbedding(
+            in_channels=in_channels,
+            time_channels=time_channels,
+            feature_channels=feature_channels,
+            **factory_kwargs,
+        )
+        self.denoiser = DiffusionDenoiser(
+            channels=channels,
+            side_channels=time_channels + feature_channels,
+            num_steps=num_steps,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            embedding_channels=embedding_channels,
+            **factory_kwargs,
+        )
 
     def forward(
         self,
-        x: Tensor,  # [..., R, C]
+        x: Tensor,  # [..., R, D]
         num_samples: int,
         num_steps: int,
+        window_size: int = 100,
+        num_blocks: int = 4,
+        batch_size: int = 32,
         generator: torch.Generator | None = None,
-    ) -> Tensor:  # [..., R, 1]
-        return x.mean(dim=-1, keepdim=True)
+    ) -> Tensor:  # [..., R]
+
+        if x.size(-1) > self.in_channels:
+            raise ValueError(
+                f"'KumoAnomaly' supports at most {self.in_channels} columns "
+                f"after pre-processing (got {x.size(-1)})"
+            )
+
+        *B, R, D = x.size()
+        x = F.pad(x.reshape(-1, R, D), (0, self.in_channels - D))
+
+        # Pad last window by repeating last row:
+        x = torch.cat([x, x[:, -1:].expand(-1, -R % window_size, -1)], dim=-2)
+        window = x.reshape(-1, window_size, self.in_channels)
+
+        schedule = DiffusionSchedule(
+            num_steps=self.denoiser.num_steps,
+            beta_start=0.0001,
+            beta_end=0.01,
+            schedule="linear",
+            device="cpu",
+        )
+        sampler = DPMSolver(schedule.beta.float(), num_steps).to(x.device)
+
+        out = torch.cat(
+            [
+                self.reconstruct(
+                    x=_x,
+                    sampler=sampler,
+                    num_samples=num_samples,
+                    num_blocks=num_blocks,
+                    generator=generator,
+                )
+                for _x in window.split(batch_size)
+            ],
+            dim=0,
+        )
+
+        out = out.view(x.size())[:, :R, :D]
+        out = (out - x[:, :R, :D]).abs().mean(dim=-1)
+        return out.view(*B, R)
+
+    def reconstruct(
+        self,
+        x: Tensor,  # [B, R, D]
+        sampler: DPMSolver,
+        num_samples: int,
+        num_blocks: int,
+        generator: torch.Generator | None,
+    ) -> Tensor:  # [B, R, D]
+
+        B, R, _ = x.size()
+        x = x.transpose(1, 2)  # [B, D, R]
+        mean = x.mean(dim=(1, 2), keepdim=True)
+        std = x.std(dim=(1, 2), keepdim=True) + 1e-5
+        x = ((x - mean) / std).clamp(-10, 10)
+
+        time = torch.arange(R, device=x.device).expand(B, -1)
+        blocks = time // (R // num_blocks)
+
+        out = x.new_zeros((num_samples, *x.size()))
+        for strategy in range(2):
+            mask = ((blocks % 2) == strategy).to(x.dtype)
+            mask = mask.unsqueeze(1).expand_as(x)  # [B, D, R]
+            predict_noise = partial(
+                self.predict_noise,
+                cond=mask * x,
+                target_mask=1 - mask,
+                side_info=self.side_embedding(time, mask),
+                strategy=torch.tensor([strategy], device=x.device),
+            )
+            for i in range(num_samples):
+                noise = torch.empty_like(x).normal_(generator=generator)
+                sample = sampler(noise, predict_noise) * std + mean
+                out[i] += (1 - mask) * sample
+
+        return out.median(dim=0).values.transpose(1, 2)
+
+    def predict_noise(
+        self,
+        x: Tensor,  # [B, D, R]
+        step: Tensor,  # [1]
+        *,
+        cond: Tensor,  # [B, D, R]
+        target_mask: Tensor,  # [B, D, R]
+        side_info: Tensor,  # [B, S, D, R]
+        strategy: Tensor,  # [1]
+    ) -> Tensor:  # [B, D, R]
+        return self.denoiser(
+            x=torch.stack([cond, target_mask * x], dim=1),
+            side_info=side_info,
+            step=step,
+            strategy=strategy,
+        )

@@ -3,7 +3,6 @@
 
 import torch
 
-from sdm import TableTensor
 from sdm.models import KumoAnomaly
 from sdm.testing import withCUDA
 
@@ -11,10 +10,11 @@ from sdm.testing import withCUDA
 @withCUDA
 def test_forward(device: torch.device) -> None:
     model = KumoAnomaly(pretrained=False, device=device)
-    x = TableTensor.from_tensor(torch.randn(32, 5, device=device))
+    x = torch.randn(2, 130, 3, device=device)
 
-    out = model(x)
-    assert out.size() == (32, 1)
+    out = model(x, num_samples=1, num_steps=1)
+    assert out.size() == (2, 130, 1)
+    assert out.columns["numerical"] == ("mae",)
     assert out.device == device
     assert out.numerical.isfinite().all()
-    assert "mae" in out.numerical_columns
+    assert (out.numerical >= 0).all()
