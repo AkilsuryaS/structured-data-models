@@ -35,6 +35,7 @@ def start(rank: int, directory: str) -> None:
 
 
 def execution(model, task: str, flag: bool):
+    assert dist.group.WORLD is not None
     return tabular_execution(
         model,
         task=task,

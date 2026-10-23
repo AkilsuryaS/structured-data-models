@@ -55,7 +55,7 @@ class Exchange:
                 group=self.control_group,
             )
             if self._status.item() == 0:
-                return [None] * self.world
+                return [value] * self.world
             dist.all_gather_object(values, record, group=self.control_group)
         except BaseException as collective_error:
             self._failure = error if error is not None else collective_error

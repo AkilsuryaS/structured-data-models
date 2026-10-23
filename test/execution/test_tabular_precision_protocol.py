@@ -27,6 +27,7 @@ def worker(rank, world, directory):
         world_size=world,
         timeout=timedelta(seconds=30),
     )
+    assert dist.group.WORLD is not None
     try:
         model, _, _, _ = fixture("regression")
         with pytest.raises(ValueError, match="policies differ"):
@@ -60,6 +61,7 @@ def worker(rank, world, directory):
                     recipe=recipe(),
                 )
                 cache = run._icl_cache
+                assert cache is not None
                 if rank == 0:
                     if problem == "precision":
                         run.precision = "float32"

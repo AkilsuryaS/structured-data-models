@@ -35,6 +35,7 @@ def worker(
         base, x, y, query = fixture("regression")
 
         def make(budget):
+            assert dist.group.WORLD is not None
             model = copy.deepcopy(base)
             run = tabular_execution(
                 model,

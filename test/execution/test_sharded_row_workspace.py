@@ -39,6 +39,7 @@ def component_worker(
         world_size=world,
         timeout=timedelta(seconds=25),
     )
+    assert dist.group.WORLD is not None
     try:
         model, _, _, _ = fixture("regression")
         encoder = next(iter(model.models.values())).row_embedding
@@ -224,6 +225,7 @@ def policy_worker(rank: int, world: int, directory: str) -> None:
         world_size=world,
         timeout=timedelta(seconds=25),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture("regression")
         for frontend in [False, True] if world == 3 else [False]:

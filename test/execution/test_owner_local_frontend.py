@@ -44,6 +44,7 @@ def component_worker(rank: int, world: int, directory: str) -> None:
         world_size=world,
         timeout=timedelta(seconds=25),
     )
+    assert dist.group.WORLD is not None
     try:
         with torch.no_grad():
             for count in (1, 11):
@@ -162,7 +163,9 @@ def component_worker(rank: int, world: int, directory: str) -> None:
                     atol=0,
                     rtol=0,
                 )
-                assert actual_cache["cell_impute_mean"][0, 2] == 0
+                mean = actual_cache["cell_impute_mean"]
+                assert isinstance(mean, torch.Tensor)
+                assert mean[0, 2] == 0
                 for tokens in (readouts, features + readouts):
                     for separate in (False, True):
                         full = (
@@ -281,6 +284,7 @@ def fault_worker(rank: int, directory: str, stage: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=20),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, _, _ = fixture("regression")
         if stage == "policy":

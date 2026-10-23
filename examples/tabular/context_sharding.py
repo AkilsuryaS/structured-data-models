@@ -38,7 +38,10 @@ def main() -> None:
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     dist.init_process_group("nccl", timeout=timedelta(minutes=5))
+    group = dist.group.WORLD
+    assert group is not None
     control = dist.new_group(backend="gloo", timeout=timedelta(minutes=5))
+    assert isinstance(control, dist.ProcessGroup)
     root = dist.get_rank() == 0
 
     # All ranks load the same stock checkpoint before borrowing the model.
@@ -48,7 +51,7 @@ def main() -> None:
     run = tabular_execution(
         model,
         task="regression",
-        group=dist.group.WORLD,
+        group=group,
         control_group=control,
         precision=args.precision,
         owner_local_frontend=True,
@@ -85,6 +88,8 @@ def main() -> None:
     dist.destroy_process_group(control)
     dist.destroy_process_group()
     if root:
+        assert predictions is not None
+        assert prediction is not None
         print("Original batch output shapes:", [p.shape for p in predictions])
         print("Refitted output shape:", prediction.shape)  # [64, 999]
 

@@ -25,6 +25,7 @@ def journey(rank: int, world: int, directory: str) -> None:
         world_size=world,
         timeout=timedelta(seconds=25),
     )
+    assert dist.group.WORLD is not None
     try:
         exchange = Exchange(dist.group.WORLD, dist.group.WORLD)
         original = dist.all_gather_object

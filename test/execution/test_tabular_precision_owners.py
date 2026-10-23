@@ -31,6 +31,7 @@ def owner_journey(rank, world, directory, task, policy, count):
         world_size=world,
         timeout=timedelta(seconds=40),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture(task)
         x, y = x[:count], y[:count]
@@ -70,6 +71,7 @@ def owner_journey(rank, world, directory, task, policy, count):
                 )
             assert not torch.is_autocast_enabled("cpu")
             for cache in (run._row_cache, run._icl_cache):
+                assert cache is not None
                 for key in cache:
                     actual = Cache.__getitem__(cache, key)
                     full = native._cache[0][key]
@@ -89,6 +91,7 @@ def owner_journey(rank, world, directory, task, policy, count):
                         )
             outputs = run.predict_batches(batches if rank == 0 else None)
             if rank == 0:
+                assert outputs is not None
                 for actual, full in zip(outputs, expected, strict=True):
                     assert actual.columns == full.columns
                     assert (
@@ -159,6 +162,7 @@ def row_worker(rank, world, directory, fail):
         world_size=world,
         timeout=timedelta(seconds=30),
     )
+    assert dist.group.WORLD is not None
     try:
         model, _, _, _ = fixture("regression")
         encoder = next(iter(model.models.values())).row_embedding

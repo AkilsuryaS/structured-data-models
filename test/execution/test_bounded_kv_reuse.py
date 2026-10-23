@@ -6,6 +6,7 @@
 import copy
 from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 from unittest.mock import patch
 
 import pytest
@@ -32,7 +33,7 @@ def worker(
     world: int,
     directory: str,
     task: str,
-    precision: str,
+    precision: Literal["float32", "float16"],
     budget: int,
     mutation: str | None = None,
 ) -> None:
@@ -44,6 +45,7 @@ def worker(
         world_size=world,
         timeout=timedelta(seconds=35),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture(task)
         native = copy.deepcopy(model)
@@ -214,6 +216,7 @@ def mismatch(rank: int, directory: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=20),
     )
+    assert dist.group.WORLD is not None
     try:
         model, _, _, _ = fixture("regression")
         with pytest.raises(ValueError, match="policies differ"):

@@ -4,12 +4,16 @@
 """Fit attention backend policy and ambient restoration without CUDA work."""
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
+from sdm.execution._collectives import Exchange
+from sdm.execution._tabular_cache import OwnedCache
 from sdm.execution._tabular_icl import fit_icl
+from sdm.models.kumo.tabular.icl import ICLBlock
 
 
 def enabled() -> tuple[bool, bool, bool, bool]:
@@ -38,8 +42,13 @@ def test_cuda_fit_precision_policy_and_ambient_restoration(
     cudnn: bool,
 ) -> None:
     primary = RuntimeError("injected fit failure")
-    full = SimpleNamespace(is_cuda=True, device=torch.device("cuda"))
-    exchange = SimpleNamespace(gather=lambda *args: full)
+    # Only policy attributes are exercised; these doubles do no CUDA work.
+    full = cast(
+        torch.Tensor,
+        SimpleNamespace(is_cuda=True, device=torch.device("cuda")),
+    )
+    exchange = cast(Exchange, SimpleNamespace(gather=lambda *args: full))
+    cache = cast(OwnedCache, SimpleNamespace(lengths=(1,)))
 
     def model(*args: object, **kwargs: object) -> object:
         assert enabled() == (True, True, cudnn, False)
@@ -60,20 +69,20 @@ def test_cuda_fit_precision_policy_and_ambient_restoration(
             if raises:
                 with pytest.raises(RuntimeError) as caught:
                     fit_icl(
-                        model,
+                        cast(ICLBlock, model),
                         full,
                         full,
-                        SimpleNamespace(lengths=(1,)),
+                        cache,
                         exchange,
                     )
                 assert caught.value is primary
             else:
                 assert (
                     fit_icl(
-                        model,
+                        cast(ICLBlock, model),
                         full,
                         full,
-                        SimpleNamespace(lengths=(1,)),
+                        cache,
                         exchange,
                     )
                     is full
@@ -86,8 +95,9 @@ def test_cuda_fit_precision_policy_and_ambient_restoration(
 
 
 def test_cpu_fit_leaves_ambient_attention_policy_unchanged() -> None:
-    full = SimpleNamespace(is_cuda=False)
-    exchange = SimpleNamespace(gather=lambda *args: full)
+    full = cast(torch.Tensor, SimpleNamespace(is_cuda=False))
+    exchange = cast(Exchange, SimpleNamespace(gather=lambda *args: full))
+    cache = cast(OwnedCache, SimpleNamespace(lengths=(1,)))
 
     def model(*args: object, **kwargs: object) -> object:
         assert enabled() == (False, False, False, True)
@@ -96,8 +106,7 @@ def test_cpu_fit_leaves_ambient_attention_policy_unchanged() -> None:
     before = enabled()
     with sdpa_kernel(SDPBackend.MATH):
         assert (
-            fit_icl(model, full, full, SimpleNamespace(lengths=(1,)), exchange)
-            is full
+            fit_icl(cast(ICLBlock, model), full, full, cache, exchange) is full
         )
         assert enabled() == (False, False, False, True)
     assert enabled() == before

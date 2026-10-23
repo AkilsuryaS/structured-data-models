@@ -84,6 +84,7 @@ def journey(
         world_size=world,
         timeout=timedelta(seconds=35),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture(task)
         x, y = x[:context_rows], y[:context_rows]
@@ -134,6 +135,7 @@ def journey(
             )
             if owner_local_frontend:
                 for cache in (run._row_cache, run._icl_cache):
+                    assert cache is not None
                     assert cache.is_replaying
                     for key in cache:
                         actual_cache = Cache.__getitem__(cache, key)
@@ -159,6 +161,7 @@ def journey(
                             )
             actual = run.predict_batches(batches if rank == 0 else None)
             if rank == 0:
+                assert actual is not None
                 if default_recipe:
                     assert torch.equal(
                         native_generator.get_state(),
@@ -192,6 +195,7 @@ def journey(
         assert dist.is_initialized()
         fit(model, x, y, recipe=recipe, num_estimators=1)
         if rank == 0:
+            assert last is not None
             torch.testing.assert_close(
                 last.numerical,
                 model.predict(query).numerical,
@@ -252,6 +256,7 @@ def group(tmp_path: Path) -> Iterator[dist.ProcessGroup]:
     dist.init_process_group(
         "gloo", init_method=f"file://{tmp_path}/single", rank=0, world_size=1
     )
+    assert dist.group.WORLD is not None
     try:
         yield dist.group.WORLD
     finally:
@@ -324,6 +329,7 @@ def mismatched_fit_head_gather_window(rank: int, directory: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=15),
     )
+    assert dist.group.WORLD is not None
     try:
         model, _, _, _ = fixture("regression")
         with pytest.raises(ValueError, match="policies differ"):
@@ -643,6 +649,7 @@ def rejected_fit(rank: int, directory: str, failure: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=15),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, _ = fixture("regression")
         run = tabular_execution(
@@ -765,6 +772,7 @@ def rejected_query_packing(rank: int, directory: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=15),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture("regression")
         run = execution(model, dist.group.WORLD)
@@ -812,6 +820,7 @@ def rejected_rank_allocation(rank: int, directory: str, stage: str) -> None:
         world_size=2,
         timeout=timedelta(seconds=15),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture("regression")
         run = execution(model, dist.group.WORLD)

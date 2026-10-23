@@ -59,6 +59,7 @@ def journey(rank, world, directory, task, mismatch=False):
         world_size=world,
         timeout=timedelta(seconds=15),
     )
+    assert dist.group.WORLD is not None
     try:
         model, x, y, query = fixture(task)
         if mismatch:
@@ -180,6 +181,7 @@ def test_native_amp_inducing_residual_is_fp32(group, limit):
         for key, value in native_cache.items():
             other = owned_cache[key]
             if isinstance(value, KVCacheEntry):
+                assert isinstance(other, KVCacheEntry)
                 for left, right in zip(value, other, strict=True):
                     assert left.dtype == right.dtype == torch.float16
                     torch.testing.assert_close(
@@ -338,6 +340,7 @@ def test_fp32_default_matches_explicit_and_native(group, explicit):
     )
     run.fit(x, y, recipe=recipe())
     actual, expected = run.predict(query), native.predict(query)
+    assert actual is not None
     assert actual.numerical.dtype == torch.float32
     torch.testing.assert_close(
         actual.numerical, expected.numerical, atol=2e-6, rtol=1e-5

@@ -26,6 +26,7 @@ def journey(
         world_size=world,
         timeout=timedelta(seconds=25),
     )
+    assert dist.group.WORLD is not None
     try:
         if failure is not None:
             failed_allocation(rank, world, failure)
@@ -97,6 +98,7 @@ def journey(
 
 
 def failed_allocation(rank: int, world: int, failure: str) -> None:
+    assert dist.group.WORLD is not None
     exchange = Exchange(dist.group.WORLD, dist.group.WORLD)
     local = torch.arange(24).reshape(3, 2, 4).transpose(1, 2)
     primary = MemoryError(f"rank-local {failure} failure")

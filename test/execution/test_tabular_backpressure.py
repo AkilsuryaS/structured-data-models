@@ -6,11 +6,15 @@
 from collections.abc import Callable
 from contextlib import nullcontext
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
 
 import sdm.execution._tabular_icl as icl
+from sdm.execution._collectives import Exchange
+from sdm.execution._tabular_cache import OwnedCache
+from sdm.models.kumo.tabular.icl import ICLBlock
 
 
 class Value:
@@ -137,13 +141,18 @@ def queue(
     )
 
     def run() -> Value:
-        return icl.fit_icl(
-            Model(),
-            Value(calls),
-            Value(calls),
-            SimpleNamespace(lengths=(4,) * world),
-            exchange,
-            window,
+        # The fake CUDA protocol intentionally substitutes scalar test
+        # doubles at this typed boundary; cast leaves their behavior intact.
+        return cast(
+            Value,
+            icl.fit_icl(
+                cast(ICLBlock, Model()),
+                cast(torch.Tensor, Value(calls)),
+                cast(torch.Tensor, Value(calls)),
+                cast(OwnedCache, SimpleNamespace(lengths=(4,) * world)),
+                cast(Exchange, exchange),
+                window,
+            ),
         )
 
     return SimpleNamespace(

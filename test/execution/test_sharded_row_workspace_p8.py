@@ -71,6 +71,7 @@ def head_worker(rank: int, directory: str) -> None:
         world_size=8,
         timeout=timedelta(seconds=35),
     )
+    assert dist.group.WORLD is not None
     try:
         # Real, internally consistent attention modules: separately reject
         # four query heads and four KV heads before executor ownership.
