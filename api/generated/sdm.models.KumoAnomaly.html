@@ -287,9 +287,13 @@ pre-processing and model execution.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The anomaly scores with shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">R,</span> <span class="pre">1]</span></code>, denoting the mean
-absolute reconstruction error across preprocessed features at each
-time step.</p>
+<dd class="field-even"><p>A table with shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">R,</span> <span class="pre">3]</span></code> containing numerical <code class="docutils literal notranslate"><span class="pre">mae</span></code>
+reconstruction scores and categorical boolean <code class="docutils literal notranslate"><span class="pre">scs</span></code> and <code class="docutils literal notranslate"><span class="pre">macs</span></code>
+anomaly labels at each time step. SCS (Segmented Confidence
+Sequences) segments the preprocessed series and thresholds scores
+using expanding bounds within each segment. MACS (Multi-Scale
+Adaptive Confidence Segments) uses variance-weighted expanding
+score bounds.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.table.TableTensor"><em>TableTensor</em></a></p>
@@ -368,7 +372,7 @@ time step.</p>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=d0143d2f"></script>
+      <script src="../../_static/documentation_options.js?v=9a71d489"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
