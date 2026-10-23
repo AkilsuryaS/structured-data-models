@@ -96,9 +96,11 @@ class OwnedCache(Cache):
             for tensor in pair:
                 gathered = self.exchange.gather(tensor, self.lengths, self.dim)
                 self.exchange.attempt(
-                    lambda gathered=gathered: building_tensors.append(gathered)
+                    lambda gathered=gathered, full=full: (
+                        building_tensors.append(gathered),
+                        full.append(gathered),
+                    )
                 )
-                full.append(gathered)
             self.exchange.attempt(
                 lambda key=key, full=full: building.__setitem__(
                     key, KVCacheEntry(*full)

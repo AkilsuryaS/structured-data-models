@@ -865,6 +865,8 @@ def tabular_execution(
             for a whole generation's gathered ICL K/V. Default zero keeps
             per-layer gathers. A positive budget is used only when all full
             layers fit; owned slices remain resident alongside replicas.
+            Each rank retains O(context rows) replica payload, independent
+            of group size. Single-rank execution ignores this option.
             This does not bound transient collective workspace or total
             allocator/device memory.
 
