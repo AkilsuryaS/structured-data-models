@@ -241,9 +241,17 @@ data-aria-dark="Switch to auto color mode">
 <p>The <a class="reference internal" href="api/nn.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.nn</span></code></span></a> package provides reusable, GPU-accelerated building blocks for developing foundation models for structured data from scratch.
 In this guide, we show how to build a minimal <a class="reference external" href="https://arxiv.org/abs/2602.11139">TabICLv2</a>-inspired Tabular Foundation Model (TFM) with it.
 Like other <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning (ICL)</span></a> models, it receives labeled context rows together with unlabeled query rows, and predicts the query targets in a single forward pass.</p>
-<p>TabICL pioneered the <strong>“Compress-then-ICL”</strong> approach which has since been adopted by other TFMs such as <a class="reference external" href="https://arxiv.org/abs/2605.13986">TabPFN-3</a>, <a class="reference external" href="https://arxiv.org/abs/2609.37959">TabFM</a>, and <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">KumoTabular</a>.
+<p><a class="reference external" href="https://arxiv.org/abs/2502.05564">TabICL</a> pioneered the <strong>“Compress-then-ICL”</strong> approach which has since been adopted by other TFMs such as <a class="reference external" href="https://arxiv.org/abs/2605.13986">TabPFN-3</a>, <a class="reference external" href="https://arxiv.org/abs/2609.37959">TabFM</a>, and <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">KumoTabular</a>.
 Its main advantage is its efficient ICL stage that operates on compressed row representations rather than individual cells.
 It consists of three stages:</p>
+<figure class="light-only align-default">
+<a class="reference internal image-reference" href="_images/nanotabicl_light.svg"><img alt="_images/nanotabicl_light.svg" src="_images/nanotabicl_light.svg" style="width: 100%;" />
+</a>
+</figure>
+<figure class="dark-only align-default">
+<a class="reference internal image-reference" href="_images/nanotabicl_dark.svg"><img alt="_images/nanotabicl_dark.svg" src="_images/nanotabicl_dark.svg" style="width: 100%;" />
+</a>
+</figure>
 <ol class="arabic simple">
 <li><p>A <strong>row-wise compression block</strong> that maps each table row to a fixed-size embedding.</p></li>
 <li><p>An <strong>in-context learning block</strong> that models interactions among labeled context rows and uses that context to update query representations.</p></li>
@@ -523,7 +531,7 @@ Categorical encoding, missing-value handling, and feature scaling are typically 
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=85769d23"></script>
+      <script src="_static/documentation_options.js?v=89353965"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
