@@ -679,8 +679,9 @@ def test_transformer_block(device: torch.device, qassmax: bool) -> None:
 @pytest.mark.parametrize(
     "dtype", [torch.bfloat16, torch.float16, torch.float32, torch.float64]
 )
+@pytest.mark.parametrize("batch_size", [1, 2])
 def test_transformer_block_chunked_noncontiguous_out(
-    dtype: torch.dtype,
+    dtype: torch.dtype, batch_size: int
 ) -> None:
     channels = 8
     module = TransformerBlock(
@@ -689,7 +690,7 @@ def test_transformer_block_chunked_noncontiguous_out(
         mlp=torch.nn.Identity(),
     ).eval()
 
-    base = torch.randn(2, 3, 4, channels)
+    base = torch.randn(batch_size, 3, 4, channels)
     query = base.transpose(-2, -3)
     # Under autocast, outputs can differ in dtype from a preallocated buffer.
     buffer = torch.empty_like(base, dtype=dtype).transpose(-2, -3)

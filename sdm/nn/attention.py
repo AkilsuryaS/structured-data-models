@@ -9,6 +9,7 @@ from typing import Any, Literal, overload
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+from torch.fx.experimental.symbolic_shapes import statically_known_true
 from torch.nn import Linear
 
 from sdm._memory import chunk_memory_limit
@@ -697,11 +698,14 @@ class TransformerBlock(torch.nn.Module):
             )
 
         flat_out: Tensor | None = None
+        copy_out: Tensor | None = None
         flat_key: Tensor | None = None
         flat_value: Tensor | None = None
 
         if out is not None and (out.dim() <= 3 or out.is_contiguous()):
             flat_out = out.view(batch_size, *query.size()[-2:])
+        elif out is not None:
+            copy_out = _flat_batch_view(out, trailing_dims=2)
 
         for start in range(0, batch_size, batch_size_limit):
             end = min(start + batch_size_limit, batch_size)
@@ -744,7 +748,9 @@ class TransformerBlock(torch.nn.Module):
             else:
                 chunk = result
 
-            if flat_out is None and out is not None:
+            if copy_out is not None:
+                copy_out[start:end] = chunk.to(copy_out.dtype)
+            elif flat_out is None and out is not None:
                 flat_index = torch.arange(start, end, device=out.device)
                 batch_indices: list[Tensor] = []
                 for size in reversed(batch_shape):
@@ -929,8 +935,9 @@ def _chunk(
 
     trailing_shape = tensor.size()[-trailing_dims:] if trailing_dims else ()
     tensor = tensor.expand(batch_shape + trailing_shape)
-    if len(batch_shape) == 1:
-        return tensor[start:end]
+    flat = _flat_batch_view(tensor, trailing_dims)
+    if flat is not None:
+        return flat[start:end]
 
     flat_index = torch.arange(start, end, device=tensor.device)
     batch_indices: list[Tensor] = []
@@ -938,3 +945,14 @@ def _chunk(
         batch_indices.append(flat_index % size)
         flat_index = flat_index // size
     return tensor[tuple(reversed(batch_indices))]
+
+
+def _flat_batch_view(tensor: Tensor, trailing_dims: int) -> Tensor | None:
+    """Flatten batch dimensions when it is known to preserve storage."""
+    batch = tensor.shape[:-trailing_dims] if trailing_dims else tensor.shape
+    if len(batch) == 1:
+        return tensor
+    if sum(not statically_known_true(size == 1) for size in batch) > 1:
+        return None
+    trailing = tensor.shape[-trailing_dims:] if trailing_dims else ()
+    return tensor.view(math.prod(batch), *trailing)
