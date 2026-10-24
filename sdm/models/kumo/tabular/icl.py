@@ -7,8 +7,9 @@ from typing import Any, cast
 
 import torch
 from torch import Tensor
-from torch.nn import GELU, Embedding, Linear, ModuleList, Sequential
+from torch.nn import GELU, Embedding, Linear, ModuleList
 
+from sdm._kernels.linear_gelu_bf16 import LinearGeluMLP
 from sdm.cache import Cache, KVCacheEntry
 from sdm.models.kumo.tabular.block import KumoTabularTransformerBlock
 from sdm.nn import LogScale, RMSNorm
@@ -51,7 +52,7 @@ class ICLBlock(torch.nn.Module):
         )
 
         self.norm = RMSNorm(channels, **factory_kwargs)
-        self.head = Sequential(
+        self.head = LinearGeluMLP(
             Linear(channels, 2 * channels, **factory_kwargs),
             GELU(),
             Linear(2 * channels, out_channels, **factory_kwargs),

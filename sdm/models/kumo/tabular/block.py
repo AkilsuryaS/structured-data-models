@@ -9,6 +9,7 @@ import torch
 from torch import Tensor
 from torch.nn import GELU, Linear, Sequential
 
+from sdm._kernels.linear_gelu_bf16 import LinearGeluMLP
 from sdm.nn import QueryScaling, RMSNorm, RotaryEmbedding, TransformerBlock
 
 
@@ -52,7 +53,7 @@ class KumoTabularTransformerBlock(TransformerBlock):
             )
         )
 
-        mlp = Sequential(
+        mlp = LinearGeluMLP(
             RMSNorm(channels, **factory_kwargs),
             Linear(channels, 2 * channels, **factory_kwargs),
             GELU(),
