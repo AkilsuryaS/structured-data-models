@@ -1,4 +1,4 @@
-# NanoTabICL in SDM
+# NanoTabICL
 
 The [`sdm.nn`](api/nn) package provides reusable, GPU-accelerated building blocks for developing foundation models for structured data from scratch.
 In this guide, we show how to build a minimal [TabICLv2](https://arxiv.org/abs/2602.11139)-inspired Tabular Foundation Model (TFM) with it.
@@ -268,9 +268,10 @@ The remaining rows are treated as query rows whose labels the model predicts.
 Categorical encoding, missing-value handling, and feature scaling are typically performed in a pre-processing stage before the model's {py:meth}`~torch.nn.Module.forward` call.
 
 ```python
-x = torch.randn(128, 32, device="cuda")
-y = torch.randint(0, 10, (64, ), device="cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+x = torch.randn(128, 32, device=device)
+y = torch.randint(0, 10, (64, ), device=device)
 
-model = NanoTabICL().cuda()
+model = NanoTabICL().to(device)
 out = model(x, y)
 ```
