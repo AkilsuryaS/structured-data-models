@@ -255,7 +255,7 @@ In particular, this library provides:</p>
 <section id="quick-tour">
 <h2>Quick Tour<a class="headerlink" href="#quick-tour" title="Link to this heading">#</a></h2>
 <p>The typical workflow starts by converting a data frame into a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a>.
-Semantic types (<a class="reference internal" href="api/generated/sdm.Stype.html#sdm.Stype" title="sdm.Stype"><code class="xref py py-class docutils literal notranslate"><span class="pre">Stype</span></code></a>) describe the role of each column, such that the model can distinguish numerical features from categorical, datetime, or text:</p>
+Semantic types (<a class="reference internal" href="api/generated/sdm.Stype.html#sdm.Stype" title="sdm.Stype"><code class="xref py py-class docutils literal notranslate"><span class="pre">Stype</span></code></a>) describe the role of each column, such that the model can distinguish numerical features from categorical, datetime, or text features:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">sdm</span>
 </span><span data-line="2">
 </span><span data-line="3"><span class="n">table</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span>
@@ -326,7 +326,7 @@ The resulting <a class="reference internal" href="api/generated/sdm.processing.r
 <p>Recipes give foundation models a unified way to handle a wide range of semantic column types.
 For example, datetime columns can be expanded into calendar features, and text columns can be embedded via an LLM.
 These components are reusable across model families rather than tied to a single model implementation, and are designed for ensemble-aware, GPU-accelerated execution across the entire processing stack.</p>
-<p>For relational tasks, <a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html#sdm.relational.RelatedTables" title="sdm.relational.RelatedTables"><code class="xref py py-class docutils literal notranslate"><span class="pre">RelatedTables</span></code></a> allows foundation models to attach to surrounding tables and relationships.
+<p>For relational tasks, <a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html#sdm.relational.RelatedTables" title="sdm.relational.RelatedTables"><code class="xref py py-class docutils literal notranslate"><span class="pre">RelatedTables</span></code></a> allow foundation models to attach to surrounding tables and relationships.
 Models that support relational context, such as <a class="reference internal" href="api/generated/sdm.models.KumoRelational.html#sdm.models.KumoRelational" title="sdm.models.KumoRelational"><code class="xref py py-class docutils literal notranslate"><span class="pre">KumoRelational</span></code></a>, can process these <a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html#sdm.relational.RelatedTables" title="sdm.relational.RelatedTables"><code class="xref py py-class docutils literal notranslate"><span class="pre">RelatedTables</span></code></a> through the same <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.fit" title="sdm.models.ICLModel.fit"><code class="xref py py-meth docutils literal notranslate"><span class="pre">fit()</span></code></a>, <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.predict" title="sdm.models.ICLModel.predict"><code class="xref py py-meth docutils literal notranslate"><span class="pre">predict()</span></code></a>, <a class="reference internal" href="api/generated/sdm.processing.recipe.Recipe.html#sdm.processing.recipe.Recipe" title="sdm.processing.recipe.Recipe"><code class="xref py py-class docutils literal notranslate"><span class="pre">Recipe</span></code></a>, and <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> interfaces.</p>
 </section>
 </section>
@@ -355,7 +355,7 @@ Models that support relational context, such as <a class="reference internal" hr
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=89353965"></script>
+      <script src="_static/documentation_options.js?v=40637a5e"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>

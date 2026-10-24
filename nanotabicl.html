@@ -239,9 +239,9 @@ data-aria-dark="Switch to auto color mode">
           <section id="nanotabicl">
 <h1>NanoTabICL<a class="headerlink" href="#nanotabicl" title="Link to this heading">#</a></h1>
 <p>The <a class="reference internal" href="api/nn.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.nn</span></code></span></a> package provides reusable, GPU-accelerated building blocks for developing foundation models for structured data from scratch.
-In this guide, we show how to build a minimal <a class="reference external" href="https://arxiv.org/abs/2602.11139">TabICLv2</a>-inspired Tabular Foundation Model (TFM) with it.
-Like other <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning (ICL)</span></a> models, it receives labeled context rows together with unlabeled query rows, and predicts the query targets in a single forward pass.</p>
-<p><a class="reference external" href="https://arxiv.org/abs/2502.05564">TabICL</a> pioneered the <strong>“Compress-then-ICL”</strong> approach which has since been adopted by other TFMs such as <a class="reference external" href="https://arxiv.org/abs/2605.13986">TabPFN-3</a>, <a class="reference external" href="https://arxiv.org/abs/2609.37959">TabFM</a>, and <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">KumoTabular</a>.
+In this guide, we show how to build a minimal <a class="reference external" href="https://arxiv.org/abs/2602.11139">TabICLv2</a>-inspired tabular foundation model (TFM) with it.
+Like other <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning (ICL)</span></a> models, it receives labeled context rows together with unlabeled query rows and predicts the query targets in a single forward pass.</p>
+<p><a class="reference external" href="https://arxiv.org/abs/2502.05564">TabICL</a> pioneered the <strong>“Compress-then-ICL”</strong> approach, which has since been adopted by other TFMs such as <a class="reference external" href="https://arxiv.org/abs/2605.13986">TabPFN-3</a>, <a class="reference external" href="https://arxiv.org/abs/2609.37959">TabFM</a>, and <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">KumoTabular</a>.
 Its main advantage is its efficient ICL stage that operates on compressed row representations rather than individual cells.
 It consists of three stages:</p>
 <figure class="light-only align-default">
@@ -272,7 +272,7 @@ Then, column entries attend to the induced representation.
 This two-stage mechanism thus replaces direct attention between all pairs of elements.
 The inducing points are learnable parameters.
 During each forward pass, they attend only to context entries; both context and query entries then attend to the resulting representation.
-This prevents queries within a batch from influencing each other, and allows caching across repeated predictions.</p>
+This prevents queries within a batch from influencing each other and allows caching across repeated predictions.</p>
 <p>The <a class="reference internal" href="api/generated/sdm.nn.InducedTransformerBlock.html#sdm.nn.InducedTransformerBlock" title="sdm.nn.InducedTransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.InducedTransformerBlock</span></code></a> provides a highly reusable and configurable block for induced self-attention, built from two <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.TransformerBlock</span></code></a> modules: <strong>(1)</strong> the <code class="docutils literal notranslate"><span class="pre">inducing_block</span></code> that updates the learned inducing points from context entries, and <strong>(2)</strong> the <code class="docutils literal notranslate"><span class="pre">output_block</span></code> that updates all column entries from the induced representation.</p>
 <p>We start by defining a simple feed-forward multilayer perceptron (MLP):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
@@ -289,11 +289,11 @@ This prevents queries within a batch from influencing each other, and allows cac
 </div>
 <p>Next, our <code class="docutils literal notranslate"><span class="pre">ColumnTransformer</span></code> stacks three layers of column-wise induced attention over 128 inducing points.
 Its input is a <code class="docutils literal notranslate"><span class="pre">D</span></code>-dimensional cell embedding <code class="docutils literal notranslate"><span class="pre">x</span></code> for each row <code class="docutils literal notranslate"><span class="pre">R</span></code> and each column <code class="docutils literal notranslate"><span class="pre">C</span></code>.
-The first number of rows in <code class="docutils literal notranslate"><span class="pre">x</span></code> are context rows with corresponding labels in <code class="docutils literal notranslate"><span class="pre">y</span></code>; the remaining rows are query rows.</p>
+The first <code class="docutils literal notranslate"><span class="pre">y.size(0)</span></code> rows of <code class="docutils literal notranslate"><span class="pre">x</span></code> are context rows with corresponding labels in <code class="docutils literal notranslate"><span class="pre">y</span></code>; the remaining rows are query rows.</p>
 <p>TabICLv2 uses a pre-norm <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a>, applying <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm" title="(in PyTorch v2.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">LayerNorm</span></code></a> before each attention and feed-forward sublayer.
 When attending over context rows, TabICLv2 uses <a class="reference internal" href="api/generated/sdm.nn.QASSMax.html#sdm.nn.QASSMax" title="sdm.nn.QASSMax"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.QASSMax</span></code></a> to scale queries based on the number of context rows, adapting attention to varying context sizes.
 The <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a> supports these attention patterns through configurable normalization, query scaling, and separate query and key/value inputs.</p>
-<p>Lastly, to produce task-conditioned compressed representations (<em>e.g.</em> to filter out task-irrelevant columns), TabICLv2 injects target information from context examples before entering the Transformer.
+<p>Lastly, to produce task-conditioned compressed representations (<em>e.g.</em>, to filter out task-irrelevant columns), TabICLv2 injects target information from context examples before entering the Transformer.
 This is done by adding a learnable class embedding to each cell in the context rows, supporting up to 10 classes.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -343,7 +343,7 @@ In practice, TFMs are trained in batches.</p>
 </span><span data-line="41">        <span class="n">y</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R_context]</span>
 </span><span data-line="42">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R, C, D]</span>
 </span><span data-line="43">
-</span><span data-line="44">        <span class="c1"># Inject task labels to context cell representations:</span>
+</span><span data-line="44">        <span class="c1"># Inject task labels into context cell representations:</span>
 </span><span data-line="45">        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span>
 </span><span data-line="46">            <span class="n">x</span><span class="p">[:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span><span class="p">(</span><span class="n">y</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:],</span>
 </span><span data-line="47">            <span class="n">x</span><span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">):],</span>
@@ -366,7 +366,7 @@ As the number of columns in a dataset is usually much smaller than the number of
 This maps rows with varying numbers of columns to fixed-size embeddings.
 The <code class="docutils literal notranslate"><span class="pre">[CLS]</span></code> tokens are initialized from a truncated normal distribution and refined via repeated row-wise attention.
 Using multiple <code class="docutils literal notranslate"><span class="pre">[CLS]</span></code> tokens allows more information to pass through this bottleneck.
-Their four output vectors are flattened into one 4 * D dimensional row embedding, which becomes a single token in the ICL stage.</p>
+Their four output vectors are flattened into a <code class="docutils literal notranslate"><span class="pre">4*D</span></code>-dimensional row embedding, which becomes a single token in the ICL stage.</p>
 <p>Furthermore, TabICLv2 applies <a class="reference internal" href="api/generated/sdm.nn.RotaryEmbedding.html#sdm.nn.RotaryEmbedding" title="sdm.nn.RotaryEmbedding"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.RotaryEmbedding</span></code></a> (RoPE) in row-wise attention to distinguish features by their column positions.
 This helps resolve ambiguity between features with similar representations.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">class</span><span class="w"> </span><span class="nc">RowTransformer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -452,7 +452,7 @@ Before attention, it again adds target embeddings to context row representations
 </span><span data-line="28">        <span class="n">y</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R_context]</span>
 </span><span data-line="29">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R_query, 4*D]</span>
 </span><span data-line="30">
-</span><span data-line="31">        <span class="c1"># Reinject task labels to context row representations:</span>
+</span><span data-line="31">        <span class="c1"># Reinject task labels into context row representations:</span>
 </span><span data-line="32">        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
 </span><span data-line="33">              <span class="p">[</span><span class="n">x</span><span class="p">[:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span><span class="p">(</span><span class="n">y</span><span class="p">),</span>
 </span><span data-line="34">              <span class="n">x</span><span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">):]],</span>
@@ -495,7 +495,7 @@ Before attention, it again adds target embeddings to context row representations
 </div>
 <p>The model takes numerical floating-point features <code class="docutils literal notranslate"><span class="pre">x</span></code> of a table with shape <code class="docutils literal notranslate"><span class="pre">[R,</span> <span class="pre">C]</span></code> and integer labels <code class="docutils literal notranslate"><span class="pre">y</span></code> for the first <code class="docutils literal notranslate"><span class="pre">y.size(0)</span></code> context rows.
 The remaining rows are treated as query rows whose labels the model predicts.
-Categorical encoding, missing-value handling, and feature scaling are typically performed in a pre-processing stage before the model’s <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.forward" title="(in PyTorch v2.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> call.</p>
+Categorical encoding, missing-value handling, and feature scaling are typically performed in a preprocessing stage before the model’s <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.forward" title="(in PyTorch v2.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> call.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span><span class="p">)</span>
 </span><span data-line="2"><span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
 </span><span data-line="3"><span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
@@ -531,7 +531,7 @@ Categorical encoding, missing-value handling, and feature scaling are typically 
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=89353965"></script>
+      <script src="_static/documentation_options.js?v=40637a5e"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>

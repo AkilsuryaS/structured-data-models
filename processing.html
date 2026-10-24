@@ -249,7 +249,7 @@ A list of all available processors grouped by their domain and semantic type is 
 <li><p>A <a class="reference internal" href="api/generated/sdm.processing.common.StypeDispatch.html#sdm.processing.common.StypeDispatch" title="sdm.processing.common.StypeDispatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">StypeDispatch</span></code></a> processor applies a processor per <a class="reference internal" href="api/generated/sdm.Stype.html"><span class="doc std std-doc">semantic type</span></a>.</p></li>
 <li><p>A <a class="reference internal" href="api/generated/sdm.processing.common.TaskDispatch.html#sdm.processing.common.TaskDispatch" title="sdm.processing.common.TaskDispatch"><code class="xref py py-class docutils literal notranslate"><span class="pre">TaskDispatch</span></code></a> processor applies a processor per task (<em>e.g.</em>, classification or regression).</p></li>
 </ul>
-<p>Processors let you define powerful recipes that manage the full pre-processing pipeline of input features and targets, as well as post-processing pipelines of model outputs.
+<p>Processors let you define powerful recipes that manage the full preprocessing pipeline of input features and targets, as well as postprocessing pipelines of model outputs.
 In particular:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="api/generated/sdm.processing.recipe.Recipe.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">Recipe.features</span></code></span></a>: a <a class="reference internal" href="api/generated/sdm.processing.base.Processor.html#sdm.processing.base.Processor" title="sdm.processing.base.Processor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Processor</span></code></a> that operates on model inputs, transformed before the model.</p></li>
@@ -259,7 +259,7 @@ In particular:</p>
 </section>
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
-<p>Each model defines a default recipe that closely mimics pre- and postprocessing routines of its official implementation (<em>e.g.</em>, take a look at the default recipe of <a class="reference internal" href="api/generated/sdm.models.TabICLv2.html#sdm.models.TabICLv2" title="sdm.models.TabICLv2"><code class="xref py py-class docutils literal notranslate"><span class="pre">TabICLv2</span></code></a>).</p>
+<p>Each model defines a default recipe that closely mimics the preprocessing and postprocessing routines of its official implementation (<em>e.g.</em>, take a look at the default recipe of <a class="reference internal" href="api/generated/sdm.models.TabICLv2.html#sdm.models.TabICLv2" title="sdm.models.TabICLv2"><code class="xref py py-class docutils literal notranslate"><span class="pre">TabICLv2</span></code></a>).</p>
 <p>Recipes are plain Python objects, so they can be inspected, copied and modified.
 This makes it easy to keep the default model contract while changing one part of the pipeline.
 For example, <a class="reference internal" href="api/generated/sdm.models.TabICLv2.html#sdm.models.TabICLv2" title="sdm.models.TabICLv2"><code class="xref py py-class docutils literal notranslate"><span class="pre">TabICLv2</span></code></a> does not consume raw <a class="reference internal" href="api/generated/sdm.Stype.html#sdm.Stype.datetime" title="sdm.Stype.datetime"><code class="xref py py-attr docutils literal notranslate"><span class="pre">datetime</span></code></a> columns directly.
@@ -366,7 +366,7 @@ Examples of those include <a class="reference internal" href="api/generated/sdm.
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=89353965"></script>
+      <script src="_static/documentation_options.js?v=40637a5e"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
