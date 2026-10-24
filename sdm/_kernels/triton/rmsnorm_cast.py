@@ -195,22 +195,11 @@ def paired_rmsnorm_cast(
     Supports 2-D rows and 3-D row/token tensors directly, including transposed
     row/token storage. Single-output calls keep the original kernel defaults.
     """
-    assert x.is_cuda
-    assert x.dim() in (2, 3)
-    assert x.stride(-1) == 1
-    assert not torch.is_grad_enabled()
     channels = x.size(-1)
-    assert channels in (32, 64, 128, 256, 512)
     rows = x.numel() // channels
     output_dtype = torch.get_autocast_dtype("cuda")
     out1 = torch.empty(x.shape, device=x.device, dtype=output_dtype)
     out2 = torch.empty(x.shape, device=x.device, dtype=output_dtype)
-    if rows == 0:
-        return out1, out2
-    for weight in (weight1, weight2):
-        assert weight is None or (
-            weight.shape == (channels,) and weight.device == x.device
-        )
     weight1 = None if weight1 is None else weight1.contiguous()
     weight2 = None if weight2 is None else weight2.contiguous()
     row_length = x.size(-2) if x.dim() == 3 else 1

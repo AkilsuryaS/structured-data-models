@@ -31,6 +31,34 @@ else:
     _triton_paired_rmsnorm_cast = _triton_paired_rmsnorm_cast_impl
 
 
+def _supports_triton(x: Tensor, weights: tuple[Tensor | None, ...]) -> bool:
+    return (
+        x.is_cuda
+        and x.dtype in {torch.float16, torch.bfloat16, torch.float32}
+        and x.size(-1) in {32, 64, 128, 256, 512}
+        and x.numel() > 0
+        and all(
+            weight is None
+            or (
+                weight.dtype in {torch.float16, torch.bfloat16, torch.float32}
+                and weight.device == x.device
+                and weight.shape == x.shape[-1:]
+            )
+            for weight in weights
+        )
+        and not (
+            torch.is_grad_enabled()
+            and (
+                x.requires_grad
+                or any(
+                    weight is not None and weight.requires_grad
+                    for weight in weights
+                )
+            )
+        )
+    )
+
+
 def rmsnorm_cast(
     x: Tensor,
     weight: Tensor | None,
@@ -54,17 +82,7 @@ def rmsnorm_cast(
     """
     if (
         _triton_rmsnorm_cast is not None
-        and x.is_cuda
-        and x.dtype in {torch.float16, torch.bfloat16, torch.float32}
-        and x.size(-1) in {32, 64, 128, 256, 512}
-        and (
-            weight is None
-            or (
-                weight.dtype in {torch.float16, torch.bfloat16, torch.float32}
-                and weight.device == x.device
-                and weight.shape == x.shape[-1:]
-            )
-        )
+        and _supports_triton(x, (weight,))
         and (
             rope is None
             or (
@@ -77,17 +95,10 @@ def rmsnorm_cast(
                 )
             )
         )
-        and x.numel() > 0
         and not (
-            (
-                x.requires_grad
-                or (weight is not None and weight.requires_grad)
-                or (
-                    rope is not None
-                    and any(table.requires_grad for table in rope)
-                )
-            )
+            rope is not None
             and torch.is_grad_enabled()
+            and any(table.requires_grad for table in rope)
         )
     ):
         return _triton_rmsnorm_cast(x, weight, eps, rope)
@@ -102,8 +113,19 @@ def rmsnorm_cast(
 
 def paired_rmsnorm_cast(
     x: Tensor, weight1: Tensor | None, weight2: Tensor | None, eps: float
-) -> tuple[Tensor, Tensor]:
-    """Apply two independently weighted RMSNorms to a shared input."""
-    if _triton_paired_rmsnorm_cast is not None and x.is_cuda:
+) -> tuple[Tensor, Tensor] | None:
+    """Share RMS statistics, then apply each weight before its output cast.
+
+    Return ``None`` when the caller must use its original normalization path.
+    """
+    if (
+        _triton_paired_rmsnorm_cast is not None
+        and _supports_triton(x, (weight1, weight2))
+        and not torch.is_grad_enabled()
+        and torch.is_autocast_enabled("cuda")
+        and torch.get_autocast_dtype("cuda") == torch.bfloat16
+        and x.dim() in (2, 3)
+        and x.stride(-1) == 1
+    ):
         return _triton_paired_rmsnorm_cast(x, weight1, weight2, eps)
-    return rmsnorm_cast(x, weight1, eps), rmsnorm_cast(x, weight2, eps)
+    return None
