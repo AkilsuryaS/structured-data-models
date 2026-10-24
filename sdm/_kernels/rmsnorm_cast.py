@@ -11,9 +11,16 @@ from torch import Tensor
 _RMSNormCast: TypeAlias = Callable[
     [Tensor, Tensor | None, float, tuple[Tensor, Tensor] | None], Tensor
 ]
+_PairedRMSNormCast: TypeAlias = Callable[
+    [Tensor, Tensor | None, Tensor | None, float], tuple[Tensor, Tensor]
+]
 
 _triton_rmsnorm_cast: _RMSNormCast | None = None
+_triton_paired_rmsnorm_cast: _PairedRMSNormCast | None = None
 try:
+    from sdm._kernels.triton.rmsnorm_cast import (
+        paired_rmsnorm_cast as _triton_paired_rmsnorm_cast_impl,
+    )
     from sdm._kernels.triton.rmsnorm_cast import (
         rmsnorm_cast as _triton_rmsnorm_cast_impl,
     )
@@ -21,6 +28,7 @@ except ImportError:
     pass
 else:
     _triton_rmsnorm_cast = _triton_rmsnorm_cast_impl
+    _triton_paired_rmsnorm_cast = _triton_paired_rmsnorm_cast_impl
 
 
 def rmsnorm_cast(
@@ -90,3 +98,12 @@ def rmsnorm_cast(
     return F.rms_norm(x, (x.size(-1),), weight, eps).to(
         torch.get_autocast_dtype(x.device.type)
     )
+
+
+def paired_rmsnorm_cast(
+    x: Tensor, weight1: Tensor | None, weight2: Tensor | None, eps: float
+) -> tuple[Tensor, Tensor]:
+    """Apply two independently weighted RMSNorms to a shared input."""
+    if _triton_paired_rmsnorm_cast is not None and x.is_cuda:
+        return _triton_paired_rmsnorm_cast(x, weight1, weight2, eps)
+    return rmsnorm_cast(x, weight1, eps), rmsnorm_cast(x, weight2, eps)

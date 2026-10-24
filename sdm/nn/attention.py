@@ -4,6 +4,7 @@
 """Attention modules for structured tensor models."""
 
 import math
+import os
 from typing import Any, Literal, overload
 
 import torch
@@ -11,9 +12,13 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Linear
 
+from sdm._kernels.rmsnorm_cast import paired_rmsnorm_cast
 from sdm._memory import chunk_memory_limit
 from sdm.cache import KVCacheEntry
 from sdm.nn import QueryScaling
+from sdm.nn.rms_norm import RMSNorm
+
+_PAIRED_RMS_ENABLED = os.environ.get("SDM_EXPERIMENTAL_PAIRED_RMS") == "1"
 
 
 class SDPA(torch.nn.Module):
@@ -533,6 +538,7 @@ class TransformerBlock(torch.nn.Module):
         return_key_value: Literal[False] = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
+        _shared_norm_input: bool = False,
     ) -> Tensor: ...
 
     @overload
@@ -549,6 +555,7 @@ class TransformerBlock(torch.nn.Module):
         return_key_value: Literal[True],
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
+        _shared_norm_input: bool = False,
     ) -> tuple[Tensor, KVCacheEntry]: ...
 
     @overload
@@ -565,6 +572,7 @@ class TransformerBlock(torch.nn.Module):
         return_key_value: bool,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
+        _shared_norm_input: bool = False,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]: ...
 
     def forward(
@@ -580,6 +588,7 @@ class TransformerBlock(torch.nn.Module):
         return_key_value: bool = False,
         batch_size_limit: int | Literal["auto"] | None = None,
         out: Tensor | None = None,
+        _shared_norm_input: bool = False,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
         r"""The forward pass.
 
@@ -638,6 +647,7 @@ class TransformerBlock(torch.nn.Module):
                 key_pos=key_pos,
                 is_causal=is_causal,
                 return_key_value=return_key_value,
+                _shared_norm_input=_shared_norm_input,
                 out=out,
             )
 
@@ -693,6 +703,7 @@ class TransformerBlock(torch.nn.Module):
                 key_pos=key_pos,
                 is_causal=is_causal,
                 return_key_value=return_key_value,
+                _shared_norm_input=_shared_norm_input,
                 out=out,
             )
 
@@ -721,6 +732,7 @@ class TransformerBlock(torch.nn.Module):
                 key_pos=_chunk(key_pos, batch_shape, 1, start, end),
                 is_causal=is_causal,
                 return_key_value=return_key_value,
+                _shared_norm_input=_shared_norm_input,
                 out=flat_out[start:end] if flat_out is not None else None,
             )
 
@@ -784,12 +796,49 @@ class TransformerBlock(torch.nn.Module):
         is_causal: bool = False,
         return_key_value: bool = False,
         out: Tensor | None = None,
+        _shared_norm_input: bool = False,
     ) -> Tensor | tuple[Tensor, KVCacheEntry]:  # [..., Q, C]
 
         if key_value is None and key_pos is None:
             key_pos = query_pos
 
-        if self.key_value_norm is None:
+        normalized_query: Tensor | None = None
+        if (
+            _PAIRED_RMS_ENABLED
+            and torch.compiler.is_compiling()
+            and _shared_norm_input
+            and not torch.is_grad_enabled()
+            and query.is_cuda
+            and query.dtype in {torch.bfloat16, torch.float16, torch.float32}
+            and query.dim() in (2, 3)
+            and query.stride(-1) == 1
+            and query.size(-1) in {32, 64, 128, 256, 512}
+            and isinstance(key_value, Tensor)
+            and query.shape == key_value.shape
+            and isinstance(self.query_norm, RMSNorm)
+            and isinstance(self.key_value_norm, RMSNorm)
+            and self.query_norm.normalized_shape == query.shape[-1:]
+            and self.key_value_norm.normalized_shape == query.shape[-1:]
+            and self.query_norm.eps == self.key_value_norm.eps
+            and (
+                self.query_norm.weight is None
+                or self.query_norm.weight.dtype
+                in {torch.float32, torch.float16, torch.bfloat16}
+            )
+            and (
+                self.key_value_norm.weight is None
+                or self.key_value_norm.weight.dtype
+                in {torch.float32, torch.float16, torch.bfloat16}
+            )
+            and torch.is_autocast_enabled("cuda")
+            and torch.get_autocast_dtype("cuda") == torch.bfloat16
+        ):
+            eps = self.query_norm.eps
+            eps = torch.finfo(torch.float32).eps if eps is None else eps
+            key_value, normalized_query = paired_rmsnorm_cast(
+                query, self.key_value_norm.weight, self.query_norm.weight, eps
+            )
+        elif self.key_value_norm is None:
             pass
         elif key_value is None and self.key_value_norm is not self.query_norm:
             key_value = self.key_value_norm(query)
@@ -797,7 +846,11 @@ class TransformerBlock(torch.nn.Module):
             key_value = self.key_value_norm(key_value)
 
         result = self.attn(
-            query=query if self.query_norm is None else self.query_norm(query),
+            query=normalized_query
+            if normalized_query is not None
+            else query
+            if self.query_norm is None
+            else self.query_norm(query),
             key_value=key_value,
             seqused_key_value=seqused_key_value,
             attn_mask=attn_mask,

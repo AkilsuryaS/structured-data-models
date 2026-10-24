@@ -216,6 +216,7 @@ class RowEmbedding(torch.nn.Module):
                     key_value=buffer,
                     seqused_key_value=row_key_lengths,
                     batch_size_limit="auto",
+                    _shared_norm_input=i < len(self.row_blocks) - 1,
                     out=buffer[..., :K, :]
                     if i == len(self.row_blocks) - 1
                     else buffer,

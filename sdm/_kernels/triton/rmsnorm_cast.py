@@ -20,15 +20,27 @@ def _load_input(
     channels: tl.constexpr,
     seq_len,
     num_heads,
+    row_length: tl.constexpr = 0,
+    row_stride=0,
+    token_stride=0,
+    channel_stride: tl.constexpr = 1,
 ) -> tl.tensor:
-    offsets = row[:, None] * channels
-    value = tl.load(x_ptr + offsets + c, mask=mask, other=0).to(tl.float32)
+    if row_length == 0:
+        offsets = row[:, None] * channels
+    else:
+        offsets = (
+            (row // row_length) * row_stride
+            + (row % row_length) * token_stride
+        )[:, None]
+    value = tl.load(
+        x_ptr + offsets + c * channel_stride, mask=mask, other=0
+    ).to(tl.float32)
     if cos_ptr is not None:
         first = c < channels // 2
         partner = tl.where(first, c + channels // 2, c - channels // 2)
-        other = tl.load(x_ptr + offsets + partner, mask=mask, other=0).to(
-            tl.float32
-        )
+        other = tl.load(
+            x_ptr + offsets + partner * channel_stride, mask=mask, other=0
+        ).to(tl.float32)
         table = (row // num_heads % seq_len)[:, None] * (channels // 2)
         table += c % (channels // 2)
         cos = tl.load(cos_ptr + table, mask=mask, other=0).to(tl.float32)
@@ -41,7 +53,15 @@ def _load_input(
     return value
 
 
-@triton.jit(do_not_specialize=["rows", "seq_len", "num_heads"])
+@triton.jit(
+    do_not_specialize=[
+        "rows",
+        "seq_len",
+        "num_heads",
+        "row_stride",
+        "token_stride",
+    ]
+)
 def _rmsnorm_cast_kernel(
     x_ptr,
     weight_ptr,
@@ -54,6 +74,12 @@ def _rmsnorm_cast_kernel(
     channels: tl.constexpr,
     eps: tl.constexpr,
     block_rows: tl.constexpr,
+    weight2_ptr=None,
+    out2_ptr=None,
+    row_length: tl.constexpr = 0,
+    row_stride=0,
+    token_stride=0,
+    channel_stride: tl.constexpr = 1,
 ) -> None:
     row = tl.program_id(0).to(tl.int64) * block_rows + tl.arange(0, block_rows)
     offsets = row[:, None] * channels
@@ -71,6 +97,10 @@ def _rmsnorm_cast_kernel(
             channels,
             seq_len,
             num_heads,
+            row_length,
+            row_stride,
+            token_stride,
+            channel_stride,
         )
         total = tl.fma(v, v, total)
     if channels == 32:
@@ -91,11 +121,23 @@ def _rmsnorm_cast_kernel(
         channels,
         seq_len,
         num_heads,
+        row_length,
+        row_stride,
+        token_stride,
+        channel_stride,
     )
     value *= tl.rsqrt(variance[:, None] / channels + eps)
+    # Each affine is applied before its BF16 output store. Never quantize the
+    # unweighted normalized value and reuse it as an intermediate.
+    value1 = value
     if weight_ptr is not None:
-        value *= tl.load(weight_ptr + c).to(tl.float32)
-    tl.store(out_ptr + offsets + c, value, mask=mask)
+        value1 = value1 * tl.load(weight_ptr + c).to(tl.float32)
+    tl.store(out_ptr + offsets + c, value1, mask=mask)
+    if out2_ptr is not None:
+        value2 = value
+        if weight2_ptr is not None:
+            value2 = value2 * tl.load(weight2_ptr + c).to(tl.float32)
+        tl.store(out2_ptr + offsets + c, value2, mask=mask)
 
 
 def rmsnorm_cast(
@@ -130,7 +172,73 @@ def rmsnorm_cast(
             channels,
             eps,
             block_rows,
+            weight2_ptr=None,
+            out2_ptr=None,
+            row_length=0,
+            row_stride=0,
+            token_stride=0,
+            channel_stride=1,
             num_warps=4,
             enable_fp_fusion=False,
         )
     return out
+
+
+def paired_rmsnorm_cast(
+    x: Tensor,
+    weight1: Tensor | None,
+    weight2: Tensor | None,
+    eps: float,
+) -> tuple[Tensor, Tensor]:
+    """Inference-only paired affine RMSNorm for a promised shared input.
+
+    Supports 2-D rows and 3-D row/token tensors directly, including transposed
+    row/token storage. Single-output calls keep the original kernel defaults.
+    """
+    assert x.is_cuda
+    assert x.dim() in (2, 3)
+    assert x.stride(-1) == 1
+    assert not torch.is_grad_enabled()
+    channels = x.size(-1)
+    assert channels in (32, 64, 128, 256, 512)
+    rows = x.numel() // channels
+    output_dtype = torch.get_autocast_dtype("cuda")
+    out1 = torch.empty(x.shape, device=x.device, dtype=output_dtype)
+    out2 = torch.empty(x.shape, device=x.device, dtype=output_dtype)
+    if rows == 0:
+        return out1, out2
+    for weight in (weight1, weight2):
+        assert weight is None or (
+            weight.shape == (channels,) and weight.device == x.device
+        )
+    weight1 = None if weight1 is None else weight1.contiguous()
+    weight2 = None if weight2 is None else weight2.contiguous()
+    row_length = x.size(-2) if x.dim() == 3 else 1
+    row_stride = x.stride(-3) if x.dim() == 3 else x.stride(-2)
+    token_stride = x.stride(-2) if x.dim() == 3 else 0
+    block_rows = 8
+    with torch.cuda.device(x.device):
+        cast(Any, _rmsnorm_cast_kernel)[
+            ((rows + block_rows - 1) // block_rows,)
+        ](
+            x,
+            weight1,
+            None,
+            None,
+            out1,
+            rows,
+            1,
+            1,
+            channels,
+            eps,
+            block_rows,
+            weight2_ptr=weight2,
+            out2_ptr=out2,
+            row_length=row_length,
+            row_stride=row_stride,
+            token_stride=token_stride,
+            channel_stride=x.stride(-1),
+            num_warps=4,
+            enable_fp_fusion=False,
+        )
+    return out1, out2
