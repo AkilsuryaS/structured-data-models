@@ -9,7 +9,7 @@ import torch
 from torch import Tensor
 from torch.nn import GELU, Embedding, Linear, ModuleList
 
-from sdm._kernels.linear_gelu_bf16 import LinearGeluMLP
+from sdm._kernels.linear_gelu import LinearGeluMLP
 from sdm.cache import Cache, KVCacheEntry
 from sdm.models.kumo.tabular.block import KumoTabularTransformerBlock
 from sdm.nn import LogScale, RMSNorm

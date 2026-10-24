@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental BF16 GEMM with a rounded, exact-erf GELU epilogue."""
+"""Experimental GEMM with a rounded, exact-erf GELU epilogue."""
 
 import torch
 import triton
@@ -49,7 +49,7 @@ def _linear_bias_gelu(
         w = tl.load(W + bn[None, :] * K + kk[:, None])
         acc += tl.dot(a, w, allow_tf32=False, out_dtype=tl.float32)
     bias = tl.load(B + rn, rn < N, 0).to(tl.float32)
-    rounded = (acc + bias[None, :]).to(tl.bfloat16)
+    rounded = (acc + bias[None, :]).to(OUT.dtype.element_ty)
     if FUSE_GELU:
         x = rounded.to(tl.float32)
         half = x * 0.5
@@ -64,11 +64,11 @@ def _linear_bias_gelu(
     )
 
 
-@torch.library.triton_op("sdm_round3::linear_bias_gelu_bf16", mutates_args={})
-def linear_bias_gelu_bf16(
+@torch.library.triton_op("sdm::linear_bias_gelu", mutates_args={})
+def linear_bias_gelu(
     a: Tensor, w: Tensor, b: Tensor, fuse_gelu: bool = True
 ) -> Tensor:
-    """BF16, 2-D, contiguous operands; final two dimensions fixed by model."""
+    """Fuse matching FP16/BF16/FP32 contiguous operands in their own dtype."""
     torch._check(a.dim() == 2)
     torch._check(w.dim() == 2)
     torch._check(b.dim() == 1)
@@ -78,13 +78,14 @@ def linear_bias_gelu_bf16(
     torch._check(b.shape[0] == n)
     torch._check(a.shape[0] >= (131072 if k == 256 else 2048))
     torch._check(a.shape[0] <= (2097152 if k == 256 else 262144))
-    assert a.dtype == w.dtype == b.dtype == torch.bfloat16
+    assert a.dtype == w.dtype == b.dtype
+    assert a.dtype in (torch.float16, torch.bfloat16, torch.float32)
     assert a.is_contiguous()
     assert w.is_contiguous()
     assert b.is_contiguous()
     assert a.device == w.device == b.device
     assert a.device.type == "cuda"
-    out = torch.empty((a.shape[0], n), device=a.device, dtype=torch.bfloat16)
+    out = torch.empty((a.shape[0], n), device=a.device, dtype=a.dtype)
     torch.library.wrap_triton(_linear_bias_gelu)[
         (triton.cdiv(a.shape[0], 128) * triton.cdiv(n, 128),)
     ](

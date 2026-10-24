@@ -9,7 +9,7 @@ import torch
 from torch import Tensor
 from torch.nn import GELU, Linear, Sequential
 
-from sdm._kernels.linear_gelu_bf16 import LinearGeluMLP
+from sdm._kernels.linear_gelu import LinearGeluMLP
 from sdm.nn import QueryScaling, RMSNorm, RotaryEmbedding, TransformerBlock
 
 
