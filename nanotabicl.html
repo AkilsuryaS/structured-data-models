@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en" data-accent-color="green" data-content_root="./">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>NanoTabICL in SDM - Structured Data Models</title><link rel="shortcut icon" href="_static/nvidia.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="NIM Inference" href="nim.html" /><link rel="prev" title="Data Processing" href="processing.html" /><script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode(localStorage._theme||"auto");
+  </script><link rel="stylesheet" type="text/css" href="_static/pygments.css?v=e1a1ceaf" />
+    <link rel="stylesheet" type="text/css" href="_static/shibuya.css?v=2ceb65ce" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link media="print" rel="stylesheet" type="text/css" href="_static/print.css?v=20ff2c19" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=29e2959f" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sy-f-text: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+  --sy-f-heading: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+}
+</style>
+    
+  <meta property="og:type" content="website"/><meta property="og:title" content="NanoTabICL in SDM"/>
+    <meta name="twitter:card" content="summary"/>
+  </head>
+<body><div class="sy-head">
+  <div class="sy-head-blur"></div>
+  <div class="sy-head-inner sy-container mx-auto">
+    <a class="sy-head-brand" href="index.html">
+      <img class="light-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <img class="dark-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <strong>Structured Data Models</strong>
+    </a>
+    <div class="sy-head-nav" id="head-nav">
+      <nav class="sy-head-links"></nav>
+      <div class="sy-head-extra flex items-center print:hidden"><form class="searchbox flex items-center" action="search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <kbd>/</kbd>
+</form><div class="sy-head-socials">
+  <a href="https://github.com/NVIDIA/structured-data-models" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div></div>
+    </div>
+    <div class="sy-head-actions flex items-center shrink-0 print:hidden"><button class="js-theme theme-switch flex items-center"
+data-aria-auto="Switch to light color mode"
+data-aria-light="Switch to dark color mode"
+data-aria-dark="Switch to auto color mode">
+<i class="i-lucide theme-icon"></i>
+</button><button class="md:hidden flex items-center js-menu" aria-label="Menu" type="button" aria-controls="head-nav" aria-expanded="false">
+        <div class="hamburger">
+          <span class="hamburger_1"></span>
+          <span class="hamburger_2"></span>
+          <span class="hamburger_3"></span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        <div class="globaltoc" data-expand-depth="0"><p class="caption" role="heading" aria-level="3"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">Guides</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tensor.html">Table Semantics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="icl.html">In-Context Learning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="processing.html">Data Processing</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">NanoTabICL in SDM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nim.html">NIM Inference</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/sdm.html">sdm</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Stype.html">Stype</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.infer_stypes.html">infer_stypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Task.html">Task</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/tensor.html">sdm.tensor</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.VarLenTensor.html">VarLenTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.StringTensor.html">StringTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.NullableTensor.html">NullableTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.CategoricalTensor.html">CategoricalTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.ColumnarTensor.html">ColumnarTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html">TableTensor</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/relational.html">sdm.relational</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.Relationship.html">Relationship</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalData.html">RelationalData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.TaskLink.html">TaskLink</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html">RelatedTables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalSampler.html">RelationalSampler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/processing.html">sdm.processing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.Processor.html">Processor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.InvertibleMixin.html">InvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleProcessor.html">EnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleInvertibleMixin.html">EnsembleInvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.series.SeriesEnsembleProcessor.html">SeriesEnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.recipe.Recipe.html">Recipe</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Identity.html">Identity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Callable.html">Callable</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Sequential.html">Sequential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.DropStypes.html">DropStypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.StypeDispatch.html">StypeDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TaskDispatch.html">TaskDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TableDispatch.html">TableDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.EnsembleProcessorAdapter.html">EnsembleProcessorAdapter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Choice.html">Choice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ToNumerical.html">ToNumerical</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ShuffleColumns.html">ShuffleColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.SelectColumns.html">SelectColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Cast.html">Cast</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Clip.html">Clip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RankGaussian.html">RankGaussian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Standardize.html">Standardize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RobustScale.html">RobustScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.MinMaxScale.html">MinMaxScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.FlipSign.html">FlipSign</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.DropConstantColumns.html">DropConstantColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PCA.html">PCA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.WarpTails.html">WarpTails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AddCategoryCounts.html">AddCategoryCounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.TFIDF.html">TFIDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.SentenceTransformer.html">SentenceTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.datetime.AddCalendarFields.html">AddCalendarFields</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.AverageEstimators.html">AverageEstimators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.Softmax.html">Softmax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.SortQuantiles.html">SortQuantiles</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/nn.html">sdm.nn</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RotaryEmbedding.html">RotaryEmbedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SinusoidalEmbedding.html">SinusoidalEmbedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SwiGLU.html">SwiGLU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SoftplusScale.html">SoftplusScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RMSNorm.html">RMSNorm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RevIN.html">RevIN</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QueryScaling.html">QueryScaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QASSMax.html">QASSMax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.LogScale.html">LogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.GatedLogScale.html">GatedLogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SDPA.html">SDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.Attention.html">Attention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html">TransformerBlock</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.InducedTransformerBlock.html">InducedTransformerBlock</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/models.html">sdm.models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.Model.html">Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.ICLModel.html">ICLModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.Callback.html">Callback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabICLv2.html">TabICLv2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabFM.html">TabFM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoTabular.html">KumoTabular</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoRelational.html">KumoRelational</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoForecast.html">KumoForecast</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoAnomaly.html">KumoAnomaly</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TimesFM3.html">TimesFM3</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/explain.html">sdm.explain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.ICLExplainer.html">ICLExplainer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.GradientExplainer.html">GradientExplainer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/evaluation.html">sdm.evaluation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_class_indices.html">to_class_indices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_binary_class.html">to_binary_class</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <aside id="rside" class="sy-rside pb-3 w-64 shrink-0 order-last">
+    <button class="rside-close js-menu xl:hidden" aria-label="Close Table of Contents" type="button" aria-controls="rside" aria-expanded="false">
+      <i class="i-lucide close"></i>
+    </button>
+    <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
+<li><a class="reference internal" href="#row-wise-compression">Row-wise Compression</a><ul>
+<li><a class="reference internal" href="#column-wise-attention">Column-wise Attention</a></li>
+<li><a class="reference internal" href="#row-wise-attention">Row-wise Attention</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#in-context-learning">In-Context Learning</a></li>
+<li><a class="reference internal" href="#putting-it-all-together">Putting It All Together</a></li>
+</ul>
+</div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
+  </aside>
+  <div class="rside-overlay js-menu" role="button" aria-label="Close Table of Contents" aria-controls="rside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+<div class="sy-breadcrumbs" role="navigation">
+  <div class="sy-breadcrumbs-inner flex items-center">
+    <div class="md:hidden mr-3">
+      <button class="js-menu" aria-label="Menu" type="button" aria-controls="lside" aria-expanded="false">
+        <i class="i-lucide menu"></i>
+      </button>
+    </div>
+    <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="index.html"><span itemprop="name">Structured Data Models</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">NanoTabICL in SDM</strong>
+        <meta itemprop="position" content="2" />
+      </li></ol>
+    <div class="xl:hidden ml-1">
+      <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
+        aria-expanded="false">
+        <i class="i-lucide outdent"></i>
+      </button>
+    </div>
+  </div>
+</div><div class="flex flex-col break-words justify-between">
+      <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+  <article class="yue" role="main">
+          <section id="nanotabicl-in-sdm">
+<h1>NanoTabICL in SDM<a class="headerlink" href="#nanotabicl-in-sdm" title="Link to this heading">#</a></h1>
+<p>The <a class="reference internal" href="api/nn.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.nn</span></code></span></a> package provides reusable, GPU-accelerated building blocks for developing foundation models for structured data from scratch.
+In this guide, we show how to build a minimal <a class="reference external" href="https://arxiv.org/abs/2602.11139">TabICLv2</a>-inspired Tabular Foundation Model (TFM) with it.
+Like other <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning (ICL)</span></a> models, it receives labeled context rows together with unlabeled query rows, and predicts the query targets in a single forward pass.</p>
+<p>TabICL pioneered the <strong>“Compress-then-ICL”</strong> approach which has since been adopted by other TFMs such as <a class="reference external" href="https://arxiv.org/abs/2605.13986">TabPFN-3</a>, <a class="reference external" href="https://arxiv.org/abs/2609.37959">TabFM</a>, and <a class="reference external" href="https://huggingface.co/blog/nvidia/kumo-tabular">KumoTabular</a>.
+Its main advantage is its efficient ICL stage that operates on compressed row representations rather than individual cells.
+It consists of three stages:</p>
+<ol class="arabic simple">
+<li><p>A <strong>row-wise compression block</strong> that maps each table row to a fixed-size embedding.</p></li>
+<li><p>An <strong>in-context learning block</strong> that models interactions among labeled context rows and uses that context to update query representations.</p></li>
+<li><p>A final <strong>prediction head</strong>.</p></li>
+</ol>
+<section id="row-wise-compression">
+<h2>Row-wise Compression<a class="headerlink" href="#row-wise-compression" title="Link to this heading">#</a></h2>
+<p>The compression block embeds each table row using column-wise attention followed by row-wise attention.
+The column-wise attention captures patterns within each column.
+Afterwards, row-wise attention combines cell information within each row into a single fixed-size embedding.</p>
+<section id="column-wise-attention">
+<h3>Column-wise Attention<a class="headerlink" href="#column-wise-attention" title="Link to this heading">#</a></h3>
+<p>Since self-attention grows quadratically with the number of cells, full self-attention across an entire table is not scalable.
+Thus, the column-wise Transformer uses induced self-attention from the <a class="reference external" href="https://arxiv.org/abs/1810.00825">Set Transformer</a>.
+The key innovation of induced self-attention is to learn a small, fixed number of inducing points.
+These points first attend to the column entries.
+Then, column entries attend to the induced representation.
+This two-stage mechanism thus replaces direct attention between all pairs of elements.
+The inducing points are learnable parameters.
+During each forward pass, they attend only to context entries; both context and query entries then attend to the resulting representation.
+This prevents queries within a batch from influencing each other, and allows caching across repeated predictions.</p>
+<p>The <a class="reference internal" href="api/generated/sdm.nn.InducedTransformerBlock.html#sdm.nn.InducedTransformerBlock" title="sdm.nn.InducedTransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.InducedTransformerBlock</span></code></a> provides a highly reusable and configurable block for induced self-attention, built from two <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.TransformerBlock</span></code></a> modules: <strong>(1)</strong> the <code class="docutils literal notranslate"><span class="pre">inducing_block</span></code> that updates the learned inducing points from context entries, and <strong>(2)</strong> the <code class="docutils literal notranslate"><span class="pre">output_block</span></code> that updates all column entries from the induced representation.</p>
+<p>We start by defining a simple feed-forward multilayer perceptron (MLP):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+</span><span data-line="2"><span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tensor</span>
+</span><span data-line="3">
+</span><span data-line="4"><span class="k">def</span><span class="w"> </span><span class="nf">MLP</span><span class="p">(</span><span class="n">in_channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">:</span>
+</span><span data-line="5">    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+</span><span data-line="6">        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">in_channels</span><span class="p">),</span>
+</span><span data-line="7">        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_channels</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">in_channels</span><span class="p">),</span>
+</span><span data-line="8">        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">GELU</span><span class="p">(),</span>
+</span><span data-line="9">        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">in_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">),</span>
+</span><span data-line="10">    <span class="p">)</span>
+</span></pre></div>
+</div>
+<p>Next, our <code class="docutils literal notranslate"><span class="pre">ColumnTransformer</span></code> stacks three layers of column-wise induced attention over 128 inducing points.
+Its input is a <code class="docutils literal notranslate"><span class="pre">D</span></code>-dimensional cell embedding <code class="docutils literal notranslate"><span class="pre">x</span></code> for each row <code class="docutils literal notranslate"><span class="pre">R</span></code> and each column <code class="docutils literal notranslate"><span class="pre">C</span></code>.
+The first number of rows in <code class="docutils literal notranslate"><span class="pre">x</span></code> are context rows with corresponding labels in <code class="docutils literal notranslate"><span class="pre">y</span></code>; the remaining rows are query rows.</p>
+<p>TabICLv2 uses a pre-norm <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a>, applying <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm" title="(in PyTorch v2.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">LayerNorm</span></code></a> before each attention and feed-forward sublayer.
+When attending over context rows, TabICLv2 uses <a class="reference internal" href="api/generated/sdm.nn.QASSMax.html#sdm.nn.QASSMax" title="sdm.nn.QASSMax"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.QASSMax</span></code></a> to scale queries based on the number of context rows, adapting attention to varying context sizes.
+The <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a> supports these attention patterns through configurable normalization, query scaling, and separate query and key/value inputs.</p>
+<p>Lastly, to produce task-conditioned compressed representations (<em>e.g.</em> to filter out task-irrelevant columns), TabICLv2 injects target information from context examples before entering the Transformer.
+This is done by adding a learnable class embedding to each cell in the context rows, supporting up to 10 classes.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We drop the leading batch dimension in all tensor shapes for simplicity.
+In practice, TFMs are trained in batches.</p>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">sdm</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="k">class</span><span class="w"> </span><span class="nc">ColumnTransformer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+</span><span data-line="4">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span data-line="5">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="6">        <span class="n">channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="7">        <span class="n">num_heads</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="8">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="9">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+</span><span data-line="10">
+</span><span data-line="11">        <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span>
+</span><span data-line="12">
+</span><span data-line="13">        <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span>
+</span><span data-line="14">            <span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">InducedTransformerBlock</span><span class="p">(</span>
+</span><span data-line="15">                <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+</span><span data-line="16">                <span class="n">num_inducing_points</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+</span><span data-line="17">                <span class="n">inducing_block</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">TransformerBlock</span><span class="p">(</span>
+</span><span data-line="18">                    <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+</span><span data-line="19">                    <span class="n">num_query_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="20">                    <span class="n">query_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="21">                    <span class="n">key_value_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="22">                    <span class="n">mlp</span><span class="o">=</span><span class="n">MLP</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="n">channels</span><span class="p">),</span>
+</span><span data-line="23">                    <span class="n">query_scaling</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">QASSMax</span><span class="p">(</span>
+</span><span data-line="24">                        <span class="n">channels</span><span class="o">=</span><span class="n">channels</span> <span class="o">//</span> <span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="25">                        <span class="n">num_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="26">                    <span class="p">),</span>
+</span><span data-line="27">                <span class="p">),</span>
+</span><span data-line="28">                <span class="n">output_block</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">TransformerBlock</span><span class="p">(</span>
+</span><span data-line="29">                    <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+</span><span data-line="30">                    <span class="n">num_query_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="31">                    <span class="n">query_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="32">                    <span class="n">key_value_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="33">                    <span class="n">mlp</span><span class="o">=</span><span class="n">MLP</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="n">channels</span><span class="p">),</span>
+</span><span data-line="34">                <span class="p">),</span>
+</span><span data-line="35">            <span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</span><span data-line="36">        <span class="p">])</span>
+</span><span data-line="37">
+</span><span data-line="38">    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+</span><span data-line="39">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="40">        <span class="n">x</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R, C, D]</span>
+</span><span data-line="41">        <span class="n">y</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R_context]</span>
+</span><span data-line="42">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R, C, D]</span>
+</span><span data-line="43">
+</span><span data-line="44">        <span class="c1"># Inject task labels to context cell representations:</span>
+</span><span data-line="45">        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span>
+</span><span data-line="46">            <span class="n">x</span><span class="p">[:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span><span class="p">(</span><span class="n">y</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:],</span>
+</span><span data-line="47">            <span class="n">x</span><span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">):],</span>
+</span><span data-line="48">        <span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span data-line="49">
+</span><span data-line="50">        <span class="c1"># Use the row dimension as the sequence axis:</span>
+</span><span data-line="51">        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># [C, R, D]</span>
+</span><span data-line="52">        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">:</span>
+</span><span data-line="53">            <span class="c1"># Inducing points should only attend to context rows:</span>
+</span><span data-line="54">            <span class="n">x</span> <span class="o">=</span> <span class="n">block</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">key_value</span><span class="o">=</span><span class="n">x</span><span class="p">[:,</span> <span class="p">:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)])</span>
+</span><span data-line="55">        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># [R, C, D]</span>
+</span></pre></div>
+</div>
+</section>
+<section id="row-wise-attention">
+<h3>Row-wise Attention<a class="headerlink" href="#row-wise-attention" title="Link to this heading">#</a></h3>
+<p>We next perform self-attention across the column vectors of each row.
+As the number of columns in a dataset is usually much smaller than the number of rows, we use a full self-attention <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a>.</p>
+<p>TabICLv2 prepends four learnable <code class="docutils literal notranslate"><span class="pre">[CLS]</span></code> tokens to each row and uses their output representations as the row’s final embedding.
+This maps rows with varying numbers of columns to fixed-size embeddings.
+The <code class="docutils literal notranslate"><span class="pre">[CLS]</span></code> tokens are initialized from a truncated normal distribution and refined via repeated row-wise attention.
+Using multiple <code class="docutils literal notranslate"><span class="pre">[CLS]</span></code> tokens allows more information to pass through this bottleneck.
+Their four output vectors are flattened into one 4 * D dimensional row embedding, which becomes a single token in the ICL stage.</p>
+<p>Furthermore, TabICLv2 applies <a class="reference internal" href="api/generated/sdm.nn.RotaryEmbedding.html#sdm.nn.RotaryEmbedding" title="sdm.nn.RotaryEmbedding"><code class="xref py py-class docutils literal notranslate"><span class="pre">sdm.nn.RotaryEmbedding</span></code></a> (RoPE) in row-wise attention to distinguish features by their column positions.
+This helps resolve ambiguity between features with similar representations.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">class</span><span class="w"> </span><span class="nc">RowTransformer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+</span><span data-line="2">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span data-line="3">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="4">        <span class="n">channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="5">        <span class="n">num_heads</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="6">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="7">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+</span><span data-line="8">
+</span><span data-line="9">        <span class="bp">self</span><span class="o">.</span><span class="n">cls_tokens</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">channels</span><span class="p">))</span>
+</span><span data-line="10">        <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">trunc_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cls_tokens</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+</span><span data-line="11">
+</span><span data-line="12">        <span class="n">rope</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">RotaryEmbedding</span><span class="p">(</span>
+</span><span data-line="13">            <span class="n">channels</span><span class="o">=</span><span class="n">channels</span> <span class="o">//</span> <span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="14">            <span class="n">layout</span><span class="o">=</span><span class="s2">"split_half"</span><span class="p">,</span>
+</span><span data-line="15">        <span class="p">)</span>
+</span><span data-line="16">        <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span>
+</span><span data-line="17">            <span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">TransformerBlock</span><span class="p">(</span>
+</span><span data-line="18">                <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+</span><span data-line="19">                <span class="n">num_query_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="20">                <span class="n">query_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="21">                <span class="n">key_value_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="22">                <span class="n">query_transform</span><span class="o">=</span><span class="n">rope</span><span class="p">,</span>
+</span><span data-line="23">                <span class="n">key_transform</span><span class="o">=</span><span class="n">rope</span><span class="p">,</span>
+</span><span data-line="24">                <span class="n">mlp</span><span class="o">=</span><span class="n">MLP</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="n">channels</span><span class="p">),</span>
+</span><span data-line="25">            <span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+</span><span data-line="26">        <span class="p">])</span>
+</span><span data-line="27">
+</span><span data-line="28">    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+</span><span data-line="29">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="30">        <span class="n">x</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R, C, D]</span>
+</span><span data-line="31">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R, 4*D]</span>
+</span><span data-line="32">
+</span><span data-line="33">        <span class="c1"># Prepend [CLS] tokens:</span>
+</span><span data-line="34">        <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cls_tokens</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [R, 4, D]</span>
+</span><span data-line="35">        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="bp">cls</span><span class="p">,</span> <span class="n">x</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [R, 4 + C, D]</span>
+</span><span data-line="36">
+</span><span data-line="37">        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">:</span>
+</span><span data-line="38">            <span class="n">x</span> <span class="o">=</span> <span class="n">block</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span><span data-line="39">        <span class="k">return</span> <span class="n">x</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">4</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># [R, 4*D]</span>
+</span></pre></div>
+</div>
+<p>Together, the column-then-row attention blocks form the row-wise compression block of our tabular foundation model.</p>
+</section>
+</section>
+<section id="in-context-learning">
+<h2>In-Context Learning<a class="headerlink" href="#in-context-learning" title="Link to this heading">#</a></h2>
+<p>The ICL stage operates on compressed row representations, modeling interactions among rows through a sequence of <a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html#sdm.nn.TransformerBlock" title="sdm.nn.TransformerBlock"><code class="xref py py-class docutils literal notranslate"><span class="pre">TransformerBlock</span></code></a> layers:</p>
+<ol class="arabic simple">
+<li><p>Query rows attend only to context rows, so each prediction is independent of other queries.</p></li>
+<li><p>Context rows attend only to context rows, keeping their representations independent of queries.</p></li>
+</ol>
+<p>Unlike <code class="docutils literal notranslate"><span class="pre">ColumnTransformer</span></code>, TabICLv2’s ICL stage uses full self-attention over context rows.
+Before attention, it again adds target embeddings to context row representations.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">class</span><span class="w"> </span><span class="nc">ICLTransformer</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+</span><span data-line="2">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span data-line="3">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="4">        <span class="n">channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="5">        <span class="n">num_heads</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+</span><span data-line="6">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="7">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+</span><span data-line="8">
+</span><span data-line="9">        <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">channels</span><span class="p">)</span>
+</span><span data-line="10">
+</span><span data-line="11">        <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">([</span>
+</span><span data-line="12">            <span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">TransformerBlock</span><span class="p">(</span>
+</span><span data-line="13">                <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+</span><span data-line="14">                <span class="n">num_query_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="15">                <span class="n">query_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="16">                <span class="n">key_value_norm</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+</span><span data-line="17">                <span class="n">query_scaling</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">QASSMax</span><span class="p">(</span>
+</span><span data-line="18">                    <span class="n">channels</span><span class="o">=</span><span class="n">channels</span> <span class="o">//</span> <span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="19">                    <span class="n">num_heads</span><span class="o">=</span><span class="n">num_heads</span><span class="p">,</span>
+</span><span data-line="20">                <span class="p">),</span>
+</span><span data-line="21">                <span class="n">mlp</span><span class="o">=</span><span class="n">MLP</span><span class="p">(</span><span class="n">channels</span><span class="p">,</span> <span class="n">channels</span><span class="p">))</span>
+</span><span data-line="22">            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</span><span data-line="23">        <span class="p">])</span>
+</span><span data-line="24">
+</span><span data-line="25">    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+</span><span data-line="26">        <span class="bp">self</span><span class="p">,</span>
+</span><span data-line="27">        <span class="n">x</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R, 4*D]</span>
+</span><span data-line="28">        <span class="n">y</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R_context]</span>
+</span><span data-line="29">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R_query, 4*D]</span>
+</span><span data-line="30">
+</span><span data-line="31">        <span class="c1"># Reinject task labels to context row representations:</span>
+</span><span data-line="32">        <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+</span><span data-line="33">              <span class="p">[</span><span class="n">x</span><span class="p">[:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_emb</span><span class="p">(</span><span class="n">y</span><span class="p">),</span>
+</span><span data-line="34">              <span class="n">x</span><span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">):]],</span>
+</span><span data-line="35">              <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+</span><span data-line="36">          <span class="p">)</span>
+</span><span data-line="37">
+</span><span data-line="38">        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span><span class="p">:</span>
+</span><span data-line="39">            <span class="n">x</span> <span class="o">=</span> <span class="n">block</span><span class="p">(</span><span class="n">query</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">key_value</span><span class="o">=</span><span class="n">x</span><span class="p">[:</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)])</span>
+</span><span data-line="40">        <span class="k">return</span> <span class="n">x</span><span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">):]</span>  <span class="c1"># [R_query, 4*D]</span>
+</span></pre></div>
+</div>
+<p>After the ICL module, an MLP prediction head maps each query row representation to a fixed number of class logits.</p>
+</section>
+<section id="putting-it-all-together">
+<h2>Putting It All Together<a class="headerlink" href="#putting-it-all-together" title="Link to this heading">#</a></h2>
+<p>We can now compose the blocks into a tabular foundation model for classification, made up of a <code class="docutils literal notranslate"><span class="pre">ColumnTransformer</span></code>, <code class="docutils literal notranslate"><span class="pre">RowTransformer</span></code>, and <code class="docutils literal notranslate"><span class="pre">ICLTransformer</span></code> in sequence:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="k">class</span><span class="w"> </span><span class="nc">NanoTabICL</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+</span><span data-line="2">    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span data-line="3">        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+</span><span data-line="4">
+</span><span data-line="5">        <span class="bp">self</span><span class="o">.</span><span class="n">cell_emb</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">128</span><span class="p">)</span>
+</span><span data-line="6">        <span class="bp">self</span><span class="o">.</span><span class="n">column_transformer</span> <span class="o">=</span> <span class="n">ColumnTransformer</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</span><span data-line="7">        <span class="bp">self</span><span class="o">.</span><span class="n">row_transformer</span> <span class="o">=</span> <span class="n">RowTransformer</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</span><span data-line="8">        <span class="bp">self</span><span class="o">.</span><span class="n">icl_transformer</span> <span class="o">=</span> <span class="n">ICLTransformer</span><span class="p">(</span><span class="mi">4</span><span class="o">*</span><span class="mi">128</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</span><span data-line="9">        <span class="bp">self</span><span class="o">.</span><span class="n">head</span> <span class="o">=</span> <span class="n">MLP</span><span class="p">(</span><span class="mi">4</span><span class="o">*</span><span class="mi">128</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+</span><span data-line="10">
+</span><span data-line="11">    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+</span><span data-line="12">        <span class="n">x</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R, C]</span>
+</span><span data-line="13">        <span class="n">y</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>  <span class="c1"># [R_context]</span>
+</span><span data-line="14">    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>  <span class="c1"># [R_query, 10]</span>
+</span><span data-line="15">
+</span><span data-line="16">        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cell_emb</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>  <span class="c1"># [R, C, D]</span>
+</span><span data-line="17">        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column_transformer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>  <span class="c1"># [R, C, D]</span>
+</span><span data-line="18">        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_transformer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># [R, 4*D]</span>
+</span><span data-line="19">        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">icl_transformer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>  <span class="c1"># [R_query, 4*D]</span>
+</span><span data-line="20">        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span><span data-line="21">
+</span><span data-line="22">        <span class="k">return</span> <span class="n">x</span>
+</span></pre></div>
+</div>
+<p>The model takes numerical floating-point features <code class="docutils literal notranslate"><span class="pre">x</span></code> of a table with shape <code class="docutils literal notranslate"><span class="pre">[R,</span> <span class="pre">C]</span></code> and integer labels <code class="docutils literal notranslate"><span class="pre">y</span></code> for the first <code class="docutils literal notranslate"><span class="pre">y.size(0)</span></code> context rows.
+The remaining rows are treated as query rows whose labels the model predicts.
+Categorical encoding, missing-value handling, and feature scaling are typically performed in a pre-processing stage before the model’s <a class="reference external" href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.forward" title="(in PyTorch v2.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a> call.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">)</span>
+</span><span data-line="2"><span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">)</span>
+</span><span data-line="3">
+</span><span data-line="4"><span class="n">model</span> <span class="o">=</span> <span class="n">NanoTabICL</span><span class="p">()</span><span class="o">.</span><span class="n">cuda</span><span class="p">()</span>
+</span><span data-line="5"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</span></pre></div>
+</div>
+</section>
+</section>
+
+        </article><button class="back-to-top" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+  </svg>
+  <span>Back to top</span>
+</button><div class="navigation flex print:hidden"><div class="navigation-prev">
+    <a href="processing.html">
+      <i class="i-lucide chevron-left"></i>
+      <div class="page-info">
+        <span>Previous</span><div class="title">Data Processing</div></div>
+    </a>
+  </div><div class="navigation-next">
+    <a href="nim.html">
+      <div class="page-info">
+        <span>Next</span>
+        <div class="title">NIM Inference</div>
+      </div>
+      <i class="i-lucide chevron-right"></i>
+    </a>
+  </div></div></div>
+    </div>
+  </main>
+</div>
+
+      <script src="_static/documentation_options.js?v=1a6d6c8a"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=ccdb6887"></script>
+      <script src="_static/shibuya.js?v=50760d75"></script></body>
+</html>
