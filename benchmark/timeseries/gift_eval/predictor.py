@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""SDM forecasting adapter for GIFT-Eval."""
-
 from collections.abc import Iterator
 
 import torch
@@ -89,7 +87,7 @@ class SDMPredictor(Predictor):
             )
             pred = out.numerical
             pred = pred.view(y.size(0), self.prediction_length, y.size(2), -1)
-            pred = pred.permute(0, 3, 1, 2).cpu().numpy()
+            pred = pred.permute(0, 3, 1, 2).cpu().numpy()  # [B, Q, R, C]
             levels = out.numerical_columns[: pred.shape[1]]
             levels = [str(float(f"0.{q.split('q')[-1]}")) for q in levels]
 
