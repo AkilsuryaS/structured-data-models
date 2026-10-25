@@ -4,12 +4,13 @@
 r"""Evaluate SDM forecasting model results on GIFT-Eval."""
 
 from pathlib import Path
+from urllib.request import urlopen
 
 import numpy as np
 import pandas as pd
 
-from benchmark.forecasting.gift_eval import GIFT_EVAL_URL
-from benchmark.forecasting.model import MODEL_CONFIGS
+from benchmark.timeseries.gift_eval import GIFT_EVAL_URL
+from benchmark.timeseries.model import MODEL_CONFIGS
 
 BASELINE = "Seasonal_Naive"
 REFERENCES = ("TimesFM-3", "TimesFM-2.5", "Chronos-2", BASELINE)
@@ -28,6 +29,7 @@ def main() -> None:
     for model_config in MODEL_CONFIGS.values():
         path = result_root / model_config.name / "all_results.csv"
         if path.exists():
+            print(f"Loading local results: {path}", flush=True)
             results.append(pd.read_csv(path))
 
     if not results:
@@ -39,7 +41,9 @@ def main() -> None:
     configs = set.intersection(*(set(result["dataset"]) for result in results))
     for name in REFERENCES:
         path = f"{GIFT_EVAL_URL}/results/{name}/all_results.csv"
-        results.append(pd.read_csv(path))
+        print(f"Loading published results: {name}", flush=True)
+        with urlopen(path, timeout=30) as response:
+            results.append(pd.read_csv(response))
 
     df = pd.concat(results)
     df = df[df["dataset"].isin(configs)].set_index(["model", "dataset"])

@@ -2,7 +2,7 @@
 
 This directory contains benchmarks of `structured-data-models` on [GIFT-Eval](https://github.com/SalesforceAIResearch/gift-eval).
 
-All benchmarks share one model adapter (see `benchmark/forecasting/model.py`) that maps each forecasting task onto the `ICLModel` interface: time steps become rows, past targets become `y_context`, all covariates and timestamps of the context become `x_context`, and the forecast horizon becomes `x_query` with one row of known covariates and timestamps per future time step. Columns keep their semantic types, so each model decides which ones it consumes. Series in a batch are left-padded with missing values, and multivariate series are flattened for models without multi-target support.
+All benchmarks share one model adapter (see `benchmark/timeseries/model.py`) that maps each forecasting task onto the `ICLModel` interface: time steps become rows, past targets become `y_context`, all covariates and timestamps of the context become `x_context`, and the forecast horizon becomes `x_query` with one row of known covariates and timestamps per future time step. Columns keep their semantic types, so each model decides which ones it consumes. Series in a batch are left-padded with missing values, and multivariate series are flattened for models without multi-target support.
 
 ______________________________________________________________________
 
@@ -17,11 +17,8 @@ ______________________________________________________________________
 Run the commands below from the repository root:
 
 ```bash
-pip install . gluonts datasets python-dotenv
+pip install . pandas gluonts datasets python-dotenv
 pip install --no-deps "git+https://github.com/SalesforceAIResearch/gift-eval.git@577a65cfa3acb812405c00d989230bf59f7f8a3d"
-
-hf download Salesforce/GiftEval --repo-type dataset --local-dir /path/to/gift_eval
-export GIFT_EVAL=/path/to/gift_eval
 ```
 
 GIFT-Eval is not released on PyPI and is therefore pinned to a commit. It is installed without dependencies since it pins outdated `numpy` and `datasets` versions.
@@ -29,17 +26,18 @@ GIFT-Eval is not released on PyPI and is therefore pinned to a commit. It is ins
 ### Run
 
 ```bash
-python -m benchmark.forecasting.gift_eval.main --model timesfm3
+python -m benchmark.timeseries.gift_eval.main --model timesfm3
 ```
 
 Pass `--dataset` to run only selected GIFT-Eval datasets, *e.g.*, `--dataset hospital --dataset ett1/H`.
-Use `--batch_size` to set the number of series per model call and `--max_context_size` to truncate long contexts.
-Results are written to `benchmark/forecasting/gift_eval_out/<model>/`, and already completed configurations are skipped.
+Selected datasets are downloaded automatically to the Hugging Face cache and reused on subsequent runs. To use an existing local download, optionally set `GIFT_EVAL` to its root directory.
+Batch size and context limits are configured per model in `benchmark/timeseries/model.py`.
+Results are written to `benchmark/timeseries/gift_eval_out/<model>/`, and already completed configurations are skipped.
 
 ### Evaluate
 
 ```bash
-python -m benchmark.forecasting.gift_eval.evaluate
+python -m benchmark.timeseries.gift_eval.evaluate
 ```
 
 This compares all available SDM results against published GIFT-Eval results on the same configurations, normalized by a seasonal naive baseline and aggregated by geometric mean.

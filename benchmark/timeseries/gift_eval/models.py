@@ -13,7 +13,7 @@ from gluonts.model.forecast import QuantileForecast
 from gluonts.model.predictor import Predictor
 
 import sdm
-from benchmark.forecasting.model import ModelConfig, forecast, select_levels
+from benchmark.timeseries.model import ModelConfig, forecast, select_levels
 
 QUANTILE_LEVELS = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
 
@@ -26,19 +26,17 @@ class SDMPredictor(Predictor):
         model: sdm.models.ICLModel,
         config: ModelConfig,
         prediction_length: int,
-        batch_size: int,
     ) -> None:
         super().__init__(prediction_length=prediction_length)
         self.model = model
         self.config = config
-        self.batch_size = batch_size
 
     def predict(
         self,
         dataset: Dataset,
         **kwargs: object,
     ) -> Iterator[QuantileForecast]:
-        for batch in batcher(dataset, batch_size=self.batch_size):
+        for batch in batcher(dataset, batch_size=self.config.batch_size):
             # GluonTS stores series as [V, T] (or [T] if univariate):
             num_variates = np.atleast_2d(batch[0]["target"]).shape[0]
             targets = [f"target_{i}" for i in range(num_variates)]

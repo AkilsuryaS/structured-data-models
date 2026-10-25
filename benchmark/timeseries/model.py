@@ -19,6 +19,7 @@ from sdm.models.timesfm3 import TimesFM3
 class ModelConfig:
     name: str
     factory: Callable[[torch.device], sdm.models.ICLModel]
+    batch_size: int = 64
     num_estimators: int = 1
     max_context_size: int | None = None
 
