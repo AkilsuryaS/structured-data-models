@@ -7,6 +7,7 @@ from collections.abc import Iterator
 
 import numpy as np
 import pandas as pd
+import torch
 from gluonts.dataset import Dataset
 from gluonts.itertools import batcher
 from gluonts.model.forecast import QuantileForecast
@@ -19,24 +20,83 @@ QUANTILE_LEVELS = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
 
 
 class SDMPredictor(Predictor):
-    """GluonTS predictor forecasting batches of series with an SDM model."""
-
     def __init__(
         self,
         model: sdm.models.ICLModel,
         config: ModelConfig,
         prediction_length: int,
+        batch_size: int = 64,
     ) -> None:
         super().__init__(prediction_length=prediction_length)
         self.model = model
         self.config = config
+        self.batch_size = batch_size
+        self.device = next(model.parameters()).device
 
     def predict(
         self,
         dataset: Dataset,
         **kwargs: object,
     ) -> Iterator[QuantileForecast]:
-        for batch in batcher(dataset, batch_size=self.config.batch_size):
+
+        for batch in batcher(dataset, batch_size=self.batch_size):
+            ys = [torch.from_numpy(entry["target"]) for entry in batch]
+            ys = [torch.atleast_2d(y) for y in ys]
+            xs = []
+            if (
+                self.model.supports_context_only_columns
+                and "past_feat_dynamic_real" in batch[0]
+            ):
+                xs = [
+                    torch.from_numpy(entry["past_feat_dynamic_real"])
+                    for entry in batch
+                ]
+                xs = [torch.atleast_2d(x) for x in xs]
+
+            if self.config.max_context_size is not None:
+                ys = [y[..., -self.config.max_context_size :] for y in ys]
+                xs = [x[..., -self.config.max_context_size :] for x in xs]
+
+            length = max(y.size(-1) for y in ys)
+            y = torch.full(
+                (len(ys), ys[0].size(0), length),
+                fill_value=torch.nan,
+            )
+            for i, y_i in enumerate(ys):
+                y[i, :, -y_i.size(-1) :] = y_i
+            x = torch.full(
+                (len(ys), xs[0].size(0) if len(xs) > 0 else 0, length),
+                fill_value=torch.nan,
+            )
+            for i, x_i in enumerate(xs):
+                x[i, :, -x_i.size(-1) :] = x_i
+
+            y = y.transpose(-1, -2).to(
+                self.device,
+                memory_format=torch.contiguous_format,
+            )
+            x = x.transpose(-1, -2).to(
+                self.device,
+                memory_format=torch.contiguous_format,
+            )
+
+            out = self.model(
+                x_context=x,
+                y_context=y,
+                x_query=torch.empty(
+                    (x.size(0), self.prediction_length, 0),
+                    device=self.device,
+                ),
+                num_estimators=self.config.num_estimators,
+            )
+            quantiles = out.numerical_columns
+            print(quantiles)
+            out = out.numerical.view(*y.size(), -1)
+
+            # print("length", length, ys[0].dtype)
+            # for i, x in enumerate(entry.get("past_feat_dynamic_real", [])):
+            #     columns[f"past_feat_dynamic_real_{i}"] = x
+
             # GluonTS stores series as [V, T] (or [T] if univariate):
             num_variates = np.atleast_2d(batch[0]["target"]).shape[0]
             targets = [f"target_{i}" for i in range(num_variates)]

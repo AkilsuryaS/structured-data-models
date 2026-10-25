@@ -3,7 +3,6 @@
 
 """SDM model adapter shared by the time-series forecasting benchmarks."""
 
-import argparse
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -12,14 +11,13 @@ import pandas as pd
 import torch
 
 import sdm
-from sdm.models.timesfm3 import TimesFM3
+from sdm.models import TimesFM3
 
 
 @dataclass(frozen=True)
 class ModelConfig:
     name: str
     factory: Callable[[torch.device], sdm.models.ICLModel]
-    batch_size: int = 64
     num_estimators: int = 1
     max_context_size: int | None = None
 
@@ -32,28 +30,6 @@ MODEL_CONFIGS = {
         max_context_size=15360,
     ),
 }
-
-
-def add_model_args(parser: argparse.ArgumentParser) -> None:
-    """Add the model flags shared by all forecasting benchmarks."""
-    parser.add_argument(
-        "--model",
-        choices=tuple(MODEL_CONFIGS),
-        default="timesfm3",
-        help="SDM model to benchmark.",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=64,
-        help="Number of series forecast per model call.",
-    )
-    parser.add_argument(
-        "--max_context_size",
-        type=int,
-        help="Truncate each context to its most recent time steps "
-        "(defaults to the model's maximum context size).",
-    )
 
 
 def forecast(

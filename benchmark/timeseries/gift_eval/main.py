@@ -7,7 +7,9 @@ import argparse
 import logging
 import os
 import warnings
+from functools import partial
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import torch
@@ -16,6 +18,7 @@ from gluonts.ev import metrics
 from gluonts.model import evaluate_model
 from gluonts.time_feature import get_seasonality
 from huggingface_hub import snapshot_download
+from tqdm.auto import tqdm
 
 from benchmark.timeseries.gift_eval import GIFT_EVAL_URL
 from benchmark.timeseries.gift_eval.datasets import (
@@ -87,26 +90,31 @@ for name in names:
     for term in ("short", "medium", "long"):
         if term != "short" and name not in MED_LONG_DATASETS:
             continue
-        if f"{key}/{freq}/{term}" in completed:
+        dataset_id = f"{key}/{freq}/{term}"
+        if dataset_id in completed:
             continue
 
         dataset = Dataset(name=name, term=term, to_univariate=False)
         predictor = SDMPredictor(model, config, dataset.prediction_length)
-        result = evaluate_model(
-            predictor,
-            test_data=dataset.test_data,
-            metrics=METRICS,
-            seasonality=get_seasonality(dataset.freq),
-        )
+        with patch(
+            "gluonts.model.evaluation.tqdm",
+            partial(tqdm, total=len(dataset.test_data), desc=dataset_id),
+        ):
+            result = evaluate_model(
+                predictor,
+                test_data=dataset.test_data,
+                metrics=METRICS,
+                seasonality=get_seasonality(dataset.freq),
+            )
         print(
-            f"{key}/{freq}/{term}: "
+            f"{dataset_id}: "
             f"MASE={result.iloc[0]['MASE[0.5]']:.4f}, "
             f"CRPS={result.iloc[0]['mean_weighted_sum_quantile_loss']:.4f}"
         )
         row = pd.DataFrame(
             [
                 {
-                    "dataset": f"{key}/{freq}/{term}",
+                    "dataset": dataset_id,
                     "model": f"[SDM] {config.name}",
                     **{
                         f"eval_metrics/{k}": v
