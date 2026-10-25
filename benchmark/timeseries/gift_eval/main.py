@@ -126,3 +126,4 @@ for name in names:
             ]
         )
         row.to_csv(path, mode="a", header=not path.exists(), index=False)
+        completed.add(dataset_id)
