@@ -147,6 +147,20 @@ class SDPA(torch.nn.Module):
                         out = out + tensor[..., :0, :, :].sum()
             return out
 
+        if (  # Softmax over a single key is one, so skip SDPA:
+            key_size[0] == 1
+            and attn_mask is None
+            and seqused_key_value is None
+            and not torch.is_grad_enabled()
+        ):
+            out = value
+            if query_size[-2] != value_size[-2]:
+                out = out.repeat_interleave(
+                    query_size[-2] // value_size[-2],
+                    dim=-2,
+                )
+            return out.expand(batch_shape + query_size[:-1] + value_size[-1:])
+
         query = query.expand(batch_shape + query_size).reshape(-1, *query_size)
         key = key.expand(batch_shape + key_size).reshape(-1, *key_size)
         value = value.expand(batch_shape + value_size).reshape(-1, *value_size)
