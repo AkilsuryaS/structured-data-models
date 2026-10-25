@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-r"""Run an SDM forecasting model on GIFT-Eval."""
+r"""Run an SDM time series forecasting model on GIFT-Eval."""
 
 import argparse
 import logging
