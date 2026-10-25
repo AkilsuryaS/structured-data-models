@@ -98,6 +98,11 @@ for name in names:
             metrics=METRICS,
             seasonality=get_seasonality(dataset.freq),
         )
+        print(
+            f"{key}/{freq}/{term}: "
+            f"MASE={result.iloc[0]['MASE[0.5]']:.4f}, "
+            f"CRPS={result.iloc[0]['mean_weighted_sum_quantile_loss']:.4f}"
+        )
         row = pd.DataFrame(
             [
                 {
@@ -113,4 +118,3 @@ for name in names:
             ]
         )
         row.to_csv(path, mode="a", header=not path.exists(), index=False)
-        print(row.to_string(index=False))
