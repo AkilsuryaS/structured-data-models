@@ -1,0 +1,8 @@
+﻿TargetAwareEnsembleProcessor
+============================
+
+.. currentmodule:: sdm.processing.target
+
+.. autoclass:: TargetAwareEnsembleProcessor
+   :members:
+   :show-inheritance:
