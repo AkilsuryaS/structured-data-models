@@ -36,6 +36,8 @@ class SDMPredictor(Predictor):
     ) -> Iterator[QuantileForecast]:
 
         for batch in batcher(dataset, batch_size=self.batch_size):
+            cpu_generator = torch.Generator().manual_seed(42)
+
             ys = [torch.from_numpy(entry["target"]) for entry in batch]
             ys = [torch.atleast_2d(y) for y in ys]
             xs = []
@@ -67,6 +69,13 @@ class SDMPredictor(Predictor):
             for i, x_i in enumerate(xs):
                 x[i, :, -x_i.size(-1) :] = x_i
 
+            if (
+                self.config.max_variates is not None
+                and x.size(1) > self.config.max_variates - 1
+            ):  # Keep room for at least one target:
+                perm = torch.randperm(x.size(1), generator=cpu_generator)
+                x = x[:, perm[: self.config.max_variates - 1]]
+
             y = y.transpose(-1, -2).to(
                 self.device,
                 memory_format=torch.contiguous_format,
@@ -76,17 +85,30 @@ class SDMPredictor(Predictor):
                 memory_format=torch.contiguous_format,
             )
 
-            out = self.model(
-                x_context=x,
-                y_context=y,
-                x_query=torch.empty(
-                    (x.size(0), self.prediction_length, 0),
-                    device=self.device,
-                ),
-                num_estimators=self.config.num_estimators,
-            )
-            pred = out.numerical
-            pred = pred.view(y.size(0), self.prediction_length, y.size(2), -1)
+            size = y.size(-1)
+            if self.config.max_variates is not None:
+                size = min(size, self.config.max_variates - x.size(-1))
+
+            preds = []
+            for start in range(0, y.size(-1), size):
+                y_i = y[..., start : start + size]
+                if y_i.size(-1) < size:
+                    y_i = torch.cat([y_i, y[..., : size - y_i.size(-1)]], -1)
+
+                out = self.model(
+                    x_context=x,
+                    y_context=y_i,
+                    x_query=torch.empty(
+                        (x.size(0), self.prediction_length, 0),
+                        device=self.device,
+                    ),
+                    num_estimators=self.config.num_estimators,
+                )
+                pred = out.numerical
+                pred = pred.view(y.size(0), self.prediction_length, size, -1)
+                preds.append(pred)
+
+            pred = torch.cat(preds, dim=-2)[..., : y.size(-1), :]
             pred = pred.permute(0, 3, 1, 2).cpu().numpy()  # [B, Q, R, C]
             levels = out.numerical_columns[: pred.shape[1]]
             levels = [str(float(f"0.{q.split('q')[-1]}")) for q in levels]
