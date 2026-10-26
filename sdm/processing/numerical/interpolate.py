@@ -15,14 +15,22 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
 
     Args:
         fill_value: Value used for columns with no observations.
+        fill_leading: Whether to fill missing values before the first
+            observation. If ``False``, leading missing values remain NaN.
     """
 
     handles_stypes = (Stype.numerical,)
     requires_fit = True
 
-    def __init__(self, *, fill_value: float = 0.0) -> None:
+    def __init__(
+        self,
+        *,
+        fill_value: float = 0.0,
+        fill_leading: bool = True,
+    ) -> None:
         super().__init__()
         self.fill_value = fill_value
+        self.fill_leading = fill_leading
         self._last_values: BufferList[Tensor] = BufferList()
         self._last_indices: BufferList[Tensor] = BufferList()
 
@@ -105,6 +113,9 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             numerical = numerical.where(missing, x)  # Restore finite values.
             numerical = numerical[..., 1:, :]  # Remove context anchor.
             numerical[numerical.isnan()] = self.fill_value
+            if not self.fill_leading:
+                leading = missing.int().cumprod(dim=-2).bool()[..., 1:, :]
+                numerical = numerical.masked_fill(leading, torch.nan)
 
             groups.append(group.replace_blocks(numerical=numerical))
 
