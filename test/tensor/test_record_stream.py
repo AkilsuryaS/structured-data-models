@@ -69,6 +69,10 @@ def _stream_tensor(
 
 
 @onlyCUDA
+@pytest.mark.skipif(
+    not hasattr(torch.ops.streams, "record_stream"),
+    reason="graph-owned stream recording requires streams.record_stream",
+)
 @pytest.mark.usefixtures("compilation")
 @pytest.mark.parametrize(
     "kind",
