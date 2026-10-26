@@ -10,6 +10,7 @@ from torch import Tensor
 from sdm import NullableTensor, StringTensor, TableTensor, VarLenTensor
 from sdm.nn._buffer import BufferList
 from sdm.tensor.categorical import _iter_categories
+from sdm.tensor.var_len import _contiguous
 
 _CATEGORY_TYPES = (Tensor, NullableTensor, VarLenTensor, StringTensor)
 
@@ -134,6 +135,15 @@ def _check_category_values(
 ) -> Tensor:
     actual_category = _unpack_category(actual, actual_layout)
     expected_category = _unpack_category(expected, expected_layout)
+    # Compact views directly: custom-op kernels run below Python dispatch.
+    if isinstance(actual_category, VarLenTensor) and not (
+        actual_category.is_contiguous()
+    ):
+        actual_category = _contiguous(actual_category)
+    if isinstance(expected_category, VarLenTensor) and not (
+        expected_category.is_contiguous()
+    ):
+        expected_category = _contiguous(expected_category)
     if not actual_category.equal(expected_category):
         raise ValueError(message)
     return torch.ones((), dtype=torch.bool, device="cpu")
