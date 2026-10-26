@@ -35,7 +35,7 @@ Default Recipe
 
    Recipe(
      features=Sequential(
-       Interpolate(),
+       Interpolate(fill_leading=False),
        Detrend(threshold=0.5),
        Clip(-1e+20, 1e+20),
        Choice(
@@ -45,7 +45,7 @@ Default Recipe
        ),
      ),
      target=Sequential(
-       Interpolate(),
+       Interpolate(fill_leading=False),
        Detrend(threshold=0.5),
        Clip(-1e+20, 1e+20),
        Choice(
