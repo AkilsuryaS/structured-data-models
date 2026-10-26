@@ -131,3 +131,91 @@ def test_ecoc_members(device: torch.device) -> None:
     cache.freeze()
     replayed = forward(x=x[..., num_context:, :], y=y[..., :0], cache=cache)
     torch.testing.assert_close(replayed, scores)
+
+
+class NeuralModel(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.linear = torch.nn.Linear(4, 10)
+
+    def forward(self, x: Tensor, y: Tensor) -> Tensor:
+        return self.linear(x[..., -2:, :]).tanh()
+
+
+@withCUDA
+@pytest.mark.parametrize("num_members", [1, 2])
+@pytest.mark.skipif(
+    tuple(int(v) for v in torch.__version__.split(".")[:2]) < (2, 14),
+    reason="Unbacked output strides in torch.cond require PyTorch 2.14",
+)
+def test_ecoc_dynamic_classes(
+    device: torch.device, compilation: None, num_members: int
+) -> None:
+    model = NeuralModel().to(device).eval()
+    ecoc = ECOC(max_classes=10)
+    batch_shape = () if num_members == 1 else (num_members,)
+    x = torch.randn(*batch_shape, 14, 4, device=device)
+
+    def forward(x: Tensor, y: Tensor) -> Tensor:
+        return ecoc(
+            model=model,
+            x=x,
+            y=y,
+            num_classes=y.unique().numel(),
+            num_members=num_members,
+        )
+
+    with torch._dynamo.config.patch(capture_dynamic_output_shape_ops=True):
+        compiled = torch.compile(forward, backend="inductor", fullgraph=True)
+        # Twelve labels let the learned count cross the head's capacity.
+        for num_classes in (3, 10, 11, 12, 3):
+            y = (torch.arange(12, device=device) % num_classes).expand(
+                *batch_shape, 12
+            )
+            # Sampling must consume the same random stream as eager execution.
+            torch.manual_seed(42)
+            with torch.no_grad():
+                expected = forward(x, y)
+            expected_next = torch.rand(5, device=device)
+            torch.manual_seed(42)
+            with torch.no_grad():
+                actual = compiled(x, y)
+            actual_next = torch.rand(5, device=device)
+            assert actual.shape == (*batch_shape, 2, num_classes)
+            torch.testing.assert_close(actual, expected)
+            torch.testing.assert_close(
+                actual_next, expected_next, rtol=0, atol=0
+            )
+
+
+@withCUDA
+@pytest.mark.parametrize(
+    ("num_classes", "use_generator"), [(3, False), (3, True), (11, False)]
+)
+def test_ecoc_compile_static_classes(
+    device: torch.device,
+    compilation: None,
+    num_classes: int,
+    use_generator: bool,
+) -> None:
+    model = NeuralModel().to(device).eval()
+    ecoc = ECOC(max_classes=10)
+    generator = torch.Generator(device) if use_generator else None
+    x = torch.randn(14, 4, device=device)
+    y = torch.arange(12, device=device) % num_classes
+
+    def forward(x: Tensor, y: Tensor) -> Tensor:
+        return ecoc(model, x, y, num_classes=num_classes, generator=generator)
+
+    torch.manual_seed(42)
+    with torch.no_grad():
+        expected = forward(x, y)
+    expected_next = torch.rand(5, device=device)
+    torch.manual_seed(42)
+    with torch.no_grad():
+        actual = torch.compile(forward, backend="inductor", fullgraph=True)(
+            x, y
+        )
+    actual_next = torch.rand(5, device=device)
+    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(actual_next, expected_next, rtol=0, atol=0)
