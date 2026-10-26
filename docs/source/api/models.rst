@@ -80,7 +80,7 @@ Models
 {% endfor %}
 
 Retrieval-Augmented Forecasting
-------------------------------
+-------------------------------
 
 Reuse a pretrained forecaster with an explicitly fitted historical memory:
 
