@@ -85,10 +85,13 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             index = torch.arange(x.size(-2), device=x.device).view(-1, 1)
             missing = x.isnan()
             left = index.where(~missing, -1).cummax(dim=-2).values
-            leading_mask = None if self.fill_leading else left[..., 1:, :] < 0
-
             right = index.where(~missing, x.size(-2)).flip(-2)
             right = right.cummin(dim=-2).values.flip(-2)
+
+            leading_mask = None
+            if not self.fill_leading:
+                leading_mask = left[..., 1:, :] < 0  # Include leading NaNs.
+                leading_mask &= left[..., -1:, :] >= 0  # Exclude NaN columns.
 
             # At edges, use the closest observation on the available side.
             left, right = (
