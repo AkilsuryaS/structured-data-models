@@ -11,3 +11,4 @@ This folder contains benchmark integrations for `structured-data-models`:
   - [**`relarena/`**](relational/relarena): [RelArena](https://github.com/PriorLabs/relarena)
 - [**`timeseries/`**](timeseries/): Time series benchmarks
   - [**`gift_eval/`**](timeseries/gift_eval/): [GIFT-Eval](https://github.com/SalesforceAIResearch/gift-eval)
+  - [**`fev_bench/`**](timeseries/fev_bench/): [fev-bench](https://github.com/autogluon/fev)
