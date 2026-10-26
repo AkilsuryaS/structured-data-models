@@ -337,12 +337,7 @@ class ICLModel(Model):
             if x.is_cuda and len(contexts) > 1:
                 try:  # Copy to pinned CPU memory:
                     batch_cache = batch_cache._apply_tensor(
-                        lambda tensor: torch.ops.aten._to_copy.default(
-                            tensor,
-                            device="cpu",
-                            pin_memory=True,
-                            non_blocking=True,  # Required for `pin_memory`.
-                        )
+                        _copy_to_pinned_cpu
                     )
                 finally:
                     torch.cuda.current_stream(x.device).synchronize()
@@ -763,6 +758,21 @@ class ICLModel(Model):
                     "Expected related context and query tables to share the "
                     "same schema"
                 )
+
+
+def _copy_to_pinned_cpu(tensor: Tensor) -> Tensor:
+    if torch.compiler.is_compiling():
+        # Inductor pins nonblocking CUDA-to-CPU copies of contiguous buffers;
+        # explicit pin_memory is unsupported by its _to_copy decomposition.
+        if tensor.is_cuda:
+            tensor = tensor.contiguous()
+        return tensor.to(device="cpu", copy=True, non_blocking=True)
+    return torch.ops.aten._to_copy.default(
+        tensor,
+        device="cpu",
+        pin_memory=True,
+        non_blocking=True,
+    )
 
 
 def _stack(tables: Sequence[TableTensor]) -> TableTensor:
