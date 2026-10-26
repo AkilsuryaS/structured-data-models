@@ -297,7 +297,7 @@ class _TimesFM3(torch.nn.Module):
         # Mask leading fully padded patches, keeping horizon patches visible.
         patch_mask = mask.all(dim=-1) & future_mask.all(dim=-1)
         patch_mask = patch_mask.int().cumprod(dim=-1).bool()
-        if not patch_mask.any():
+        if not patch_mask.any():  # Pay for device sync here:
             patch_mask = None
 
         x = torch.cat(
