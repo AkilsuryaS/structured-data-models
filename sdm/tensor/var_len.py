@@ -71,6 +71,8 @@ class VarLenTensor(Tensor):
     _data: Tensor
     _offset: Tensor
     _valid: Tensor | None
+    # Conservative bound on the length of any stored element.
+    _max_length: int
 
     # Constructors ############################################################
 
@@ -248,6 +250,7 @@ class VarLenTensor(Tensor):
         out._data = data
         out._offset = offset
         out._valid = valid
+        out._max_length = data.numel()
         return out
 
     @classmethod
@@ -563,6 +566,7 @@ class VarLenTensor(Tensor):
             self.storage_offset(),
             tuple(self.size()),
             tuple(self.stride()),
+            self._max_length,
         )
         return attrs, ctx
 
@@ -573,8 +577,8 @@ class VarLenTensor(Tensor):
         outer_size: tuple[int, ...],
         outer_stride: tuple[int, ...],
     ) -> VarLenTensor:
-        cls, storage_offset, _, _ = ctx
-        return cls(
+        cls, storage_offset, _, _, max_length = ctx
+        out = cls(
             data=inner_tensors["_data"],
             offset=inner_tensors["_offset"],
             valid=inner_tensors.get("_valid"),
@@ -582,6 +586,8 @@ class VarLenTensor(Tensor):
             stride=outer_stride,
             storage_offset=storage_offset,
         )
+        out._max_length = max_length
+        return out
 
     def __reduce_ex__(self, proto: SupportsIndex) -> Any:
         args = (
@@ -723,7 +729,7 @@ class VarLenTensor(Tensor):
 @VarLenTensor.implements(aten.alias.default)
 @preserve_view_inference_mode
 def _alias(inp: VarLenTensor) -> VarLenTensor:
-    return inp.__class__(
+    out = inp.__class__(
         data=aten.alias.default(inp._data),
         offset=aten.alias.default(inp._offset),
         valid=aten.alias.default(inp._valid)
@@ -733,6 +739,8 @@ def _alias(inp: VarLenTensor) -> VarLenTensor:
         stride=inp.stride(),
         storage_offset=int(inp.storage_offset()),
     )
+    out._max_length = inp._max_length
+    return out
 
 
 @VarLenTensor.implements(aten.record_stream.default)
@@ -832,7 +840,7 @@ def _to_dtype_layout(
             copy=copy,
         )
 
-    return inp.__class__(
+    out = inp.__class__(
         data=data,
         offset=offset,
         valid=valid,
@@ -842,6 +850,8 @@ def _to_dtype_layout(
         else None,
         storage_offset=0,
     )
+    out._max_length = inp._max_length
+    return out
 
 
 @VarLenTensor.implements(aten.to.dtype)
@@ -943,7 +953,7 @@ def _contiguous(
 @VarLenTensor.implements(aten.detach.default)
 @preserve_view_inference_mode
 def _detach(inp: VarLenTensor) -> VarLenTensor:
-    return inp.__class__(
+    out = inp.__class__(
         data=inp._data.detach(),
         offset=inp._offset,
         valid=inp._valid,
@@ -951,6 +961,8 @@ def _detach(inp: VarLenTensor) -> VarLenTensor:
         stride=inp.stride(),
         storage_offset=int(inp.storage_offset()),
     )
+    out._max_length = inp._max_length
+    return out
 
 
 @VarLenTensor.implements(aten.is_pinned.default)
@@ -961,7 +973,7 @@ def _is_pinned(inp: VarLenTensor) -> bool:
 
 @VarLenTensor.implements(aten._pin_memory.default)
 def _pin_memory(inp: VarLenTensor) -> VarLenTensor:
-    return inp.__class__(
+    out = inp.__class__(
         data=inp._data.pin_memory(),
         offset=inp._offset.pin_memory(),
         valid=inp._valid.pin_memory() if inp._valid is not None else None,
@@ -969,6 +981,8 @@ def _pin_memory(inp: VarLenTensor) -> VarLenTensor:
         stride=inp.stride(),
         storage_offset=int(inp.storage_offset()),
     )
+    out._max_length = inp._max_length
+    return out
 
 
 @VarLenTensor.implements(aten.pin_memory.default)
@@ -1403,7 +1417,9 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
 
     if math.prod(tensors[0].size()[:dim]) == 1:  # Contiguous path:
         offset[-1] = storage_offset
-        return tensor_cls(data=data, offset=offset, valid=valid, size=size)
+        out = tensor_cls(data=data, offset=offset, valid=valid, size=size)
+        out._max_length = max(tensor._max_length for tensor in tensors)
+        return out
 
     end = torch.cat(end_views, dim=dim)
     start = torch.as_strided(start, size=(start.numel(),), stride=(1,))
@@ -1411,7 +1427,9 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
 
     offset, index = _compact(start, end)
 
-    return tensor_cls(data=data[index], offset=offset, valid=valid, size=size)
+    out = tensor_cls(data=data[index], offset=offset, valid=valid, size=size)
+    out._max_length = max(tensor._max_length for tensor in tensors)
+    return out
 
 
 @VarLenTensor.implements(aten.stack.default)
@@ -1454,7 +1472,7 @@ def _layout_view(inp: VarLenTensor) -> Tensor:
 
 def _from_layout_view(inp: VarLenTensor, view: Tensor) -> VarLenTensor:
     storage_offset = view.storage_offset() - inp._offset.storage_offset()
-    return inp.__class__(
+    out = inp.__class__(
         data=inp._data,
         offset=inp._offset,
         valid=inp._valid,
@@ -1462,6 +1480,8 @@ def _from_layout_view(inp: VarLenTensor, view: Tensor) -> VarLenTensor:
         stride=view.stride(),
         storage_offset=0 if view.numel() == 0 else int(storage_offset),
     )
+    out._max_length = inp._max_length
+    return out
 
 
 def _compact(start: Tensor, end: Tensor) -> tuple[Tensor, Tensor]:
@@ -1537,7 +1557,7 @@ def _materialize(
 
     offset, index = _compact(start, end)
 
-    return inp.__class__(
+    out = inp.__class__(
         data=inp._data[index].to(
             device=device,
             dtype=dtype,
@@ -1551,3 +1571,5 @@ def _materialize(
         stride=stride,
         storage_offset=0,
     )
+    out._max_length = inp._max_length
+    return out

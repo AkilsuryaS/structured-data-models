@@ -123,7 +123,7 @@ class StringTensor(VarLenTensor):
             )
             storage_offset = 0
 
-        return cls(
+        out = cls(
             data=torch.frombuffer(buffers[2], dtype=torch.uint8).to(device)
             if buffers[2] is not None and buffers[2].size > 0
             else torch.empty(0, dtype=torch.uint8, device=device),
@@ -132,6 +132,13 @@ class StringTensor(VarLenTensor):
             size=size,
             storage_offset=storage_offset,
         )
+
+        # Inspect CPU offsets before moving buffers; include every stored row
+        # so the bound remains valid for views sharing this storage.
+        out._max_length = (
+            int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
+        )
+        return out
 
     @override
     def to_arrow(self) -> pa.Array:
