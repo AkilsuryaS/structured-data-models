@@ -94,6 +94,17 @@ class RecipeExecution:
         # target transforms require distinct member assignment:
         series_processors: tuple[sp.SeriesEnsembleProcessor, ...] = ()
         if y is not None:
+            if not isinstance(y, TableTensor):
+                y = TableTensor.from_tensor(y)
+            for processor in (
+                self.recipe.features,
+                self.recipe.target,
+                self.recipe.output,
+            ):
+                for module in _iter_modules(processor):
+                    if isinstance(module, sp.TargetEncoder):
+                        module._set_buffer(name="_target", value=y)
+
             y: EnsembleTable = _to_ensemble_table(y, num_members, expand=True)
 
             series_processors = tuple(
