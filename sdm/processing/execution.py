@@ -104,6 +104,9 @@ class RecipeExecution:
                 for module in _iter_modules(processor):
                     if isinstance(module, sp.TargetEncoder):
                         module._set_buffer(name="_target", value=y)
+                        module._target_has_ensemble_dim = (
+                            num_members is None and y.dim() > 2
+                        )
 
             y: EnsembleTable = _to_ensemble_table(y, num_members, expand=True)
 

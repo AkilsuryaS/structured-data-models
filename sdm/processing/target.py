@@ -17,3 +17,4 @@ class TargetEncoder(EnsembleProcessor):
     def __init__(self) -> None:
         super().__init__()
         self.register_buffer("_target", None, persistent=False)
+        self._target_has_ensemble_dim = False
