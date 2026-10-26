@@ -93,7 +93,8 @@ class ECOC(torch.nn.Module):
             With PyTorch 2.14 or newer, full-graph compilation with a class
             count learned from input values is supported with gradients
             disabled, without caching, using the default random generator.
-            Cached calls require a static count.
+            Existing cached paths are unchanged; this learned-count
+            compilation path does not support caching or explicit generators.
         """
         if (
             cache is None
