@@ -146,6 +146,7 @@ data-aria-dark="Switch to auto color mode">
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.output.AverageEstimators.html">AverageEstimators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.output.Softmax.html">Softmax</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sdm.processing.output.SortQuantiles.html">SortQuantiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sdm.processing.output.ClipNonnegative.html">ClipNonnegative</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../nn.html">sdm.nn</a><ul>
@@ -342,8 +343,9 @@ v1.0</a> without showing the interactive license prompt.</p></li>
 </span><span data-line="22">  <span class="n">output</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
 </span><span data-line="23">    <span class="n">SortQuantiles</span><span class="p">(</span><span class="n">num_quantiles</span><span class="o">=</span><span class="mi">9</span><span class="p">),</span>
 </span><span data-line="24">    <span class="n">AverageEstimators</span><span class="p">(),</span>
-</span><span data-line="25">  <span class="p">),</span>
-</span><span data-line="26"><span class="p">)</span>
+</span><span data-line="25">    <span class="n">ClipNonnegative</span><span class="p">(),</span>
+</span><span data-line="26">  <span class="p">),</span>
+</span><span data-line="27"><span class="p">)</span>
 </span></pre></div>
 </div>
 </section>
@@ -373,7 +375,7 @@ v1.0</a> without showing the interactive license prompt.</p></li>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=554ddcc4"></script>
+      <script src="../../_static/documentation_options.js?v=040630c7"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

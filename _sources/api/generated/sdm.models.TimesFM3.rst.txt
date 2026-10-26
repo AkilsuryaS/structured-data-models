@@ -57,5 +57,6 @@ Default Recipe
      output=Sequential(
        SortQuantiles(num_quantiles=9),
        AverageEstimators(),
+       ClipNonnegative(),
      ),
    )
