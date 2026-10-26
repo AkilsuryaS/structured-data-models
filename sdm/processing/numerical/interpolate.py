@@ -85,6 +85,8 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             index = torch.arange(x.size(-2), device=x.device).view(-1, 1)
             missing = x.isnan()
             left = index.where(~missing, -1).cummax(dim=-2).values
+            leading_mask = None if self.fill_leading else left[..., 1:, :] < 0
+
             right = index.where(~missing, x.size(-2)).flip(-2)
             right = right.cummin(dim=-2).values.flip(-2)
 
@@ -113,9 +115,8 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
             numerical = numerical.where(missing, x)  # Restore finite values.
             numerical = numerical[..., 1:, :]  # Remove context anchor.
             numerical[numerical.isnan()] = self.fill_value
-            if not self.fill_leading:
-                leading = missing.int().cumprod(dim=-2).bool()[..., 1:, :]
-                numerical = numerical.masked_fill(leading, torch.nan)
+            if leading_mask is not None:
+                numerical[leading_mask] = torch.nan
 
             groups.append(group.replace_blocks(numerical=numerical))
 
@@ -126,3 +127,11 @@ class Interpolate(SeriesEnsembleProcessor, EnsembleInvertibleMixin):
         ensemble_table: EnsembleTable,
     ) -> EnsembleTable:
         return ensemble_table
+
+    def __repr__(self, *, indent: int = 0) -> str:
+        args = []
+        if self.fill_value != 0:
+            args.append(f"fill_value={self.fill_value}")
+        if not self.fill_leading:
+            args.append(f"fill_leading={self.fill_leading}")
+        return f"{' ' * indent}{self.__class__.__name__}({', '.join(args)})"
