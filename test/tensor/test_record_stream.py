@@ -35,29 +35,37 @@ def test_record_stream() -> None:
         assert tensor.record_stream(stream) is None
 
 
-def _stream_tensor(kind: str) -> tuple[torch.Tensor, tuple[torch.Tensor, ...]]:
+def _stream_sources(kind: str) -> tuple[torch.Tensor, ...]:
     data = torch.arange(4096, device="cuda")
     valid = data.remainder(3).ne(0)
     if kind == "categorical":
-        code = data.remainder(4096).view(-1, 1)
-        return CategoricalTensor(code, (data,)), (code, data)
-    if kind == "columnar":
-        return ColumnarTensor((data, NullableTensor(data, valid))), (
-            data,
-            valid,
-        )
-    if kind == "nullable":
-        return NullableTensor(data, valid), (data, valid)
+        return data.remainder(4096).view(-1, 1), data
     if kind in ("var_len", "string"):
         offset = torch.arange(4097, device="cuda")
-        cls = StringTensor if kind == "string" else VarLenTensor
         if kind == "string":
             data = data.remainder(26).add(97).to(torch.uint8)
-        return cls(data, offset, valid, size=(4096,)), (data, offset, valid)
+        return data, offset, valid
+    return data, valid
+
+
+def _stream_tensor(
+    kind: str, sources: tuple[torch.Tensor, ...]
+) -> torch.Tensor:
+    if kind == "categorical":
+        return CategoricalTensor(sources[0], (sources[1],))
+    if kind == "columnar":
+        return ColumnarTensor((sources[0], NullableTensor(*sources)))
+    if kind == "nullable":
+        return NullableTensor(*sources)
+    if kind in ("var_len", "string"):
+        cls = StringTensor if kind == "string" else VarLenTensor
+        return cls(*sources, size=(4096,))
     assert kind == "table"
     return TableTensor(
-        numerical=NullableTensor(data.view(-1, 1), valid.view(-1, 1))
-    ), (data, valid)
+        numerical=NullableTensor(
+            sources[0].view(-1, 1), sources[1].view(-1, 1)
+        )
+    )
 
 
 @onlyCUDA
@@ -67,7 +75,7 @@ def _stream_tensor(kind: str) -> tuple[torch.Tensor, tuple[torch.Tensor, ...]]:
     ["categorical", "columnar", "nullable", "var_len", "string", "table"],
 )
 def test_record_stream_fullgraph_lifetime(kind: str) -> None:
-    tensor, sources = _stream_tensor(kind)
+    sources = _stream_sources(kind)
     expected = tuple(source.cpu() for source in sources)
     outputs = tuple(
         torch.empty_like(value, pin_memory=True) for value in expected
@@ -75,18 +83,20 @@ def test_record_stream_fullgraph_lifetime(kind: str) -> None:
     specs = tuple((source.shape, source.dtype) for source in sources)
     stream = torch.cuda.Stream()
 
-    def record(inp: torch.Tensor, stream: torch.cuda.Stream) -> None:
-        inp.record_stream(stream)
+    def record(
+        sources: tuple[torch.Tensor, ...], stream: torch.cuda.Stream
+    ) -> None:
+        _stream_tensor(kind, sources).record_stream(stream)
 
     compiled_record = torch.compile(record, fullgraph=True)
-    compiled_record(tensor, stream)
+    compiled_record(sources, stream)
     stream.wait_stream(torch.cuda.current_stream())
     with torch.cuda.stream(stream):
         # Keep copies pending while the allocation stream reuses storage.
         torch.cuda._sleep(50_000_000)
         for output, source in zip(outputs, sources):
             output.copy_(source, non_blocking=True)
-    del tensor, sources, source
+    del sources, source
     replacements = [
         torch.full(shape, 0, dtype=dtype, device="cuda")
         for shape, dtype in specs
