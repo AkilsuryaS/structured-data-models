@@ -78,3 +78,20 @@ Models
 {% for name in api_names("sdm.models") if name not in api_names("sdm.models.base") %}
    ~sdm.models.{{ name }}
 {% endfor %}
+
+Retrieval-Augmented Forecasting
+------------------------------
+
+Reuse a pretrained forecaster with an explicitly fitted historical memory:
+
+.. code-block:: python
+
+   from sdm.models import KumoForecast
+   from sdm.models.kumo.timeseries.forecast import DARR
+
+   darr = DARR(KumoForecast(device="cuda"), alpha=0.01)
+   darr.fit(reference, horizon=72)  # Observations known at the forecast origin.
+   forecast = darr(context)  # Same columns; at least 512 observed rows.
+
+.. autoclass:: sdm.models.kumo.timeseries.forecast.DARR
+   :members: fit, forward, clear

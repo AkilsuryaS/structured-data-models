@@ -40,6 +40,8 @@ class KumoForecast(ICLModel):
     Optional cross-channel mixing lets forecasts use dependencies between
     variates after temporal encoding. The forecasting head predicts the native
     up to 72-step horizon directly from a 512-step history.
+    For retrieval-augmented forecasting over historical continuations, wrap
+    this model with :class:`~sdm.models.kumo.timeseries.forecast.DARR`.
 
     Within the :class:`~sdm.models.ICLModel` protocol, :class:`KumoForecast`
     treats rows as ordered time steps. In a default forward pass,
@@ -282,7 +284,16 @@ class _KumoForecast(torch.nn.Module):
         self,
         x: Tensor,  # [..., C, R]
     ) -> Tensor:  # [..., C, prediction_size]
+        """Forecast from the shared patch encoder."""
+        encoded, mean, scale = self.encode(x)
+        out = self.head(encoded.flatten(-2))
+        return self.revin.inverse(out, mean, scale)
 
+    def encode(
+        self,
+        x: Tensor,  # [..., C, R]
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Return encoded patches and the instance-normalization statistics."""
         mean, scale = self.revin.compute_stats(x)
         x = self.revin(x, mean, scale)
         x = x.nan_to_num(nan=0, posinf=0, neginf=0)
@@ -293,5 +304,4 @@ class _KumoForecast(torch.nn.Module):
         if self.cross_channel is not None:
             x = self.cross_channel(x)  # [..., C, N, D]
 
-        x = self.head(x.flatten(-2))  # [..., C, prediction_size]
-        return self.revin.inverse(x, mean, scale)
+        return x, mean, scale
