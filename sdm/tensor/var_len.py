@@ -71,8 +71,8 @@ class VarLenTensor(Tensor):
     _data: Tensor
     _offset: Tensor
     _valid: Tensor | None
-    # Conservative bound on the length of any stored element.
-    _max_length: int
+    # Conservative element-length bound, or None when unknown at ingestion.
+    _max_length: int | None
 
     # Constructors ############################################################
 
@@ -250,7 +250,7 @@ class VarLenTensor(Tensor):
         out._data = data
         out._offset = offset
         out._valid = valid
-        out._max_length = data.numel()
+        out._max_length = None
         return out
 
     @classmethod
@@ -598,7 +598,10 @@ class VarLenTensor(Tensor):
             tuple(self.stride()),
             int(self.storage_offset()),
         )
-        return (self.__class__, args)
+        return (self.__class__, args, {"_max_length": self._max_length})
+
+    def __setstate__(self, state: dict[str, int | None]) -> None:
+        self._max_length = state["_max_length"]
 
     @classmethod
     def __torch_function__(
@@ -1376,6 +1379,10 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
     tensors = tuple(
         cast(VarLenTensor, tensor.contiguous()) for tensor in tensors
     )
+    lengths = tuple(tensor._max_length for tensor in tensors)
+    max_length = (
+        None if None in lengths else max(cast(tuple[int, ...], lengths))
+    )
     data_list, offsets = zip(*(_data_offset(tensor) for tensor in tensors))
     valid: Tensor | None = None
     if any(tensor._valid is not None for tensor in tensors):
@@ -1418,7 +1425,7 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
     if math.prod(tensors[0].size()[:dim]) == 1:  # Contiguous path:
         offset[-1] = storage_offset
         out = tensor_cls(data=data, offset=offset, valid=valid, size=size)
-        out._max_length = max(tensor._max_length for tensor in tensors)
+        out._max_length = max_length
         return out
 
     end = torch.cat(end_views, dim=dim)
@@ -1428,7 +1435,7 @@ def _cat(tensors: Sequence[Tensor], dim: int = 0) -> VarLenTensor:
     offset, index = _compact(start, end)
 
     out = tensor_cls(data=data[index], offset=offset, valid=valid, size=size)
-    out._max_length = max(tensor._max_length for tensor in tensors)
+    out._max_length = max_length
     return out
 
 

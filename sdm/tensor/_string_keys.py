@@ -24,12 +24,16 @@ def pack(
     Null keys are zero; their separate validity mask distinguishes them from
     empty strings. The width is a byte bound, never a truncation length: it
     must cover the conservative per-element bound established at ingestion.
-    Unknown raw storage uses its total byte count as the safe bound.
+    Unknown ingestion bounds remain None in storage metadata; packing uses
+    the total byte count as a safe fallback, never a string-length cutoff.
     """
     assert values.ndim == 1
+    bound = values._max_length
+    if bound is None:
+        bound = values._data.numel()
     if width is None:
-        width = values._max_length
-    if width < values._max_length:
+        width = bound
+    if width < bound:
         raise ValueError(
             "String key width is smaller than the stored byte bound"
         )

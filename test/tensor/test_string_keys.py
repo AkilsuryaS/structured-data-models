@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import pickle
 from typing import cast
 
 import pyarrow as pa
@@ -128,6 +129,39 @@ def test_pack_unknown_storage_bound() -> None:
         valid=None,
         size=(2,),
     )
+    assert values._max_length is None
     assert torch.equal(pack(values)[0], _reference_keys(["abc", "def"], 6))
     with pytest.raises(ValueError, match="byte bound"):
         pack(values, 3)
+
+
+@withCUDA
+@pytest.mark.parametrize("bound", [None, 0, 8])
+def test_bound_provenance(device: torch.device, bound: int | None) -> None:
+    texts = ["", None] if bound == 0 else ["abcdefgh", "é"]
+    values = StringTensor.from_list(texts, device=device)
+    if bound is None:
+        values = StringTensor(
+            data=values._data,
+            offset=values._offset,
+            valid=values._valid,
+            size=values.size(),
+        )
+    compiled = torch.compile(lambda value: value.detach(), fullgraph=True)
+    for copied in (
+        values[:],
+        values.clone(),
+        values.detach(),
+        values.to(device),
+        compiled(values),
+        pickle.loads(pickle.dumps(values)),
+    ):
+        copied = cast(StringTensor, copied)
+        assert copied._max_length == bound
+        assert copied.tolist() == texts
+    concatenated = cast(
+        StringTensor,
+        torch.cat((values, StringTensor.from_list([""], device=device))),
+    )
+    assert concatenated._max_length == bound
+    assert concatenated.tolist() == [*texts, ""]
