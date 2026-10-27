@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" data-accent-color="green" data-content_root="./">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Time Series Forecasting - Structured Data Models</title><link rel="shortcut icon" href="_static/nvidia.svg"/><link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Data Processing" href="processing.html" /><link rel="prev" title="In-Context Learning" href="icl.html" /><script>
+    function setColorMode(t){let e=document.documentElement;e.setAttribute("data-color-mode",t);let a=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches,s=t;"auto"===t&&(s=a?"dark":"light"),"light"===s?(e.classList.remove("dark"),e.classList.add("light")):(e.classList.remove("light"),e.classList.add("dark"))}
+    setColorMode(localStorage._theme||"auto");
+  </script><link rel="stylesheet" type="text/css" href="_static/pygments.css?v=e1a1ceaf" />
+    <link rel="stylesheet" type="text/css" href="_static/shibuya.css?v=2ceb65ce" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link media="print" rel="stylesheet" type="text/css" href="_static/print.css?v=20ff2c19" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=29e2959f" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sy-f-text: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+  --sy-f-heading: "Inter", var(--sy-f-sys), var(--sy-f-cjk), sans-serif;
+}
+</style>
+    
+  <meta property="og:type" content="website"/><meta property="og:title" content="Time Series Forecasting"/>
+    <meta name="twitter:card" content="summary"/>
+  </head>
+<body><div class="sy-head">
+  <div class="sy-head-blur"></div>
+  <div class="sy-head-inner sy-container mx-auto">
+    <a class="sy-head-brand" href="index.html">
+      <img class="light-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <img class="dark-logo" src="_static/nvidia.svg" alt="Structured Data Models" height="28" loading="lazy" />
+      <strong>Structured Data Models</strong>
+    </a>
+    <div class="sy-head-nav" id="head-nav">
+      <nav class="sy-head-links"></nav>
+      <div class="sy-head-extra flex items-center print:hidden"><form class="searchbox flex items-center" action="search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <kbd>/</kbd>
+</form><div class="sy-head-socials">
+  <a href="https://github.com/NVIDIA/structured-data-models" aria-label="GitHub">
+    <iconify-icon icon="simple-icons:github"></iconify-icon>
+  </a></div></div>
+    </div>
+    <div class="sy-head-actions flex items-center shrink-0 print:hidden"><button class="js-theme theme-switch flex items-center"
+data-aria-auto="Switch to light color mode"
+data-aria-light="Switch to dark color mode"
+data-aria-dark="Switch to auto color mode">
+<i class="i-lucide theme-icon"></i>
+</button><button class="md:hidden flex items-center js-menu" aria-label="Menu" type="button" aria-controls="head-nav" aria-expanded="false">
+        <div class="hamburger">
+          <span class="hamburger_1"></span>
+          <span class="hamburger_2"></span>
+          <span class="hamburger_3"></span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="sy-page sy-container flex mx-auto">
+  <aside id="lside" class="sy-lside md:w-72 md:shrink-0 print:hidden">
+    <div class="sy-lside-inner md:sticky">
+      <div class="sy-scrollbar p-6">
+        <div class="globaltoc" data-expand-depth="0"><p class="caption" role="heading" aria-level="3"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">Guides</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="tensor.html">Table Semantics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="icl.html">In-Context Learning</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Time Series Forecasting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="processing.html">Data Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nanotabicl.html">NanoTabICL</a></li>
+<li class="toctree-l1"><a class="reference internal" href="nim.html">NIM Inference</a></li>
+</ul>
+<p class="caption" role="heading" aria-level="3"><span class="caption-text">API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/sdm.html">sdm</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Stype.html">Stype</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.infer_stypes.html">infer_stypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.Task.html">Task</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/tensor.html">sdm.tensor</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.VarLenTensor.html">VarLenTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.StringTensor.html">StringTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.NullableTensor.html">NullableTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.CategoricalTensor.html">CategoricalTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.ColumnarTensor.html">ColumnarTensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html">TableTensor</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/relational.html">sdm.relational</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.Relationship.html">Relationship</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalData.html">RelationalData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.TaskLink.html">TaskLink</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelatedTables.html">RelatedTables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.relational.RelationalSampler.html">RelationalSampler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/processing.html">sdm.processing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.Processor.html">Processor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.base.InvertibleMixin.html">InvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleProcessor.html">EnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.ensemble.EnsembleInvertibleMixin.html">EnsembleInvertibleMixin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.target.TargetAwareEnsembleProcessor.html">TargetAwareEnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.series.SeriesEnsembleProcessor.html">SeriesEnsembleProcessor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.recipe.Recipe.html">Recipe</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Identity.html">Identity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Callable.html">Callable</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Sequential.html">Sequential</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.DropStypes.html">DropStypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.StypeDispatch.html">StypeDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TaskDispatch.html">TaskDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.TableDispatch.html">TableDispatch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.EnsembleProcessorAdapter.html">EnsembleProcessorAdapter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.Choice.html">Choice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ToNumerical.html">ToNumerical</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.ShuffleColumns.html">ShuffleColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.common.SelectColumns.html">SelectColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Cast.html">Cast</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Clip.html">Clip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipQuantiles.html">ClipQuantiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ClipSigma.html">ClipSigma</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.ImputeMean.html">ImputeMean</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PowerTransform.html">PowerTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.QuantileTransform.html">QuantileTransform</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RankGaussian.html">RankGaussian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Standardize.html">Standardize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RobustScale.html">RobustScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.MinMaxScale.html">MinMaxScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.FlipSign.html">FlipSign</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.DropConstantColumns.html">DropConstantColumns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.PCA.html">PCA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.RandomProjection.html">RandomProjection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Detrend.html">Detrend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.Interpolate.html">Interpolate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.numerical.WarpTails.html">WarpTails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AlignCategories.html">AlignCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ShuffleCategories.html">ShuffleCategories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.ImputeMode.html">ImputeMode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.categorical.AddCategoryCounts.html">AddCategoryCounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.TFIDF.html">TFIDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.text.SentenceTransformer.html">SentenceTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.datetime.AddCalendarFields.html">AddCalendarFields</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.AverageEstimators.html">AverageEstimators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.Softmax.html">Softmax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.SortQuantiles.html">SortQuantiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.processing.output.ClipNonnegative.html">ClipNonnegative</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/nn.html">sdm.nn</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RotaryEmbedding.html">RotaryEmbedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SinusoidalEmbedding.html">SinusoidalEmbedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SwiGLU.html">SwiGLU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SoftplusScale.html">SoftplusScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RMSNorm.html">RMSNorm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.RevIN.html">RevIN</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QueryScaling.html">QueryScaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.QASSMax.html">QASSMax</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.LogScale.html">LogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.GatedLogScale.html">GatedLogScale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.SDPA.html">SDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.Attention.html">Attention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.TransformerBlock.html">TransformerBlock</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.nn.InducedTransformerBlock.html">InducedTransformerBlock</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/models.html">sdm.models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.Model.html">Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.ICLModel.html">ICLModel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.Callback.html">Callback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabICLv2.html">TabICLv2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TabFM.html">TabFM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoTabular.html">KumoTabular</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoRelational.html">KumoRelational</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoForecast.html">KumoForecast</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.KumoAnomaly.html">KumoAnomaly</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.models.TimesFM3.html">TimesFM3</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/explain.html">sdm.explain</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.ICLExplainer.html">ICLExplainer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.explain.GradientExplainer.html">GradientExplainer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/evaluation.html">sdm.evaluation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_class_indices.html">to_class_indices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/sdm.evaluation.to_binary_class.html">to_binary_class</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="lside-overlay js-menu" role="button" aria-label="Close left sidebar" aria-controls="lside" aria-expanded="false"></div>
+  <aside id="rside" class="sy-rside pb-3 w-64 shrink-0 order-last">
+    <button class="rside-close js-menu xl:hidden" aria-label="Close Table of Contents" type="button" aria-controls="rside" aria-expanded="false">
+      <i class="i-lucide close"></i>
+    </button>
+    <div class="sy-scrollbar sy-rside-inner px-6 xl:top-16 xl:sticky xl:pl-0 pt-6 pb-4"><div class="localtoc"><h3>On this page</h3><ul>
+<li><a class="reference internal" href="#univariate-forecasting">Univariate Forecasting</a></li>
+<li><a class="reference internal" href="#multivariate-forecasting">Multivariate Forecasting</a></li>
+<li><a class="reference internal" href="#covariates">Covariates</a></li>
+<li><a class="reference internal" href="#ensembling">Ensembling</a></li>
+<li><a class="reference internal" href="#batched-forecasting">Batched Forecasting</a></li>
+</ul>
+</div><div id="ethical-ad-placement" data-ea-publisher="readthedocs"></div></div>
+  </aside>
+  <div class="rside-overlay js-menu" role="button" aria-label="Close Table of Contents" aria-controls="rside" aria-expanded="false"></div>
+  <main class="sy-main w-full max-sm:max-w-full print:pt-6">
+<div class="sy-breadcrumbs" role="navigation">
+  <div class="sy-breadcrumbs-inner flex items-center">
+    <div class="md:hidden mr-3">
+      <button class="js-menu" aria-label="Menu" type="button" aria-controls="lside" aria-expanded="false">
+        <i class="i-lucide menu"></i>
+      </button>
+    </div>
+    <ol class="flex-1" itemscope itemtype="https://schema.org/BreadcrumbList"><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <a itemprop="item" href="index.html"><span itemprop="name">Structured Data Models</span></a>
+        <span>/</span>
+        <meta itemprop="position" content="1" />
+      </li><li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+        <strong itemprop="name">Time Series Forecasting</strong>
+        <meta itemprop="position" content="2" />
+      </li></ol>
+    <div class="xl:hidden ml-1">
+      <button class="js-menu" aria-label="Show table of contents" type="button" aria-controls="rside"
+        aria-expanded="false">
+        <i class="i-lucide outdent"></i>
+      </button>
+    </div>
+  </div>
+</div><div class="flex flex-col break-words justify-between">
+      <div class="relative min-w-0 max-w-6xl px-6 pb-6 pt-8 xl:px-12">
+  <article class="yue" role="main">
+          <section id="time-series-forecasting">
+<h1>Time Series Forecasting<a class="headerlink" href="#time-series-forecasting" title="Link to this heading">#</a></h1>
+<p>Time series forecasting models (TSFMs) predict future values of a series from its observed history.
+While many forecasting foundation models originally focused on predicting a single variable from its own history (<strong>univariate forecasting</strong>), newer models such as <a class="reference external" href="https://arxiv.org/abs/2510.15821">Chronos-2</a> and <a class="reference external" href="https://research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting">TimesFM-3</a> extend this paradigm to multiple targets (<strong>multivariate forecasting</strong>) and <strong>covariates</strong>: additional variables that inform the forecast (<em>e.g.</em>, historical temperature or planned promotions).
+These capabilities allow models to draw on relationships between targets, past observations of external factors, and known future information.</p>
+<p>Time series forecasting shares a central principle with tabular <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning</span></a>: a pretrained model conditions its predictions on observed examples, without requiring training on each new dataset.
+In tabular prediction, the context consists of labeled rows and the queries are new rows.
+In forecasting, the context is the observed past and the queries are future time steps.
+In both settings, attention across columns captures relationships between variables within a row or time step, while attention across rows captures relationships between observations or time steps.
+Forecasting thus motivates useful extensions to the in-context learning formulation:</p>
+<ul class="simple">
+<li><p><strong>Multiple targets</strong> allow a model to predict several variables together.</p></li>
+<li><p><strong>Known future covariates</strong> provide inputs for both context and query rows.</p></li>
+<li><p><strong>Past-only covariates</strong> provide inputs for context rows even when their query values are unavailable.</p></li>
+</ul>
+<p>This package incorporates these extensions through the same <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel" title="sdm.models.ICLModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ICLModel</span></code></a> used by other models.
+In particular, <code class="docutils literal notranslate"><span class="pre">y_context</span></code> contains the observed targets, columns shared by <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code> represent known future covariates, and columns exclusive to <code class="docutils literal notranslate"><span class="pre">x_context</span></code> represent past-only covariates.</p>
+<section id="univariate-forecasting">
+<h2>Univariate Forecasting<a class="headerlink" href="#univariate-forecasting" title="Link to this heading">#</a></h2>
+<p>We begin with a single target, the daily sales of ice cream, observed for five days and forecast for the next three:</p>
+<table>
+  <tr>
+    <th>day</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+  </tr><tr>
+    <th>ice cream</th><td>40</td><td>55</td><td>80</td><td>75</td><td>50</td><td>?</td><td>?</td><td>?</td>
+  </tr>
+</table>
+<p>A time series is a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> in which each row is one time step, sorted in time, and each column is one variable:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">sdm</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="n">history</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span>
+</span><span data-line="4">    <span class="p">{</span><span class="s2">"ice_cream"</span><span class="p">:</span> <span class="p">[</span><span class="mf">40.0</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">,</span> <span class="mf">80.0</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">,</span> <span class="mf">50.0</span><span class="p">]},</span>
+</span><span data-line="5">    <span class="n">stypes</span><span class="o">=</span><span class="p">{</span><span class="s2">"ice_cream"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">},</span>
+</span><span data-line="6">    <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">,</span>
+</span><span data-line="7"><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>We can forecast with any time series foundation model in <a class="reference internal" href="api/models.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.models</span></code></span></a>.
+Here, we use <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">model</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">TimesFM3</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">)</span>
+</span><span data-line="2"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+</span><span data-line="3">    <span class="n">x_context</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="4">    <span class="n">y_context</span><span class="o">=</span><span class="n">history</span><span class="p">,</span>
+</span><span data-line="5">    <span class="n">x_query</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="6"><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code> carry the covariates.
+Since we have none yet, both tables hold zero columns.
+However, we still need to pass them to <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.forward" title="sdm.models.ICLModel.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a>, in particular because the number of rows in <code class="docutils literal notranslate"><span class="pre">x_query</span></code> define the <strong>forecast horizon</strong>: here, we request predictions for the next three time steps.</p>
+<p>The forecast is returned as a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> with one row per future step.
+Its output is model-specific, <em>e.g.</em>, <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a> outputs one column per target and quantile, from the 10th to the 90th percentile, named <code class="docutils literal notranslate"><span class="pre">&quot;&lt;target&gt;__q&lt;level&gt;&quot;</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">out</span><span class="p">[</span><span class="s2">"ice_cream__q50"</span><span class="p">]</span><span class="o">.</span><span class="n">numerical</span>  <span class="c1"># median forecast, [3, 1]</span>
+</span><span data-line="2"><span class="n">out</span><span class="p">[</span><span class="s2">"ice_cream__q10"</span><span class="p">]</span><span class="o">.</span><span class="n">numerical</span>  <span class="c1"># lower end of an 80% prediction interval</span>
+</span><span data-line="3"><span class="n">out</span><span class="p">[</span><span class="s2">"ice_cream__q90"</span><span class="p">]</span><span class="o">.</span><span class="n">numerical</span>  <span class="c1"># upper end of an 80% prediction interval</span>
+</span></pre></div>
+</div>
+</section>
+<section id="multivariate-forecasting">
+<h2>Multivariate Forecasting<a class="headerlink" href="#multivariate-forecasting" title="Link to this heading">#</a></h2>
+<p>Models with <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_multi_target" title="sdm.models.ICLModel.supports_multi_target"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sdm.models.ICLModel.supports_multi_target</span></code></a> can forecast multiple targets jointly, allowing them to exploit dependencies between them.</p>
+<p>In this case, we can simply add the daily sales of cold drinks as a second target:</p>
+<table>
+  <tr>
+    <th>day</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+  </tr><tr>
+    <th>ice cream</th><td>40</td><td>55</td><td>80</td><td>75</td><td>50</td><td>?</td><td>?</td><td>?</td>
+  </tr><tr>
+    <th>cold drinks</th><td>25</td><td>30</td><td>45</td><td>41</td><td>28</td><td>?</td><td>?</td><td>?</td>
+  </tr>
+</table>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">history</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span>
+</span><span data-line="2">    <span class="p">{</span>
+</span><span data-line="3">        <span class="s2">"ice_cream"</span><span class="p">:</span> <span class="p">[</span><span class="mf">40.0</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">,</span> <span class="mf">80.0</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">,</span> <span class="mf">50.0</span><span class="p">],</span>
+</span><span data-line="4">        <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="p">[</span><span class="mf">25.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">,</span> <span class="mf">45.0</span><span class="p">,</span> <span class="mf">41.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">],</span>
+</span><span data-line="5">    <span class="p">},</span>
+</span><span data-line="6">    <span class="n">stypes</span><span class="o">=</span><span class="p">{</span><span class="s2">"ice_cream"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span> <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">},</span>
+</span><span data-line="7">    <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">,</span>
+</span><span data-line="8"><span class="p">)</span>
+</span><span data-line="9">
+</span><span data-line="10"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+</span><span data-line="11">    <span class="n">x_context</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="12">    <span class="n">y_context</span><span class="o">=</span><span class="n">history</span><span class="p">,</span>
+</span><span data-line="13">    <span class="n">x_query</span><span class="o">=</span><span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="14"><span class="p">)</span>
+</span></pre></div>
+</div>
+</section>
+<section id="covariates">
+<h2>Covariates<a class="headerlink" href="#covariates" title="Link to this heading">#</a></h2>
+<p>Lastly, we add known future and past-only covariates to our model.
+For example, the measured <strong>temperature</strong> is a past covariate: its values are unavailable for the forecast horizon.
+Models with <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_context_only_columns" title="sdm.models.ICLModel.supports_context_only_columns"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sdm.models.ICLModel.supports_context_only_columns</span></code></a> can exploit such context-only columns.
+In contrast, <strong>promotion</strong> is a known future covariate that indicates whether a promotion was or is scheduled for a given day.</p>
+<table>
+  <tr>
+    <th>day</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+  </tr><tr>
+    <th>ice cream</th><td>40</td><td>55</td><td>80</td><td>75</td><td>50</td><td>?</td><td>?</td><td>?</td>
+  </tr><tr>
+    <th>cold drinks</th><td>25</td><td>30</td><td>45</td><td>41</td><td>28</td><td>?</td><td>?</td><td>?</td>
+  </tr>
+  </tr><tr>
+    <th>temperature</th><td>21</td><td>24</td><td>28</td><td>27</td><td>22</td><td></td><td></td><td></td>
+  </tr>
+  </tr><tr>
+    <th>promotion</th><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td>
+  </tr>
+</table>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">history</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span>
+</span><span data-line="2">    <span class="p">{</span>
+</span><span data-line="3">        <span class="s2">"ice_cream"</span><span class="p">:</span> <span class="p">[</span><span class="mf">40.0</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">,</span> <span class="mf">80.0</span><span class="p">,</span> <span class="mf">75.0</span><span class="p">,</span> <span class="mf">50.0</span><span class="p">],</span>
+</span><span data-line="4">        <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="p">[</span><span class="mf">25.0</span><span class="p">,</span> <span class="mf">30.0</span><span class="p">,</span> <span class="mf">45.0</span><span class="p">,</span> <span class="mf">41.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">],</span>
+</span><span data-line="5">        <span class="s2">"temperature"</span><span class="p">:</span> <span class="p">[</span><span class="mf">21.0</span><span class="p">,</span> <span class="mf">24.0</span><span class="p">,</span> <span class="mf">28.0</span><span class="p">,</span> <span class="mf">27.0</span><span class="p">,</span> <span class="mf">22.0</span><span class="p">],</span>
+</span><span data-line="6">        <span class="s2">"promotion"</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+</span><span data-line="7">    <span class="p">},</span>
+</span><span data-line="8">    <span class="n">stypes</span><span class="o">=</span><span class="p">{</span>
+</span><span data-line="9">        <span class="s2">"ice_cream"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span>
+</span><span data-line="10">        <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="s2">"numerical"</span>
+</span><span data-line="11">        <span class="s2">"temperature"</span><span class="p">:</span> <span class="s2">"numerical"</span>
+</span><span data-line="12">        <span class="s2">"promotion"</span><span class="p">:</span> <span class="s2">"numerical"</span>
+</span><span data-line="13">    <span class="p">},</span>
+</span><span data-line="14">    <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">,</span>
+</span><span data-line="15"><span class="p">)</span>
+</span><span data-line="16"><span class="n">future</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span>
+</span><span data-line="17">    <span class="p">{</span><span class="s2">"promotion"</span><span class="p">:</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]},</span>
+</span><span data-line="18">    <span class="n">stypes</span><span class="o">=</span><span class="p">{</span><span class="s2">"promotion"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">},</span>
+</span><span data-line="19">    <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">,</span>
+</span><span data-line="20"><span class="p">)</span>
+</span><span data-line="21">
+</span><span data-line="22"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+</span><span data-line="23">    <span class="n">x_context</span><span class="o">=</span><span class="n">history</span><span class="p">[[</span><span class="s2">"temperature"</span><span class="p">,</span> <span class="s2">"promotion"</span><span class="p">]],</span>
+</span><span data-line="24">    <span class="n">y_context</span><span class="o">=</span><span class="n">history</span><span class="p">[[</span><span class="s2">"ice_cream"</span><span class="p">,</span> <span class="s2">"cold_drinks"</span><span class="p">]],</span>
+</span><span data-line="25">    <span class="n">x_query</span><span class="o">=</span><span class="n">future</span><span class="p">,</span>
+</span><span data-line="26"><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>In summary, the columns that are passed determine which covariates the model sees:</p>
+<ul class="simple">
+<li><p><strong>Known future covariates</strong> appear in both <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code>.</p></li>
+<li><p><strong>Past-only covariates</strong> appear in <code class="docutils literal notranslate"><span class="pre">x_context</span></code> only.</p></li>
+<li><p><strong>Without any covariates</strong>, <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code> have zero columns.</p></li>
+</ul>
+</section>
+<section id="ensembling">
+<h2>Ensembling<a class="headerlink" href="#ensembling" title="Link to this heading">#</a></h2>
+<p>As with any other <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel" title="sdm.models.ICLModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ICLModel</span></code></a>, the <code class="docutils literal notranslate"><span class="pre">num_estimators</span></code> argument controls how many ensemble members contribute to the forecast.
+Each member may receive a differently transformed view of the series, and their predictions are averaged into a single forecast.
+For example, the default recipe for <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a> alternatives between the original series and a sign-flipped version.
+Using two estimators includes both views:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x_context</span><span class="p">,</span> <span class="n">y_context</span><span class="p">,</span> <span class="n">x_query</span><span class="p">,</span> <span class="n">num_estimators</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</span></pre></div>
+</div>
+</section>
+<section id="batched-forecasting">
+<h2>Batched Forecasting<a class="headerlink" href="#batched-forecasting" title="Link to this heading">#</a></h2>
+<p>Batching lets us run several independent forecasting tasks in one call.
+Each task has its own context and queries, and predictions will not use information from other tasks in the batch.
+Each task itself can contain multiple targets and covariates.</p>
+<p>For example, store sales can be represented in two ways: as separate univariate tasks in a batch (forecasting each store independently) or as a multivariate task (allowing the model to use relationships between stores).</p>
+<p>To forecast a batch series in one call, stack them along a leading batch dimension.
+All series in a batch share the same horizon and number of context rows, and shorter series should be left-padded with <code class="docutils literal notranslate"><span class="pre">NaN</span></code>.
+Set <code class="docutils literal notranslate"><span class="pre">num_estimators</span></code> explicitly so that the leading dimension is interpreted as a batch of independent forecasting tasks rather than as ensemble members:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+</span><span data-line="2">
+</span><span data-line="3"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+</span><span data-line="4">    <span class="n">x_context</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="5">    <span class="n">x_context</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="6">    <span class="n">x_query</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="7">    <span class="n">num_estimators</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+</span><span data-line="8"><span class="p">)</span>
+</span></pre></div>
+</div>
+<p>See <a class="reference external" href="https://github.com/NVIDIA/structured-data-models/blob/main/examples/timeseries/quickstart.py"><code class="docutils literal notranslate"><span class="pre">examples/timeseries/quickstart.py</span></code></a> for runnable examples on real-world datasets and tasks.</p>
+</section>
+</section>
+
+        </article><button class="back-to-top" type="button">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+  </svg>
+  <span>Back to top</span>
+</button><div class="navigation flex print:hidden"><div class="navigation-prev">
+    <a href="icl.html">
+      <i class="i-lucide chevron-left"></i>
+      <div class="page-info">
+        <span>Previous</span><div class="title">In-Context Learning</div></div>
+    </a>
+  </div><div class="navigation-next">
+    <a href="processing.html">
+      <div class="page-info">
+        <span>Next</span>
+        <div class="title">Data Processing</div>
+      </div>
+      <i class="i-lucide chevron-right"></i>
+    </a>
+  </div></div></div>
+    </div>
+  </main>
+</div>
+
+      <script src="_static/documentation_options.js?v=275ca21c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=ccdb6887"></script>
+      <script src="_static/shibuya.js?v=50760d75"></script></body>
+</html>
