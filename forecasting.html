@@ -252,6 +252,14 @@ Forecasting thus motivates useful extensions to the in-context learning formulat
 <li><p><strong>Known future covariates</strong> provide inputs for both context and query rows.</p></li>
 <li><p><strong>Past-only covariates</strong> provide inputs for context rows even when their query values are unavailable.</p></li>
 </ul>
+<figure class="light-only align-default">
+<a class="reference internal image-reference" href="_images/forecasting_light.svg"><img alt="_images/forecasting_light.svg" src="_images/forecasting_light.svg" style="width: 100%;" />
+</a>
+</figure>
+<figure class="dark-only align-default">
+<a class="reference internal image-reference" href="_images/forecasting_dark.svg"><img alt="_images/forecasting_dark.svg" src="_images/forecasting_dark.svg" style="width: 100%;" />
+</a>
+</figure>
 <p>This package incorporates these extensions through the same <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel" title="sdm.models.ICLModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ICLModel</span></code></a> used by other models.
 In particular, <code class="docutils literal notranslate"><span class="pre">y_context</span></code> contains the observed targets, columns shared by <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code> represent known future covariates, and columns exclusive to <code class="docutils literal notranslate"><span class="pre">x_context</span></code> represent past-only covariates.</p>
 <section id="univariate-forecasting">
@@ -438,7 +446,7 @@ Set <code class="docutils literal notranslate"><span class="pre">num_estimators<
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=275ca21c"></script>
+      <script src="_static/documentation_options.js?v=9a3c41c5"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
