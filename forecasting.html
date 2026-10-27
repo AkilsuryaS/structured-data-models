@@ -239,7 +239,7 @@ data-aria-dark="Switch to auto color mode">
   <article class="yue" role="main">
           <section id="time-series-forecasting">
 <h1>Time Series Forecasting<a class="headerlink" href="#time-series-forecasting" title="Link to this heading">#</a></h1>
-<p>Time series forecasting models (TSFMs) predict future values of a series from its observed history.
+<p>Time series foundation models (TSFMs) predict future values of a series from its observed history.
 While many forecasting foundation models originally focused on predicting a single variable from its own history (<strong>univariate forecasting</strong>), newer models such as <a class="reference external" href="https://arxiv.org/abs/2510.15821">Chronos-2</a> and <a class="reference external" href="https://research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting">TimesFM-3</a> extend this paradigm to multiple targets (<strong>multivariate forecasting</strong>) and <strong>covariates</strong>: additional variables that inform the forecast (<em>e.g.</em>, historical temperature or planned promotions).
 These capabilities allow models to draw on relationships between targets, past observations of external factors, and known future information.</p>
 <p>Time series forecasting shares a central principle with tabular <a class="reference internal" href="icl.html"><span class="doc std std-doc">in-context learning</span></a>: a pretrained model conditions its predictions on observed examples, without requiring training on each new dataset.
@@ -272,7 +272,7 @@ In particular, <code class="docutils literal notranslate"><span class="pre">y_co
     <th>ice cream</th><td>40</td><td>55</td><td>80</td><td>75</td><td>50</td><td>?</td><td>?</td><td>?</td>
   </tr>
 </table>
-<p>A time series is a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> in which each row is one time step, sorted in time, and each column is one variable:</p>
+<p>We represent a time series as a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> with one row per time step, sorted in time, and one column per variable:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">sdm</span>
 </span><span data-line="2">
 </span><span data-line="3"><span class="n">history</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">TableTensor</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span>
@@ -282,7 +282,7 @@ In particular, <code class="docutils literal notranslate"><span class="pre">y_co
 </span><span data-line="7"><span class="p">)</span>
 </span></pre></div>
 </div>
-<p>We can forecast with any time series foundation model in <a class="reference internal" href="api/models.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.models</span></code></span></a>.
+<p>We can forecast with any time series forecasting model in <a class="reference internal" href="api/models.html"><span class="doc std std-doc"><code class="docutils literal notranslate"><span class="pre">sdm.models</span></code></span></a>.
 Here, we use <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">model</span> <span class="o">=</span> <span class="n">sdm</span><span class="o">.</span><span class="n">models</span><span class="o">.</span><span class="n">TimesFM3</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">)</span>
 </span><span data-line="2"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
@@ -294,7 +294,7 @@ Here, we use <a class="reference internal" href="api/generated/sdm.models.TimesF
 </div>
 <p>Note that <code class="docutils literal notranslate"><span class="pre">x_context</span></code> and <code class="docutils literal notranslate"><span class="pre">x_query</span></code> carry the covariates.
 Since we have none yet, both tables hold zero columns.
-However, we still need to pass them to <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.forward" title="sdm.models.ICLModel.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a>, in particular because the number of rows in <code class="docutils literal notranslate"><span class="pre">x_query</span></code> define the <strong>forecast horizon</strong>: here, we request predictions for the next three time steps.</p>
+However, we still need to pass them to <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.forward" title="sdm.models.ICLModel.forward"><code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code></a>, in particular because the number of rows in <code class="docutils literal notranslate"><span class="pre">x_query</span></code> defines the <strong>forecast horizon</strong>: here, we request predictions for the next three time steps.</p>
 <p>The forecast is returned as a <a class="reference internal" href="api/generated/sdm.tensor.TableTensor.html#sdm.tensor.TableTensor" title="sdm.tensor.TableTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">TableTensor</span></code></a> with one row per future step.
 Its output is model-specific, <em>e.g.</em>, <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a> outputs one column per target and quantile, from the 10th to the 90th percentile, named <code class="docutils literal notranslate"><span class="pre">&quot;&lt;target&gt;__q&lt;level&gt;&quot;</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">out</span><span class="p">[</span><span class="s2">"ice_cream__q50"</span><span class="p">]</span><span class="o">.</span><span class="n">numerical</span>  <span class="c1"># median forecast, [3, 1]</span>
@@ -305,7 +305,7 @@ Its output is model-specific, <em>e.g.</em>, <a class="reference internal" href=
 </section>
 <section id="multivariate-forecasting">
 <h2>Multivariate Forecasting<a class="headerlink" href="#multivariate-forecasting" title="Link to this heading">#</a></h2>
-<p>Models with <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_multi_target" title="sdm.models.ICLModel.supports_multi_target"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sdm.models.ICLModel.supports_multi_target</span></code></a> can forecast multiple targets jointly, allowing them to exploit dependencies between them.</p>
+<p>A model that <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_multi_target" title="sdm.models.ICLModel.supports_multi_target"><code class="xref py py-attr docutils literal notranslate"><span class="pre">supports_multi_target</span></code></a> can forecast multiple targets jointly, allowing them to exploit dependencies between them.</p>
 <p>In this case, we can simply add the daily sales of cold drinks as a second target:</p>
 <table>
   <tr>
@@ -336,8 +336,8 @@ Its output is model-specific, <em>e.g.</em>, <a class="reference internal" href=
 <section id="covariates">
 <h2>Covariates<a class="headerlink" href="#covariates" title="Link to this heading">#</a></h2>
 <p>Lastly, we add known future and past-only covariates to our model.
-For example, the measured <strong>temperature</strong> is a past covariate: its values are unavailable for the forecast horizon.
-Models with <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_context_only_columns" title="sdm.models.ICLModel.supports_context_only_columns"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sdm.models.ICLModel.supports_context_only_columns</span></code></a> can exploit such context-only columns.
+For example, the measured <strong>temperature</strong> is a past-only covariate: its values are unavailable for the forecast horizon.
+A model that <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel.supports_context_only_columns" title="sdm.models.ICLModel.supports_context_only_columns"><code class="xref py py-attr docutils literal notranslate"><span class="pre">supports_context_only_columns</span></code></a> can exploit such past-only covariates.
 In contrast, <strong>promotion</strong> is a known future covariate that indicates whether a promotion was or is scheduled for a given day.</p>
 <table>
   <tr>
@@ -346,10 +346,8 @@ In contrast, <strong>promotion</strong> is a known future covariate that indicat
     <th>ice cream</th><td>40</td><td>55</td><td>80</td><td>75</td><td>50</td><td>?</td><td>?</td><td>?</td>
   </tr><tr>
     <th>cold drinks</th><td>25</td><td>30</td><td>45</td><td>41</td><td>28</td><td>?</td><td>?</td><td>?</td>
-  </tr>
   </tr><tr>
     <th>temperature</th><td>21</td><td>24</td><td>28</td><td>27</td><td>22</td><td></td><td></td><td></td>
-  </tr>
   </tr><tr>
     <th>promotion</th><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td>
   </tr>
@@ -363,9 +361,9 @@ In contrast, <strong>promotion</strong> is a known future covariate that indicat
 </span><span data-line="7">    <span class="p">},</span>
 </span><span data-line="8">    <span class="n">stypes</span><span class="o">=</span><span class="p">{</span>
 </span><span data-line="9">        <span class="s2">"ice_cream"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span>
-</span><span data-line="10">        <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="s2">"numerical"</span>
-</span><span data-line="11">        <span class="s2">"temperature"</span><span class="p">:</span> <span class="s2">"numerical"</span>
-</span><span data-line="12">        <span class="s2">"promotion"</span><span class="p">:</span> <span class="s2">"numerical"</span>
+</span><span data-line="10">        <span class="s2">"cold_drinks"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span>
+</span><span data-line="11">        <span class="s2">"temperature"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span>
+</span><span data-line="12">        <span class="s2">"promotion"</span><span class="p">:</span> <span class="s2">"numerical"</span><span class="p">,</span>
 </span><span data-line="13">    <span class="p">},</span>
 </span><span data-line="14">    <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">,</span>
 </span><span data-line="15"><span class="p">)</span>
@@ -393,7 +391,7 @@ In contrast, <strong>promotion</strong> is a known future covariate that indicat
 <h2>Ensembling<a class="headerlink" href="#ensembling" title="Link to this heading">#</a></h2>
 <p>As with any other <a class="reference internal" href="api/generated/sdm.models.ICLModel.html#sdm.models.ICLModel" title="sdm.models.ICLModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ICLModel</span></code></a>, the <code class="docutils literal notranslate"><span class="pre">num_estimators</span></code> argument controls how many ensemble members contribute to the forecast.
 Each member may receive a differently transformed view of the series, and their predictions are averaged into a single forecast.
-For example, the default recipe for <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a> alternatives between the original series and a sign-flipped version.
+For example, the default recipe for <a class="reference internal" href="api/generated/sdm.models.TimesFM3.html#sdm.models.TimesFM3" title="sdm.models.TimesFM3"><code class="xref py py-class docutils literal notranslate"><span class="pre">TimesFM3</span></code></a> alternates between the original series and a sign-flipped version.
 Using two estimators includes both views:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x_context</span><span class="p">,</span> <span class="n">y_context</span><span class="p">,</span> <span class="n">x_query</span><span class="p">,</span> <span class="n">num_estimators</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 </span></pre></div>
@@ -405,20 +403,20 @@ Using two estimators includes both views:</p>
 Each task has its own context and queries, and predictions will not use information from other tasks in the batch.
 Each task itself can contain multiple targets and covariates.</p>
 <p>For example, store sales can be represented in two ways: as separate univariate tasks in a batch (forecasting each store independently) or as a multivariate task (allowing the model to use relationships between stores).</p>
-<p>To forecast a batch series in one call, stack them along a leading batch dimension.
+<p>To forecast a batch of series in one call, stack them along a leading batch dimension.
 All series in a batch share the same horizon and number of context rows, and shorter series should be left-padded with <code class="docutils literal notranslate"><span class="pre">NaN</span></code>.
 Set <code class="docutils literal notranslate"><span class="pre">num_estimators</span></code> explicitly so that the leading dimension is interpreted as a batch of independent forecasting tasks rather than as ensemble members:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span data-line="1"><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 </span><span data-line="2">
 </span><span data-line="3"><span class="n">out</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
 </span><span data-line="4">    <span class="n">x_context</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
-</span><span data-line="5">    <span class="n">x_context</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
+</span><span data-line="5">    <span class="n">y_context</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
 </span><span data-line="6">    <span class="n">x_query</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">"cuda"</span><span class="p">),</span>
 </span><span data-line="7">    <span class="n">num_estimators</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
 </span><span data-line="8"><span class="p">)</span>
 </span></pre></div>
 </div>
-<p>See <a class="reference external" href="https://github.com/NVIDIA/structured-data-models/blob/main/examples/timeseries/quickstart.py"><code class="docutils literal notranslate"><span class="pre">examples/timeseries/quickstart.py</span></code></a> for runnable examples on real-world datasets and tasks.</p>
+<p>See <a class="reference external" href="https://github.com/NVIDIA/structured-data-models/blob/main/examples/timeseries/forecast.py"><code class="docutils literal notranslate"><span class="pre">examples/timeseries/forecast.py</span></code></a> for runnable examples on real-world datasets and tasks.</p>
 </section>
 </section>
 
@@ -446,7 +444,7 @@ Set <code class="docutils literal notranslate"><span class="pre">num_estimators<
   </main>
 </div>
 
-      <script src="_static/documentation_options.js?v=9a3c41c5"></script>
+      <script src="_static/documentation_options.js?v=50832955"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
