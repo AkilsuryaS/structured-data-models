@@ -12,8 +12,6 @@ from gluonts.model.predictor import Predictor
 import sdm
 from benchmark.timeseries.model import ModelConfig
 
-QUANTILE_LEVELS = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
-
 
 class SDMPredictor(Predictor):
     def __init__(
@@ -95,15 +93,21 @@ class SDMPredictor(Predictor):
                 if y_i.size(-1) < size:
                     y_i = torch.cat([y_i, y[..., : size - y_i.size(-1)]], -1)
 
-                out = self.model(
-                    x_context=sdm.TableTensor.from_tensor(x),
-                    y_context=sdm.TableTensor.from_tensor(y_i),
-                    x_query=sdm.TableTensor(
-                        size=(x.size(0), self.prediction_length),
-                        device=self.device,
-                    ),
-                    num_estimators=self.config.num_estimators,
-                )
+                with torch.amp.autocast(
+                    self.device.type,
+                    dtype=self.config.autocast_dtype,
+                    enabled=x.is_cuda
+                    and self.config.autocast_dtype != torch.float32,
+                ):
+                    out = self.model(
+                        x_context=sdm.TableTensor.from_tensor(x),
+                        y_context=sdm.TableTensor.from_tensor(y_i),
+                        x_query=sdm.TableTensor(
+                            size=(x.size(0), self.prediction_length),
+                            device=self.device,
+                        ),
+                        num_estimators=self.config.num_estimators,
+                    )
                 pred = out.numerical
                 pred = pred.view(y.size(0), self.prediction_length, size, -1)
                 preds.append(pred)
