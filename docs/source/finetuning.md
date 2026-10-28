@@ -70,7 +70,8 @@ For training, replace it with {py:class}`~sdm.processing.common.Identity` to com
 ```python
 import sdm.processing as sp
 
-model = sdm.models.TabICLv2(task="classification", device="cuda")
+task = "classification"  # Use "regression" for a numerical target.
+model = sdm.models.TabICLv2(task=task, device="cuda")
 
 train_recipe = model.default_recipe()
 train_recipe.output = sp.Identity()  # No post-processing.
@@ -143,7 +144,8 @@ loss = torch.maximum(level * diff, (level - 1) * diff).mean()
 ## Model Selection
 
 Fine-tuning can overfit, especially on small datasets, so we score the model on the validation rows after every *epoch* (here a fixed number of training steps) and keep the best weights.
-Evaluation matches inference: eval mode, the default recipe, and [estimator ensembling](icl):
+Evaluation matches inference: eval mode, the default recipe, and [estimator ensembling](icl).
+For classification, maximize accuracy; for regression, average the predicted quantiles into a point prediction and minimize root mean squared error (RMSE):
 
 ```python
 import copy
@@ -156,14 +158,20 @@ def evaluate(context: sdm.TableTensor, query: sdm.TableTensor) -> float:
         x_query=query.drop_columns("target"),
         num_estimators=8,
     )
-    prob, y = sdm.evaluation.to_class_indices(
-        pred=out,
-        target=query["target"],
-        missing_score=0.0,
-    )
-    return (prob.argmax(dim=-1) == y).float().mean().item()
+    if task == "classification":
+        prob, y = sdm.evaluation.to_class_indices(
+            pred=out,
+            target=query["target"],
+            missing_score=0.0,
+        )
+        return (prob.argmax(dim=-1) == y).float().mean().item()
 
-best_acc = evaluate(context=train_table, query=val_table)  # Pretrained model.
+    pred = out.numerical.mean(dim=-1)
+    y = query["target"].numerical.squeeze(-1)
+    return (pred - y).pow(2).mean().sqrt().item()
+
+higher_is_better = task == "classification"
+best_metric = evaluate(context=train_table, query=val_table)  # Pretrained model.
 best_state = copy.deepcopy(model.state_dict())
 
 max_epochs = 10
@@ -171,12 +179,12 @@ for epoch in range(max_epochs):
     model.train()
     ...  # Training steps from above.
 
-    acc = evaluate(context=train_table, query=val_table)
-    if acc > best_acc:
-        best_acc, best_state = acc, copy.deepcopy(model.state_dict())
+    metric = evaluate(context=train_table, query=val_table)
+    if metric > best_metric if higher_is_better else metric < best_metric:
+        best_metric, best_state = metric, copy.deepcopy(model.state_dict())
 
 model.load_state_dict(best_state)
-test_acc = evaluate(context=train_table, query=test_table)
+test_metric = evaluate(context=train_table, query=test_table)
 ```
 
 Since the first evaluation scores the pretrained model, selection never returns weights that score below it on the validation rows.
