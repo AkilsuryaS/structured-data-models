@@ -214,12 +214,12 @@ class KumoForecast(ICLModel):
                 dim=-2,
             )
 
-        # Direct forecast:
+        # Forecast:
         last_x = x[..., -self.model.context_size :]
         encoded, mean, scale = self.model.encode(last_x)  # [..., C, P, D]
         out = self.model.decode(encoded, mean, scale)
 
-        # Autoregressive direct forecasts:
+        # Autoregressive Forecasts:
         if horizon > prediction_size and (alpha != 0 or not use_darr):
             outs = [out]
             for _ in range(prediction_size, horizon, prediction_size):
@@ -319,12 +319,10 @@ class _KumoForecast(torch.nn.Module):
         self,
         x: Tensor,  # [..., C, R]
     ) -> Tensor:  # [..., C, prediction_size]
-        """Forecast from the shared patch encoder."""
         encoded, mean, scale = self.encode(x)
         return self.decode(encoded, mean, scale)
 
     def decode(self, encoded: Tensor, mean: Tensor, scale: Tensor) -> Tensor:
-        """Restore forecast units after applying the forecasting head."""
         return self.revin.inverse(self.head(encoded.flatten(-2)), mean, scale)
 
     def encode_memory(
@@ -333,27 +331,31 @@ class _KumoForecast(torch.nn.Module):
         horizon: int,
         batch_size: int,
     ) -> Tensor:  # [..., N, D]
-        """Encode historical windows with fully observed continuations."""
-        windows = x.unfold(
-            -1, self.context_size + horizon, self.prediction_size
+        window = x.unfold(
+            dimension=-1,
+            size=self.context_size + horizon,
+            step=self.prediction_size,
         ).transpose(-3, -2)  # [..., N, C, L + H]
-        keys = x.new_empty(
-            (*x.size()[:-2], windows.size(-3), self.lin.out_features),
+
+        key = x.new_empty(
+            (*x.size()[:-2], window.size(-3), self.lin.out_features),
             dtype=torch.float32,
         )
-        for start in range(0, windows.size(-3), batch_size):
-            history = windows[
-                ..., start : start + batch_size, :, : self.context_size
+        for start in range(0, window.size(-3), batch_size):
+            x = window[
+                ...,
+                start : start + batch_size,
+                :,
+                : self.context_size,
             ]
-            encoded, _, _ = self.encode(history)
-            keys[..., start : start + batch_size, :] = embed(encoded)
-        return keys
+            x, _, _ = self.encode(x)
+            key[..., start : start + batch_size, :] = embed(x)
+        return key
 
     def encode(
         self,
         x: Tensor,  # [..., C, R]
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """Return encoded patches and the instance-normalization statistics."""
         mean, scale = self.revin.compute_stats(x)
         x = self.revin(x, mean, scale)
         x = x.nan_to_num(nan=0, posinf=0, neginf=0)
