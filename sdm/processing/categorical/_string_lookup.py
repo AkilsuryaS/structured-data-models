@@ -42,6 +42,7 @@ def _different(
         size=(length.numel() + 1,), dtype=length.dtype, device=left_data.device
     )
 
+    # Compare active rows in chunks; padding contributes zero.
     chunk = (capacity + 7) // 8
     base = torch.arange(chunk, dtype=length.dtype, device=left_data.device)
     count = length.numel()
@@ -67,6 +68,7 @@ def _different(
         return part + 1, carry.index_add(0, owner, differs)
 
     if torch.compiler.is_compiling():
+        # This fixed-trip counter is independent of CUDA values.
         counter = torch.zeros((), dtype=length.dtype, device="cpu")
         _, different = torch.while_loop(
             cond_fn=lambda part, carry: part < 8,
@@ -90,6 +92,7 @@ def _rows(
 
 
 def _pack(data: Tensor, start: Tensor, length: Tensor, words: int) -> Tensor:
+    # [N, words]: all bytes of short rows, both ends of long rows.
     keys = torch.zeros(
         size=(length.numel(), words), dtype=torch.int64, device=data.device
     )
@@ -100,13 +103,16 @@ def _pack(data: Tensor, start: Tensor, length: Tensor, words: int) -> Tensor:
     shift = (length - 8 * words).clamp_min(0)
     index[:, (words + 1) // 2 :].add_(shift[:, None])
     for byte in range(8):
+        # An odd middle word joins four prefix and four suffix bytes.
         if byte == 4 and words % 2:
             index[:, words // 2].add_(shift)
         present = position + byte < length[:, None]
         index.clamp_max_(data.numel() - 1)
         symbol = data[index].masked_fill_(~present, 0)
+        # Signed overflow preserves the raw 64-bit pattern.
         keys.add_(symbol, alpha=1 << (8 * byte))
         index.add_(1)
+    # Length distinguishes actual NUL bytes from zero padding.
     return torch.cat((keys, length[:, None]), dim=1)
 
 
@@ -142,6 +148,7 @@ def _lookup(
         and not complete
         and left_data is not right_data
     ):
+        # Higher-order tracing requires independent backing buffers.
         right_data = right_data.clone()
 
     def match_at(width: int, full: bool) -> Tensor:
@@ -249,6 +256,7 @@ def _lookup(
         while power * 2 <= words:
             power *= 2
 
+        # Views can retain large unused buffers; size keys for visible rows.
         def shrink(width: int) -> Tensor:
             if width == 1:
                 return match_at(1, True)
