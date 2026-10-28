@@ -41,7 +41,7 @@ def test_forward(
         torch.randn(1024, 2, device=device),
         columns=["x1", "x2"],
     )
-    x_query = TableTensor.from_tensor(torch.randn(3, 0, device=device))
+    x_query = TableTensor.from_tensor(torch.randn(120, 0, device=device))
 
     # Target variates:
     y_context = TableTensor.from_tensor(
@@ -55,7 +55,7 @@ def test_forward(
         else pytest.warns(RuntimeWarning, match="Historical covariates")
     ):
         out = model(x_context, y_context, x_query, alpha=alpha)
-    assert out.size() == (3, 3)
+    assert out.size() == (120, 3)
     assert out.device == device
     assert out.numerical.isfinite().all()
     assert "y1" in out.numerical_columns
