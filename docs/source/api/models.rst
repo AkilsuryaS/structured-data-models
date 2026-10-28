@@ -78,20 +78,3 @@ Models
 {% for name in api_names("sdm.models") if name not in api_names("sdm.models.base") %}
    ~sdm.models.{{ name }}
 {% endfor %}
-
-Retrieval-Augmented Forecasting
-------------------------------
-
-Enable historical retrieval in :class:`~sdm.models.KumoForecast` with
-``alpha < 1``. The default ``alpha=1`` uses direct forecasts only:
-
-.. code-block:: python
-
-   from sdm.models import KumoForecast
-
-   model = KumoForecast(device="cuda", alpha=0.01)
-   forecast = model(x_context, y_context, x_query)
-
-Supply all observations known at the forecast origin as context. Retrieval
-uses complete windows from this history; the current forecast uses its last
-512 rows. Query rows determine the forecast horizon and contain no columns.
