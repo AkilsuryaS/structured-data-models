@@ -152,15 +152,7 @@ class KumoForecast(ICLModel):
     def fit(self, *args: Any, **kwargs: Any) -> None:
         r""":meta private:"""  # noqa: D415
         raise NotImplementedError(
-            "KumoForecast does not support fit(). "
-            "Use forward() with the observed history and forecast horizon."
-        )
-
-    def predict(self, *args: Any, **kwargs: Any) -> TableTensor:
-        r""":meta private:"""  # noqa: D415
-        raise NotImplementedError(
-            "KumoForecast does not support predict(). "
-            "Use forward() with the observed history and forecast horizon."
+            f"{self.__class__.__name__!r} does not support `fit()`"
         )
 
     def _forward(
