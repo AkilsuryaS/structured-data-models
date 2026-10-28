@@ -34,8 +34,9 @@ class StringTensor(VarLenTensor):
         size: The shape of the tensor.
         stride: The stride of the tensor.
         storage_offset: The offset into the logical ``offset`` storage.
-        max_length: A trusted upper bound on the byte length of every
-            string indexed by ``offset``, or :obj:`None` if unknown.
+        max_length: Upper bound on the byte length of every stored string,
+            or :obj:`None` if unknown. Lets compiled operations size buffers
+            without reading lengths from the device. Must not underestimate.
     """
 
     # NOTE Assume that `data` stores valid UTF-8 bytes and do not validate it.
@@ -558,11 +559,11 @@ def _sort(
 
 
 def _length_bound(offset: Tensor) -> int:
-    """Bound the byte length of every stored string.
+    """Return an upper bound on the byte length of every stored string.
 
-    Covering every stored row keeps the bound valid for views sharing the
-    storage. Rounding up to ``2**k - 1`` bytes limits recompilation across
-    inputs.
+    Covers all strings in the offsets, so views of the same storage stay
+    within it, and rounds up to ``2**k - 1`` so nearby lengths share one
+    compiled graph.
     """
     length = int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
     return (1 << length.bit_length()) - 1

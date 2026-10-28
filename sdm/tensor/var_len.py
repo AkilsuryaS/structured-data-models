@@ -61,8 +61,9 @@ class VarLenTensor(Tensor):
         size: The shape of the tensor.
         stride: The stride of the tensor.
         storage_offset: The offset into the logical ``offset`` storage.
-        max_length: A trusted upper bound on the length of every entry
-            indexed by ``offset``, or :obj:`None` if unknown.
+        max_length: Upper bound on the length of every stored entry, or
+            :obj:`None` if unknown. Lets compiled operations size buffers
+            without reading lengths from the device. Must not underestimate.
     """
 
     ALLOWED_DTYPES: ClassVar[tuple[torch.dtype, ...] | None] = None
