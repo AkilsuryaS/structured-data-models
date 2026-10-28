@@ -23,14 +23,13 @@ def pack(
     padding sorts prefixes before extensions, including embedded NUL bytes.
     Null keys are zero; their separate validity mask distinguishes them from
     empty strings. The width is a byte bound, never a truncation length: it
-    must cover the conservative per-element bound established at ingestion.
-    Unknown ingestion bounds remain None in storage metadata; packing uses
-    the total byte count as a safe fallback, never a string-length cutoff.
+    must cover the conservative per-element bound established at ingestion,
+    so strings with an unknown bound can't be packed.
     """
     assert values.ndim == 1
     bound = values._max_length
     if bound is None:
-        bound = values._data.numel()
+        raise ValueError("String keys require a known byte bound")
     if width is None:
         width = bound
     if width < bound:

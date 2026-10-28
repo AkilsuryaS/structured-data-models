@@ -73,13 +73,17 @@ def test_pack_empty_and_null_payload(device: torch.device) -> None:
         keys, valid = torch.compile(pack, fullgraph=True)(values)
         assert torch.equal(keys.cpu(), _reference_keys(texts, 0))
         assert valid.tolist() == [text is not None for text in texts]
-    values = StringTensor(
-        data=torch.tensor(list(b"ignored"), dtype=torch.uint8, device=device),
-        offset=torch.tensor([0, 7], device=device),
-        valid=torch.tensor([False], device=device),
-        size=(1,),
+    # A null slot may hold arbitrary payload bytes.
+    array = pa.Array.from_buffers(
+        pa.string(),
+        1,
+        [
+            pa.py_buffer(bytes([0])),
+            pa.py_buffer(torch.tensor([0, 7], dtype=torch.int32).numpy()),
+            pa.py_buffer(bytearray(b"ignored")),
+        ],
     )
-    keys, valid = pack(values)
+    keys, valid = pack(StringTensor.from_arrow(array, device=device))
     assert not keys.any()
     assert not valid.any()
 
@@ -98,9 +102,9 @@ def test_pack_unknown_storage_bound() -> None:
         size=(2,),
     )
     assert values._max_length is None
-    assert torch.equal(pack(values)[0], _reference_keys(["abc", "def"], 6))
-    with pytest.raises(ValueError, match="byte bound"):
-        pack(values, 3)
+    for width in (None, 6):
+        with pytest.raises(ValueError, match="known byte bound"):
+            pack(values, width)
 
 
 @pytest.mark.parametrize(
@@ -148,8 +152,9 @@ def test_bound_provenance(device: torch.device, bound: int | None) -> None:
         joined = cast(StringTensor, torch.cat((values, extra)))
         new_bound = None if bound is None else max(bound, 31 if suffix else 0)
         assert joined._max_length == new_bound
-        width = joined._data.numel() if new_bound is None else new_bound
+        if new_bound is None:
+            continue
         keys, valid = compiled_pack(joined)
         expected = [*texts, suffix]
-        assert torch.equal(keys.cpu(), _reference_keys(expected, width))
+        assert torch.equal(keys.cpu(), _reference_keys(expected, new_bound))
         assert valid.tolist() == [text is not None for text in expected]
