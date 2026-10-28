@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pickle
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 import pytest
@@ -10,7 +10,7 @@ import torch
 
 from sdm import CategoricalTensor, EnsembleTable, StringTensor, TableTensor
 from sdm.processing import AlignCategories
-from sdm.processing.categorical.align import _native_string_lookup
+from sdm.processing.categorical._string_lookup import _native_string_lookups
 from sdm.testing import onlyCUDA, withCUDA
 
 
@@ -516,18 +516,43 @@ def test_native_string_lookup(count: int) -> None:
         "a",
         "a\0",
         "",
+        "1234567é",
+        "1234567ê",
     ]
     query = [*fitted[::-1], "unknown", "a\0\0"]
     indices = {value: index for index, value in enumerate(fitted)}
-    actual = _native_string_lookup(
-        left=StringTensor.from_list(query),
-        right=StringTensor.from_list(fitted),
+    actual = _native_string_lookups(
+        left=(StringTensor.from_list(query),),
+        right=(StringTensor.from_list(fitted),),
+        dtype=torch.int32,
+    )
+    torch.testing.assert_close(
+        actual=actual[0],
+        expected=torch.tensor(
+            [indices.get(value, -1) for value in query], dtype=torch.int32
+        ),
+    )
+
+
+@withCUDA
+def test_native_string_lookups_collisions_and_shared_views(
+    device: torch.device,
+) -> None:
+    # These distinct strings have the same fingerprint; bytes decide equality.
+    first, second = "aaaaaaaadddddddd", "ddddddddcccccccc"
+    values = StringTensor.from_list(
+        [first, second, first, second, "", "unknown"], device=device
+    )
+    actual = _native_string_lookups(
+        left=cast(tuple[StringTensor, ...], (values[::2], values[1::2])),
+        right=cast(tuple[StringTensor, ...], (values[:4], values[:3])),
         dtype=torch.int32,
     )
     torch.testing.assert_close(
         actual=actual,
-        expected=torch.tensor(
-            [indices.get(value, -1) for value in query], dtype=torch.int32
+        expected=(
+            torch.tensor([2, 2, -1], dtype=torch.int32, device=device),
+            torch.tensor([1, 1, -1], dtype=torch.int32, device=device),
         ),
     )
 
@@ -584,6 +609,32 @@ def test_string_category_lookups_compile(
             codes.new_tensor([1, -1, -1, *range(count + 1, 1, -1)]),
         ),
     )
+
+
+@onlyCUDA
+def test_string_category_lookups_compile_ragged(compilation: None) -> None:
+    device = torch.device("cuda")
+    first = "a" * 1024 + "x" + "b" * 1024
+    second = "a" * 1024 + "y" + "b" * 1024
+    unknown = "a" * 1024 + "z" + "b" * 1024
+    fitted = StringTensor.from_list(
+        [*[f"label-{index}" for index in range(32)], first, second],
+        device=device,
+    )
+    query = StringTensor.from_list([first, unknown, second], device=device)
+    codes = torch.empty((), dtype=torch.int32, device=device)
+
+    def lookups(categories: StringTensor) -> tuple[torch.Tensor, ...]:
+        return AlignCategories._string_category_lookups(
+            input_categories=(categories,),
+            fitted_categories=(fitted,),
+            codes=codes,
+        )
+
+    compiled = torch.compile(lookups, backend="inductor", fullgraph=True)
+    expected = (codes.new_tensor([32, -1, 33]),)
+    for _ in range(2):
+        torch.testing.assert_close(actual=compiled(query), expected=expected)
 
 
 @withCUDA
