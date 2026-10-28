@@ -41,17 +41,14 @@ class KumoForecast(ICLModel):
     Optional cross-channel mixing lets forecasts use dependencies between
     variates after temporal encoding. The forecasting head predicts the native
     up to 72-step horizon directly from a 512-step history.
-    Set ``alpha < 1`` to blend direct forecasts with DARR retrieval from the
-    full supplied history. Retrieval uses complete historical windows and
-    their observed continuations, spaced 72 steps apart. Only the last 512
-    observations are encoded for the current forecast. If history is too
-    short for a complete retrieval window, the model forecasts directly.
-    Horizons beyond 72 steps use autoregressive direct forecasts, up to 512.
+    Forecast horizons beyond 72 steps are extended autoregressively, up to
+    512 steps.
 
-    All context observations must be available at the forecast origin.
-    Leading batch dimensions have independent retrieval memories. Non-finite
-    continuation values are excluded from the retrieved average; an entirely
-    missing continuation uses zero in the recipe's transformed target space.
+    For longer observation histories, Domain-Aware Representation and
+    Retrieval (DARR) can augment the direct forecast with patterns retrieved
+    from historical data. Set ``alpha < 1`` to retrieve similar historical
+    windows using nearest neighbors and blend their observed continuations
+    with the direct forecast.
 
     Within the :class:`~sdm.models.ICLModel` protocol, :class:`KumoForecast`
     treats rows as ordered time steps. In a default forward pass,
@@ -65,7 +62,7 @@ class KumoForecast(ICLModel):
         device: The device.
         alpha: Weight of the direct forecast in
             ``alpha * direct + (1 - alpha) * retrieved``. Defaults to ``1``
-            to disable retrieval; upstream DARR defaults to ``0.01``.
+            to disable retrieval.
         k: Maximum number of historical neighbors to retrieve.
         temperature: Softmax temperature for cosine similarities. ``None`` or
             a negative value uses uniform weights; zero uses ``1e-12``.
@@ -86,17 +83,8 @@ class KumoForecast(ICLModel):
         cross_channel: bool = True,
         pretrained: bool = True,
         device: torch.device | str | None = None,
-        *,
-        alpha: float = 1.0,
-        k: int = 64,
-        temperature: float | None = 0.05,
     ) -> None:
         super().__init__(task=Task.regression)
-        if not 0 <= alpha <= 1:
-            raise ValueError("Expected 'alpha' between zero and one")
-        self.alpha = alpha
-        self.k = k
-        self.temperature = temperature
 
         self.model = _KumoForecast(
             cross_channel=cross_channel,
@@ -138,6 +126,9 @@ class KumoForecast(ICLModel):
         y_context: Tensor | TableTensor,
         x_query: Tensor | TableTensor,
         *args: Any,
+        alpha: float = 1.0,
+        k: int = 64,
+        temperature: float | None = 0.05,
         **kwargs: Any,
     ) -> TableTensor:
         r""":meta private:"""  # noqa: D415
@@ -155,9 +146,26 @@ class KumoForecast(ICLModel):
             )
             x_query = x_query[..., :0]
 
-        return super().forward(x_context, y_context, x_query, *args, **kwargs)
+        return super().forward(
+            x_context,
+            y_context,
+            x_query,
+            *args,
+            alpha=alpha,
+            k=k,
+            temperature=temperature,
+            **kwargs,
+        )
 
-    def fit(self, x: Tensor | TableTensor, *args: Any, **kwargs: Any) -> None:
+    def fit(
+        self,
+        x: Tensor | TableTensor,
+        *args: Any,
+        alpha: float = 1.0,
+        k: int = 64,
+        temperature: float | None = 0.05,
+        **kwargs: Any,
+    ) -> None:
         r""":meta private:"""  # noqa: D415
         if isinstance(x, TableTensor):
             kwargs["context_only_columns"] = [
@@ -166,7 +174,14 @@ class KumoForecast(ICLModel):
         else:
             kwargs["context_only_columns"] = range(x.size(-1))
 
-        return super().fit(x, *args, **kwargs)
+        return super().fit(
+            x,
+            *args,
+            alpha=alpha,
+            k=k,
+            temperature=temperature,
+            **kwargs,
+        )
 
     def predict(
         self,
@@ -197,10 +212,14 @@ class KumoForecast(ICLModel):
         related_query_tables: RelatedTables[TableTensor] | None,
         cache: Cache | None,
         generator: torch.Generator | None,
+        alpha: float = 1.0,
+        k: int = 64,
+        temperature: float | None = 0.05,
         batch_size: int = 8,
         **kwargs: Any,
     ) -> TableTensor:
-
+        if not 0 <= alpha <= 1:
+            raise ValueError("Expected 'alpha' between zero and one")
         if (
             y_context is not None
             and y_context.size(-2) < self.model.context_size
@@ -222,7 +241,7 @@ class KumoForecast(ICLModel):
             y_schema = y_context.schema
             x = y_context.numerical
             if x_context_only is not None and x_context_only.size(-1) > 0:
-                if self.model.cross_channel is None and self.alpha == 1:
+                if self.model.cross_channel is None and alpha == 1:
                     warn_once(
                         key="kumo-forecast-historical-covariate",
                         message=(
@@ -238,7 +257,7 @@ class KumoForecast(ICLModel):
             out = self.model.decode(encoded, mean, scale)
             keys = query = None
             memory_horizon = max(self.model.prediction_size, length)
-            if self.alpha < 1 and x.size(-1) >= (
+            if alpha < 1 and x.size(-1) >= (
                 self.model.context_size + memory_horizon
             ):
                 keys = self.model.encode_memory(
@@ -263,7 +282,7 @@ class KumoForecast(ICLModel):
             self.model.context_size + memory_horizon
         )
         if length > self.model.prediction_size and (
-            self.alpha != 0 or not has_memory
+            alpha != 0 or not has_memory
         ):
             history = x[..., -self.model.context_size :]
             direct = out
@@ -293,13 +312,13 @@ class KumoForecast(ICLModel):
                     ...,
                     self.model.context_size : self.model.context_size + length,
                 ],
-                k=self.k,
-                temperature=self.temperature,
+                k=k,
+                temperature=temperature,
             )
             out = (
                 retrieved
-                if self.alpha == 0
-                else self.alpha * out + (1 - self.alpha) * retrieved
+                if alpha == 0
+                else alpha * out + (1 - alpha) * retrieved
             )
 
         return TableTensor(

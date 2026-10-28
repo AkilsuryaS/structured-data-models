@@ -102,9 +102,15 @@ def test_blending_and_rollout(
     targets = TableTensor.from_tensor(reference[..., :2], columns=["a", "b"])
     query = TableTensor.from_tensor(reference.new_empty(2, 3, horizon, 0))
 
-    model.alpha = 0
-    model.temperature = None
-    retrieved = model(features, targets, query, num_estimators=1, batch_size=2)
+    retrieved = model(
+        features,
+        targets,
+        query,
+        alpha=0,
+        temperature=None,
+        num_estimators=1,
+        batch_size=2,
+    )
     starts = range(0, 48 - 16 - max(8, horizon) + 1, 8)
     expected = torch.stack(
         [reference[..., s + 16 : s + 16 + horizon, :2] for s in starts]
@@ -113,7 +119,6 @@ def test_blending_and_rollout(
     assert retrieved.numerical_columns == ("a", "b")
 
     # Independently assemble native forecasts through the public model API.
-    model.alpha = 1
     current = reference[..., -16:, :]
     blocks = []
     for _ in range(0, horizon, 8):
@@ -134,8 +139,14 @@ def test_blending_and_rollout(
     ):
         direct = model(features, targets, query, num_estimators=1).numerical
     torch.testing.assert_close(direct, expected_direct, rtol=2e-5, atol=2e-5)
-    model.alpha = 0.25
-    mixed = model(features, targets, query, num_estimators=1).numerical
+    mixed = model(
+        features,
+        targets,
+        query,
+        alpha=0.25,
+        temperature=None,
+        num_estimators=1,
+    ).numerical
     torch.testing.assert_close(mixed, 0.25 * direct + 0.75 * expected)
     assert not mixed.requires_grad
     assert mixed.device == device
@@ -147,8 +158,6 @@ def test_retrieval_uses_query_history(
 ) -> None:
     """Retrieve matching windows independently in each batch."""
     model = model.to(device)
-    model.alpha = 0
-    model.k = 1
     history = torch.randn(2, 16, 1, device=device)
     future = torch.randn(2, 8, 1, device=device) * 100
     reference = torch.cat([history, future, history], dim=-2)
@@ -156,6 +165,8 @@ def test_retrieval_uses_query_history(
         reference[..., :0],
         reference,
         reference.new_empty(2, 8, 0),
+        alpha=0,
+        k=1,
         num_estimators=1,
     )
     torch.testing.assert_close(out.numerical, future, rtol=2e-5, atol=2e-5)
@@ -165,12 +176,14 @@ def test_retrieval_uses_query_history(
 def test_fit_predict(model: KumoForecast, device: torch.device) -> None:
     """Reuse context for different horizons, estimator batches, and refits."""
     model = model.to(device)
-    model.alpha = 0.2
     reference = torch.randn(2, 48, 2, device=device)
     for estimator_batch_size in [1, None]:
         model.fit(
             reference[..., :0],
             reference,
+            alpha=0.2,
+            k=2,
+            temperature=None,
             estimator_batch_size=estimator_batch_size,
         )
         for horizon in [3, 8, 19, 40]:
@@ -179,6 +192,9 @@ def test_fit_predict(model: KumoForecast, device: torch.device) -> None:
                 reference[..., :0],
                 reference,
                 query,
+                alpha=0.2,
+                k=2,
+                temperature=None,
                 estimator_batch_size=estimator_batch_size,
             )
             actual = model.predict(query)
@@ -209,27 +225,45 @@ def test_direct_default_and_short_history(
         model(reference[:, :0], reference, query).numerical, direct
     )
     for alpha in [0, 0.25]:
-        model.alpha = alpha
         torch.testing.assert_close(
-            model(history[:, :0], history, query).numerical, direct
+            model(history[:, :0], history, query, alpha=alpha).numerical,
+            direct,
         )
 
 
 def test_recipe_and_missing_continuations(model: KumoForecast) -> None:
     """Use the target recipe for both retrieved and direct predictions."""
     reference = torch.randn(24, 2)
-    model.alpha = 0
     recipe = sp.Recipe(
         target=sp.Standardize().with_state(7.0, 3.0),
         output=sp.AverageEstimators(),
     )
     query = reference.new_empty(8, 0)
-    out = model(reference[:, :0], reference, query, recipe=recipe)
+    out = model(reference[:, :0], reference, query, alpha=0, recipe=recipe)
     torch.testing.assert_close(out.numerical, reference[16:])
     reference[16:, 1] = torch.nan
-    out = model(reference[:, :0], reference, query, recipe=recipe)
+    out = model(reference[:, :0], reference, query, alpha=0, recipe=recipe)
     torch.testing.assert_close(out.numerical[:, 0], reference[16:, 0])
     torch.testing.assert_close(out.numerical[:, 1], torch.full((8,), 7.0))
+
+
+def test_call_options(model: KumoForecast) -> None:
+    """Keep one-shot options independent of fitted and subsequent calls."""
+    reference = torch.randn(48, 2)
+    features = reference[:, :0]
+    query = reference.new_empty(8, 0)
+    direct = model(features, reference, query).numerical
+    retrieved = model(
+        features, reference, query, alpha=0, k=1, temperature=None
+    ).numerical
+    torch.testing.assert_close(
+        model(features, reference, query).numerical, direct
+    )
+    model.fit(features, reference, alpha=0, k=1, temperature=None)
+    model(features, reference, query, alpha=1)
+    torch.testing.assert_close(model.predict(query).numerical, retrieved)
+    model.fit(features, reference)
+    torch.testing.assert_close(model.predict(query).numerical, direct)
 
 
 @withCUDA
