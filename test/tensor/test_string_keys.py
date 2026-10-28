@@ -89,39 +89,6 @@ def test_pack_rejects_narrow_width() -> None:
         pack(values, 7)
 
 
-@withCUDA
-def test_byte_bound_after_copy_and_selection(device: torch.device) -> None:
-    values = StringTensor.from_arrow(
-        pa.array(["xxxxxxxxxxxx", "é", "", "a"]).slice(1)
-    )
-    # The Arrow slice still exposes preceding storage, so its bound covers it.
-    for selected in (
-        values[::2],
-        values[torch.tensor([2, 0])],
-        values.clone(),
-        values.detach(),
-        values.to(device),
-    ):
-        selected = cast(StringTensor, selected)
-        keys, valid = pack(selected)
-        assert torch.equal(keys.cpu(), _reference_keys(selected.tolist(), 12))
-        assert valid.tolist() == [
-            text is not None for text in selected.tolist()
-        ]
-
-
-@withCUDA
-def test_pack_concatenation(device: torch.device) -> None:
-    left = StringTensor.from_list(["a", "é"], device=device)
-    right = StringTensor.from_list([None, "12345678"], device=device)
-    values = cast(StringTensor, torch.cat((left, right)))
-    keys, valid = torch.compile(pack, fullgraph=True)(values)
-    assert torch.equal(
-        keys.cpu(), _reference_keys(["a", "é", None, "12345678"], 8)
-    )
-    assert valid.tolist() == [True, True, False, True]
-
-
 def test_pack_unknown_storage_bound() -> None:
     values = StringTensor(
         data=torch.tensor(list(b"abcdef"), dtype=torch.uint8),
@@ -136,10 +103,14 @@ def test_pack_unknown_storage_bound() -> None:
 
 
 @withCUDA
-@pytest.mark.parametrize("bound", [None, 0, 8])
+@pytest.mark.parametrize("bound", [None, 0, 12])
 def test_bound_provenance(device: torch.device, bound: int | None) -> None:
     texts = ["", None] if bound == 0 else ["abcdefgh", "é"]
-    values = StringTensor.from_list(texts, device=device)
+    # A non-null Arrow slice retains the longest string's backing storage.
+    array = pa.array(texts)
+    if bound == 12:
+        array = pa.array(["x" * 12, *texts]).slice(1)
+    values = StringTensor.from_arrow(array, device=device)
     if bound is None:
         values = StringTensor(
             data=values._data,
@@ -148,20 +119,27 @@ def test_bound_provenance(device: torch.device, bound: int | None) -> None:
             size=values.size(),
         )
     compiled = torch.compile(lambda value: value.detach(), fullgraph=True)
-    for copied in (
-        values[:],
-        values.clone(),
-        values.detach(),
-        values.to(device),
-        compiled(values),
-        pickle.loads(pickle.dumps(values)),
+    for copied, expected in (
+        (values[:], texts),
+        (values[::2], texts[::2]),
+        (values[torch.tensor([1, 0], device=device)], texts[::-1]),
+        (values.clone(), texts),
+        (values.detach(), texts),
+        (values.to(device, copy=True), texts),
+        (compiled(values), texts),
+        (pickle.loads(pickle.dumps(values)), texts),
     ):
         copied = cast(StringTensor, copied)
         assert copied._max_length == bound
-        assert copied.tolist() == texts
-    concatenated = cast(
-        StringTensor,
-        torch.cat((values, StringTensor.from_list([""], device=device))),
-    )
-    assert concatenated._max_length == bound
-    assert concatenated.tolist() == [*texts, ""]
+        assert copied.tolist() == expected
+    compiled_pack = torch.compile(pack, fullgraph=True)
+    for suffix in ("", "x" * 16):
+        extra = StringTensor.from_list([suffix], device=device)
+        joined = cast(StringTensor, torch.cat((values, extra)))
+        new_bound = None if bound is None else max(bound, len(suffix))
+        assert joined._max_length == new_bound
+        width = joined._data.numel() if new_bound is None else new_bound
+        keys, valid = compiled_pack(joined)
+        expected = [*texts, suffix]
+        assert torch.equal(keys.cpu(), _reference_keys(expected, width))
+        assert valid.tolist() == [text is not None for text in expected]
