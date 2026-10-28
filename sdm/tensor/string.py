@@ -134,10 +134,12 @@ class StringTensor(VarLenTensor):
         )
 
         # Inspect CPU offsets before moving buffers; include every stored row
-        # so the bound remains valid for views sharing this storage.
-        out._max_length = (
+        # so the bound remains valid for views sharing this storage. Rounding
+        # up to 2**k - 1 bytes limits recompilation across inputs.
+        length = (
             int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
         )
+        out._max_length = (1 << length.bit_length()) - 1
         return out
 
     @override

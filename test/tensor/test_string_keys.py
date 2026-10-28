@@ -34,16 +34,17 @@ def _reference_keys(values: list[str | None], width: int) -> torch.Tensor:
 
 @withCUDA
 @pytest.mark.parametrize("compiled", [False, True])
-@pytest.mark.parametrize("width", [0, 7, 8, 14, 15])
-def test_pack_keys(device: torch.device, compiled: bool, width: int) -> None:
+@pytest.mark.parametrize("length", [0, 7, 8, 14, 15])
+def test_pack_keys(device: torch.device, compiled: bool, length: int) -> None:
     texts = (
         ["", None]
-        if width == 0
-        else ["", "\0", "a", "a\0", "é", "🙂", "a" * width, None]
+        if length == 0
+        else ["", "\0", "a", "a\0", "é", "🙂", "a" * length, None]
     )
     values = StringTensor.from_list(texts, device=device)
     fn = torch.compile(pack, fullgraph=True) if compiled else pack
-    keys, valid = fn(values, width)
+    keys, valid = fn(values)
+    width = cast(int, values._max_length)
     assert torch.equal(keys.cpu(), _reference_keys(texts, width))
     assert valid.tolist() == [text is not None for text in texts]
     non_null = [i for i, text in enumerate(texts) if text is not None]
@@ -102,13 +103,22 @@ def test_pack_unknown_storage_bound() -> None:
         pack(values, 3)
 
 
+@pytest.mark.parametrize(
+    ("length", "bound"),
+    [(0, 0), (1, 1), (3, 3), (4, 7), (127, 127), (128, 255)],
+)
+def test_bound_rounds_up(length: int, bound: int) -> None:
+    values = StringTensor.from_list(["a" * length, ""])
+    assert values._max_length == bound
+
+
 @withCUDA
-@pytest.mark.parametrize("bound", [None, 0, 12])
+@pytest.mark.parametrize("bound", [None, 0, 15])
 def test_bound_provenance(device: torch.device, bound: int | None) -> None:
     texts = ["", None] if bound == 0 else ["abcdefgh", "é"]
     # A non-null Arrow slice retains the longest string's backing storage.
     array = pa.array(texts)
-    if bound == 12:
+    if bound == 15:
         array = pa.array(["x" * 12, *texts]).slice(1)
     values = StringTensor.from_arrow(array, device=device)
     if bound is None:
@@ -136,7 +146,7 @@ def test_bound_provenance(device: torch.device, bound: int | None) -> None:
     for suffix in ("", "x" * 16):
         extra = StringTensor.from_list([suffix], device=device)
         joined = cast(StringTensor, torch.cat((values, extra)))
-        new_bound = None if bound is None else max(bound, len(suffix))
+        new_bound = None if bound is None else max(bound, 31 if suffix else 0)
         assert joined._max_length == new_bound
         width = joined._data.numel() if new_bound is None else new_bound
         keys, valid = compiled_pack(joined)
