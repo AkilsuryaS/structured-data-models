@@ -4,10 +4,8 @@
 """KumoForecast."""
 
 from sdm.models.kumo.timeseries.forecast.model import KumoForecast
-from sdm.models.kumo.timeseries.forecast.darr import DARR
 
 
 __all__ = [
     "KumoForecast",
-    "DARR",
 ]

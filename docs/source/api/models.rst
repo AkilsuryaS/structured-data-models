@@ -80,18 +80,18 @@ Models
 {% endfor %}
 
 Retrieval-Augmented Forecasting
--------------------------------
+------------------------------
 
-Reuse a pretrained forecaster with an explicitly fitted historical memory:
+Enable historical retrieval in :class:`~sdm.models.KumoForecast` with
+``alpha < 1``. The default ``alpha=1`` uses direct forecasts only:
 
 .. code-block:: python
 
    from sdm.models import KumoForecast
-   from sdm.models.kumo.timeseries.forecast import DARR
 
-   darr = DARR(KumoForecast(device="cuda"), alpha=0.01)
-   darr.fit(reference, horizon=72)  # Observations known at the forecast origin.
-   forecast = darr(context)  # Same columns; at least 512 observed rows.
+   model = KumoForecast(device="cuda", alpha=0.01)
+   forecast = model(x_context, y_context, x_query)
 
-.. autoclass:: sdm.models.kumo.timeseries.forecast.DARR
-   :members: fit, forward, clear
+Supply all observations known at the forecast origin as context. Retrieval
+uses complete windows from this history; the current forecast uses its last
+512 rows. Query rows determine the forecast horizon and contain no columns.
