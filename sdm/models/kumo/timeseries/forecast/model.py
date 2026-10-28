@@ -171,31 +171,35 @@ class KumoForecast(ICLModel):
         batch_size: int = 8,
         **kwargs: Any,
     ) -> TableTensor:
+        assert y_context is not None
+        assert x_query is not None
+
         if not 0 <= alpha <= 1:
             raise ValueError(
                 f"Expected 'alpha' between zero and one (got {alpha})"
             )
-        assert y_context is not None
-        assert x_query is not None
+
         if y_context.size(-2) < self.model.context_size:
             raise ValueError(
                 f"Expected at least {self.model.context_size} context rows "
                 f"(got {y_context.size(-2)})"
             )
 
-        length = x_query.size(-2)
-        if not 1 <= length <= 512:
+        horizon = x_query.size(-2)
+        if not 1 <= horizon <= 512:
             raise ValueError(
                 "Number of query rows must be between 1 and 512 steps "
-                f"(got {length})"
+                f"(got {horizon})"
             )
 
-        x = y_context.numerical.transpose(-1, -2)  # [..., C, R]
-        memory_horizon = max(self.model.prediction_size, length)
-        use_darr = alpha < 1 and x.size(-1) >= (
+        context_size = self.model.context_size
+        prediction_size = self.model.prediction_size
+        memory_horizon = max(prediction_size, horizon)
+        use_darr = alpha < 1 and y_context.size(-2) >= (
             self.model.context_size + memory_horizon
         )
 
+        x = y_context.numerical.transpose(-1, -2)  # [..., C, R]
         if x_context_only is not None and x_context_only.size(-1) > 0:
             if self.model.cross_channel is None and not use_darr:
                 warn_once(
@@ -210,56 +214,49 @@ class KumoForecast(ICLModel):
                 dim=-2,
             )
 
+        # Direct forecast:
         last_x = x[..., -self.model.context_size :]
         encoded, mean, scale = self.model.encode(last_x)  # [..., C, P, D]
         out = self.model.decode(encoded, mean, scale)
-        if length > self.model.prediction_size and (
-            alpha != 0 or not use_darr
-        ):
-            history = last_x
-            direct = out
-            rollout = [direct]
-            for _ in range(
-                self.model.prediction_size, length, self.model.prediction_size
-            ):
-                history = torch.cat([history, direct], dim=-1)
-                history = history[..., -self.model.context_size :]
-                direct = self.model(history)
-                rollout.append(direct)
-            out = torch.cat(rollout, dim=-1)
-        out = out[..., :length]
 
-        if use_darr:
-            keys = self.model.encode_memory(
-                x=x, horizon=memory_horizon, batch_size=batch_size
+        # Autoregressive direct forecasts:
+        if horizon > prediction_size and (alpha != 0 or not use_darr):
+            outs = [out]
+            for _ in range(prediction_size, horizon, prediction_size):
+                last_x = last_x[..., prediction_size:]
+                last_x = torch.cat([last_x, out], dim=-1)
+                out = self.model(last_x)
+                outs.append(out)
+            out = torch.cat(outs, dim=-1)
+        out = out[..., :horizon]
+
+        if use_darr:  # Memory-based Retrieval:
+            key = self.model.encode_memory(
+                x=x,
+                horizon=memory_horizon,
+                batch_size=batch_size,
             )  # [..., N, D]
             query = embed(encoded)  # [..., D]
-            windows = x.unfold(
-                -1,
-                self.model.context_size + memory_horizon,
-                self.model.prediction_size,
-            ).transpose(-3, -2)  # [..., N, C, L + H]
+
+            window = x.unfold(
+                dimension=-1,
+                size=context_size + memory_horizon,
+                step=prediction_size,
+            ).transpose(-3, -2)  # [..., N, C, context_size+memory_horizon]
+
             retrieved = knn(
                 query=query,
-                keys=keys,
-                values=windows[
-                    ...,
-                    self.model.context_size : self.model.context_size + length,
-                ],
+                key=key,
+                value=window[..., context_size : context_size + horizon],
                 k=k,
                 temperature=temperature,
             )
-            out = (
-                retrieved
-                if alpha == 0
-                else alpha * out + (1 - alpha) * retrieved
-            )
+            out = alpha * out + (1 - alpha) * retrieved
 
+        out = out[..., : len(y_context.numerical_columns)].transpose(-1, -2)
         return TableTensor(
             columns={Stype.numerical: y_context.numerical_columns},
-            numerical=out[
-                ..., : len(y_context.numerical_columns), :
-            ].transpose(-1, -2),
+            numerical=out,
         )
 
 
