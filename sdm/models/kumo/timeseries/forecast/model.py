@@ -350,6 +350,7 @@ class _KumoForecast(torch.nn.Module):
             ]
             x, _, _ = self.encode(x)
             key[..., start : start + batch_size, :] = embed(x)
+
         return key
 
     def encode(
