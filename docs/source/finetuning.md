@@ -27,7 +27,6 @@ Fine-tuning keeps the pretraining objective, predicting held-out rows from label
 3. Compute the loss of the query predictions against the held-out query labels.
 4. Backpropagate and update every weight of the model.
 
-Because the context changes at every step, the model learns to read its context, as it does at inference, instead of memorizing fixed rows.
 
 ```{note}
 The next four sections walk through [`examples/tabular/finetune.py`](https://github.com/NVIDIA/structured-data-models/blob/main/examples/tabular/finetune.py), which fine-tunes {py:class}`~sdm.models.TabICLv2` or {py:class}`~sdm.models.KumoTabular` on a classification or regression dataset.
