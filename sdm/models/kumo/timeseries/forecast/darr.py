@@ -9,14 +9,14 @@ from torch import Tensor
 # Kumo-Forecast/sdk/forecasting.py and Kumo-Forecast/backbone.py.
 
 
-def _embedding(encoded: Tensor) -> Tensor:
-    """Match the SDK's channel-then-patch mean pooling and cosine keys."""
-    pooled = encoded.mean(dim=-3).mean(dim=-2).float()
+def embed(encoded: Tensor) -> Tensor:
+    """Pool and normalize encoded patches for cosine retrieval."""
+    pooled = encoded.float().mean(dim=-3).mean(dim=-2)
     pooled = pooled.nan_to_num(nan=0, posinf=0, neginf=0)
     return F.normalize(pooled, dim=-1, eps=1e-12)
 
 
-def _knn_forecast(
+def knn(
     query: Tensor,  # [..., D], unit-normalized
     keys: Tensor,  # [..., N, D], unit-normalized
     values: Tensor,  # [..., N, C, H]

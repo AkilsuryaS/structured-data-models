@@ -59,15 +59,3 @@ def test_forward(
     assert "y1" in out.numerical_columns
     assert "y2" in out.numerical_columns
     assert "y3" in out.numerical_columns
-
-    with (
-        nullcontext()
-        if cross_channel
-        else pytest.warns(RuntimeWarning, match="Historical covariates")
-    ):
-        model.fit(
-            x=x_context,
-            y=y_context,
-            context_only_columns=["x1", "x2"],
-        )
-    torch.testing.assert_close(model.predict(x_query).numerical, out.numerical)

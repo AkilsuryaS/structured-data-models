@@ -12,7 +12,7 @@ import sdm.processing as sp
 from sdm import TableTensor
 from sdm.models import KumoForecast
 from sdm.models.kumo.timeseries.forecast import model as forecasting
-from sdm.models.kumo.timeseries.forecast.darr import _knn_forecast
+from sdm.models.kumo.timeseries.forecast.darr import knn
 from sdm.testing import withCUDA
 
 
@@ -68,7 +68,7 @@ def test_retrieval_matches_numpy(
     expected = (weights * np.where(valid, neighbors, 0)).sum(axis=1)
     expected /= np.maximum(weights.sum(axis=1), 1e-12)
 
-    out = _knn_forecast(
+    out = knn(
         query=torch.from_numpy(query).to(device),
         keys=torch.from_numpy(keys).to(device).expand(2, -1, -1),
         values=torch.from_numpy(values)
@@ -173,53 +173,58 @@ def test_retrieval_uses_query_history(
 
 
 @withCUDA
-def test_fit_predict(model: KumoForecast, device: torch.device) -> None:
-    """Reuse context for different horizons, estimator batches, and refits."""
+@pytest.mark.parametrize("num_estimators", [None, 3])
+@pytest.mark.parametrize("estimator_batch_size", [1, 2, None])
+def test_estimator_batching(
+    model: KumoForecast,
+    device: torch.device,
+    num_estimators: int | None,
+    estimator_batch_size: int | None,
+) -> None:
+    """Match separate histories and repeated estimators across batch sizes."""
     model = model.to(device)
-    reference = torch.randn(2, 48, 2, device=device)
-    for estimator_batch_size in [1, None]:
-        model.fit(
-            reference[..., :0],
-            reference,
+    reference = torch.randn(3, 48, 2, device=device)
+    query = reference.new_empty(8, 0)
+    predictions = [
+        model(
+            history[:, :0],
+            history,
+            query,
             alpha=0.2,
             k=2,
             temperature=None,
-            estimator_batch_size=estimator_batch_size,
-        )
-        for horizon in [3, 8, 19, 40]:
-            query = reference.new_empty(2, horizon, 0)
-            expected = model(
-                reference[..., :0],
-                reference,
-                query,
-                alpha=0.2,
-                k=2,
-                temperature=None,
-                estimator_batch_size=estimator_batch_size,
-            )
-            actual = model.predict(query)
-            torch.testing.assert_close(actual.numerical, expected.numerical)
-    reference = reference + 50
-    model.fit(reference[..., :0], reference)
-    query = reference.new_empty(2, 8, 0)
-    torch.testing.assert_close(
-        model.predict(query).numerical,
-        model(reference[..., :0], reference, query).numerical,
+        ).numerical
+        for history in reference
+    ]
+    if num_estimators is None:
+        expected = torch.stack(predictions).mean(0)
+        query = reference.new_empty(3, 8, 0)
+    else:
+        reference = reference[0]
+        expected = predictions[0]
+    actual = model(
+        reference[..., :0],
+        reference,
+        query,
+        alpha=0.2,
+        k=2,
+        temperature=None,
+        num_estimators=num_estimators,
+        estimator_batch_size=estimator_batch_size,
     )
-    model.clear()
-    with pytest.raises(RuntimeError, match="not yet fitted"):
-        model.predict(query)
+    torch.testing.assert_close(actual.numerical, expected)
 
 
 @withCUDA
+@pytest.mark.parametrize("horizon", [8, 19])
 def test_direct_default_and_short_history(
-    model: KumoForecast, device: torch.device
+    model: KumoForecast, device: torch.device, horizon: int
 ) -> None:
     """Default forecasts ignore old history and need no retrieval memory."""
     model = model.to(device)
     history = torch.randn(16, 2, device=device)
     reference = torch.cat([history + 100, history], dim=-2)
-    query = history.new_empty(8, 0)
+    query = history.new_empty(horizon, 0)
     direct = model(history[:, :0], history, query).numerical
     torch.testing.assert_close(
         model(reference[:, :0], reference, query).numerical, direct
@@ -248,22 +253,24 @@ def test_recipe_and_missing_continuations(model: KumoForecast) -> None:
 
 
 def test_call_options(model: KumoForecast) -> None:
-    """Keep one-shot options independent of fitted and subsequent calls."""
+    """Keep retrieval settings independent across forward calls."""
     reference = torch.randn(48, 2)
     features = reference[:, :0]
     query = reference.new_empty(8, 0)
     direct = model(features, reference, query).numerical
-    retrieved = model(
-        features, reference, query, alpha=0, k=1, temperature=None
-    ).numerical
+    model(features, reference, query, alpha=0, k=1, temperature=None)
     torch.testing.assert_close(
         model(features, reference, query).numerical, direct
     )
-    model.fit(features, reference, alpha=0, k=1, temperature=None)
-    model(features, reference, query, alpha=1)
-    torch.testing.assert_close(model.predict(query).numerical, retrieved)
-    model.fit(features, reference)
-    torch.testing.assert_close(model.predict(query).numerical, direct)
+
+
+def test_one_shot_api(model: KumoForecast) -> None:
+    """Reject the fitted lifecycle in favor of complete forecast calls."""
+    history = torch.randn(24, 1)
+    with pytest.raises(NotImplementedError, match="forward"):
+        model.fit(history[:, :0], history)
+    with pytest.raises(NotImplementedError, match="forward"):
+        model.predict(torch.empty(8, 0))
 
 
 @withCUDA
@@ -272,8 +279,8 @@ def test_retrieval_autocast(device: torch.device) -> None:
     keys = torch.tensor([[1.0, 0.0], [0.0, 1.0]], device=device)
     values = torch.tensor([[[1.0]], [[3.0]]], device=device)
     query = torch.tensor([0.50001, 0.5], device=device)
-    expected = _knn_forecast(query, keys, values, k=2, temperature=1e-5)
+    expected = knn(query, keys, values, k=2, temperature=1e-5)
     with torch.amp.autocast(device.type, dtype=torch.bfloat16):
-        out = _knn_forecast(query, keys, values, k=2, temperature=1e-5)
+        out = knn(query, keys, values, k=2, temperature=1e-5)
     torch.testing.assert_close(out, expected, rtol=0, atol=0)
     assert out.dtype == torch.float32
