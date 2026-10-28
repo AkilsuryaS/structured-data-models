@@ -82,7 +82,7 @@ Default Recipe
      target=Sequential(
        StypeDispatch(
          numerical=Sequential(
-           Standardize(eps=0.0),
+           Standardize(),
            FlipSign(probability=0.5),
          ),
          categorical=Sequential(

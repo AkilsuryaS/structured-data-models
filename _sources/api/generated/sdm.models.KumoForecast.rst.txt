@@ -34,7 +34,7 @@ Default Recipe
 .. code-block:: python
 
    Recipe(
-     features=Standardize(eps=0.0),
-     target=Standardize(eps=0.0),
+     features=Standardize(),
+     target=Standardize(),
      output=AverageEstimators(),
    )

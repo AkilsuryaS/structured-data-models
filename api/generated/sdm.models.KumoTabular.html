@@ -364,7 +364,7 @@ default device.</p></li>
 </span><span data-line="47">  <span class="n">target</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
 </span><span data-line="48">    <span class="n">StypeDispatch</span><span class="p">(</span>
 </span><span data-line="49">      <span class="n">numerical</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
-</span><span data-line="50">        <span class="n">Standardize</span><span class="p">(</span><span class="n">eps</span><span class="o">=</span><span class="mf">0.0</span><span class="p">),</span>
+</span><span data-line="50">        <span class="n">Standardize</span><span class="p">(),</span>
 </span><span data-line="51">        <span class="n">FlipSign</span><span class="p">(</span><span class="n">probability</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
 </span><span data-line="52">      <span class="p">),</span>
 </span><span data-line="53">      <span class="n">categorical</span><span class="o">=</span><span class="n">Sequential</span><span class="p">(</span>
@@ -413,7 +413,7 @@ default device.</p></li>
   </main>
 </div>
 
-      <script src="../../_static/documentation_options.js?v=40a878a8"></script>
+      <script src="../../_static/documentation_options.js?v=08160de4"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>

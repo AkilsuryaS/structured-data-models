@@ -59,7 +59,7 @@ Default Recipe
      ),
      target=Sequential(
        StypeDispatch(
-         numerical=Standardize(eps=0.0),
+         numerical=Standardize(),
          categorical=Sequential(
            AlignCategories(sort_by='value'),
            ShuffleCategories(method='shift'),
