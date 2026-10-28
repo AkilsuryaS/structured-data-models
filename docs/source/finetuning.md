@@ -27,7 +27,6 @@ Fine-tuning keeps the pretraining objective, predicting held-out rows from label
 3. Compute the loss of the query predictions against the held-out query labels.
 4. Backpropagate and update every weight of the model.
 
-
 ```{note}
 The next four sections walk through [`examples/tabular/finetune.py`](https://github.com/NVIDIA/structured-data-models/blob/main/examples/tabular/finetune.py), which fine-tunes {py:class}`~sdm.models.TabICLv2` or {py:class}`~sdm.models.KumoTabular` on a classification or regression dataset.
 ```
@@ -166,6 +165,7 @@ def evaluate(context: sdm.TableTensor, query: sdm.TableTensor) -> float:
         )
         return (prob.argmax(dim=-1) == y).float().mean().item()
 
+    # Regression: average the predicted quantiles and compute RMSE.
     pred = out.numerical.mean(dim=-1)
     y = query["target"].numerical.squeeze(-1)
     return (pred - y).pow(2).mean().sqrt().item()
