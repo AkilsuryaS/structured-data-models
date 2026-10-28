@@ -621,7 +621,6 @@ def test_string_category_lookups_compile_ragged(compilation: None) -> None:
         [*[f"label-{index}" for index in range(32)], first, second],
         device=device,
     )
-    query = StringTensor.from_list([first, unknown, second], device=device)
     codes = torch.empty((), dtype=torch.int32, device=device)
 
     def lookups(categories: StringTensor) -> tuple[torch.Tensor, ...]:
@@ -632,9 +631,14 @@ def test_string_category_lookups_compile_ragged(compilation: None) -> None:
         )
 
     compiled = torch.compile(lookups, backend="inductor", fullgraph=True)
-    expected = (codes.new_tensor([32, -1, 33]),)
-    for _ in range(2):
-        torch.testing.assert_close(actual=compiled(query), expected=expected)
+    for values, indices in (
+        ([first, unknown, second], [32, -1, 33]),
+        ([second, first, unknown], [33, 32, -1]),
+    ):
+        query = StringTensor.from_list(values, device=device)
+        torch.testing.assert_close(
+            actual=compiled(query), expected=(codes.new_tensor(indices),)
+        )
 
 
 @withCUDA
