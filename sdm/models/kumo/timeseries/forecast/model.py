@@ -251,9 +251,12 @@ class KumoForecast(ICLModel):
                 k=k,
                 temperature=temperature,
             )
-            out = alpha * out + (1 - alpha) * retrieved
+            if alpha == 0:
+                out = retrieved
+            else:
+                out = alpha * out + (1 - alpha) * retrieved
 
-        out = out[..., : len(y_context.numerical_columns)].transpose(-1, -2)
+        out = out[..., : len(y_context.numerical_columns), :].transpose(-1, -2)
         return TableTensor(
             columns={Stype.numerical: y_context.numerical_columns},
             numerical=out,
