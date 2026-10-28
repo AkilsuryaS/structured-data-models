@@ -34,6 +34,8 @@ class StringTensor(VarLenTensor):
         size: The shape of the tensor.
         stride: The stride of the tensor.
         storage_offset: The offset into the logical ``offset`` storage.
+        max_length: A trusted upper bound on the byte length of every
+            string indexed by ``offset``, or :obj:`None` if unknown.
     """
 
     # NOTE Assume that `data` stores valid UTF-8 bytes and do not validate it.
@@ -51,6 +53,7 @@ class StringTensor(VarLenTensor):
         size: tuple[int, ...],
         stride: tuple[int, ...],
         storage_offset: int,
+        max_length: int | None,
         cls: type[VarLenTensor] | None = None,
     ) -> VarLenTensor:
         return VarLenTensor._make_var_len_tensor(
@@ -60,6 +63,7 @@ class StringTensor(VarLenTensor):
             size=size,
             stride=stride,
             storage_offset=storage_offset,
+            max_length=max_length,
             cls=StringTensor if cls is None else cls,
         )
 
@@ -123,7 +127,7 @@ class StringTensor(VarLenTensor):
             )
             storage_offset = 0
 
-        out = cls(
+        return cls(
             data=torch.frombuffer(buffers[2], dtype=torch.uint8).to(device)
             if buffers[2] is not None and buffers[2].size > 0
             else torch.empty(0, dtype=torch.uint8, device=device),
@@ -131,11 +135,9 @@ class StringTensor(VarLenTensor):
             valid=valid,
             size=size,
             storage_offset=storage_offset,
+            # Inspect CPU offsets before moving buffers.
+            max_length=_length_bound(offset),
         )
-
-        # Inspect CPU offsets before moving buffers.
-        out._max_length = _length_bound(offset)
-        return out
 
     @override
     def to_arrow(self) -> pa.Array:
@@ -202,14 +204,13 @@ class StringTensor(VarLenTensor):
         ).to(device)
 
         if len(ser) == 0:
-            out = cls(
+            return cls(
                 data=data,
                 offset=torch.zeros(1, dtype=torch.int32, device=data.device),
                 valid=None,
                 size=size,
+                max_length=0,
             )
-            out._max_length = 0
-            return out
 
         offsets = column.children()[0]  # (base_size + 1,) INT32/INT64 values
         offset_dtype = (
@@ -228,16 +229,15 @@ class StringTensor(VarLenTensor):
             valid = torch.from_dlpack(ser.notnull().to_cupy()).to(device)
             storage_offset = 0
 
-        out = cls(
+        return cls(
             data=data,
             offset=offset.to(device),
             valid=valid,
             size=size,
             storage_offset=storage_offset,
+            # Reads one value from the device, once at ingestion.
+            max_length=_length_bound(offset),
         )
-        # Reads one value from the device, once at ingestion.
-        out._max_length = _length_bound(offset)
-        return out
 
     def to_cudf(self) -> cudf.Series:
         r"""Convert this CUDA tensor to a flat :class:`cudf.Series`."""
