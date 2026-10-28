@@ -133,11 +133,13 @@ class StringTensor(VarLenTensor):
             storage_offset=storage_offset,
         )
 
-        # Inspect CPU offsets before moving buffers; include every stored row
-        # so the bound remains valid for views sharing this storage.
-        out._max_length = (
-            int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
-        )
+        # Use host offsets and include every stored row so the bound remains
+        # valid for views sharing this storage.
+        if offset.numel() > 1:
+            offsets = offset.numpy()
+            out._max_length = int((offsets[1:] - offsets[:-1]).max())
+        else:
+            out._max_length = 0
         return out
 
     @override
