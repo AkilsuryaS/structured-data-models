@@ -133,13 +133,8 @@ class StringTensor(VarLenTensor):
             storage_offset=storage_offset,
         )
 
-        # Inspect CPU offsets before moving buffers; include every stored row
-        # so the bound remains valid for views sharing this storage. Rounding
-        # up to 2**k - 1 bytes limits recompilation across inputs.
-        length = (
-            int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
-        )
-        out._max_length = (1 << length.bit_length()) - 1
+        # Inspect CPU offsets before moving buffers.
+        out._max_length = _length_bound(offset)
         return out
 
     @override
@@ -207,12 +202,14 @@ class StringTensor(VarLenTensor):
         ).to(device)
 
         if len(ser) == 0:
-            return cls(
+            out = cls(
                 data=data,
                 offset=torch.zeros(1, dtype=torch.int32, device=data.device),
                 valid=None,
                 size=size,
             )
+            out._max_length = 0
+            return out
 
         offsets = column.children()[0]  # (base_size + 1,) INT32/INT64 values
         offset_dtype = (
@@ -231,13 +228,16 @@ class StringTensor(VarLenTensor):
             valid = torch.from_dlpack(ser.notnull().to_cupy()).to(device)
             storage_offset = 0
 
-        return cls(
+        out = cls(
             data=data,
             offset=offset.to(device),
             valid=valid,
             size=size,
             storage_offset=storage_offset,
         )
+        # Reads one value from the device, once at ingestion.
+        out._max_length = _length_bound(offset)
+        return out
 
     def to_cudf(self) -> cudf.Series:
         r"""Convert this CUDA tensor to a flat :class:`cudf.Series`."""
@@ -555,3 +555,14 @@ def _sort(
             perm = torch.from_dlpack(perm_ser.astype("int64").to_cupy())
 
     return cast(StringTensor, inp[perm]), perm
+
+
+def _length_bound(offset: Tensor) -> int:
+    """Bound the byte length of every stored string.
+
+    Covering every stored row keeps the bound valid for views sharing the
+    storage. Rounding up to ``2**k - 1`` bytes limits recompilation across
+    inputs.
+    """
+    length = int((offset[1:] - offset[:-1]).max()) if offset.numel() > 1 else 0
+    return (1 << length.bit_length()) - 1

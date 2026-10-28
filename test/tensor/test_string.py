@@ -159,6 +159,8 @@ def test_from_cudf_sliced_values() -> None:
     assert tensor._offset.equal(
         torch.tensor([0, 1, 3, 5, 5], device=tensor.device)
     )
+    # The bound covers every stored string, rounded up to 2**k - 1 bytes.
+    assert tensor._max_length == 3
 
 
 @onlyCUDA
@@ -184,6 +186,7 @@ def test_from_cudf_all_empty_values() -> None:
     assert tensor.tolist() == ["", ""]
     assert tensor._data.numel() == 0
     assert tensor._offset.equal(torch.tensor([0, 0, 0], device=tensor.device))
+    assert tensor._max_length == 0
 
 
 @onlyCUDA
@@ -198,6 +201,7 @@ def test_from_cudf_empty_values() -> None:
     assert tensor.tolist() == []
     assert tensor._data.numel() == 0
     assert tensor._offset.equal(torch.tensor([0], device=tensor.device))
+    assert tensor._max_length == 0
 
 
 @pytest.mark.parametrize(
