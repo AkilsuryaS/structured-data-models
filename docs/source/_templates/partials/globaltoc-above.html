@@ -1,9 +1,0 @@
-{% include "!partials/globaltoc-above.html" %}
-
-<div class="sdm-doc-version">
-  <label for="sdm-doc-version">Documentation version:</label>
-  <select id="sdm-doc-version" data-version="{{ doc_version|e }}"
-          data-root="{{ pathto('index')|e }}" disabled>
-    <option>{{ 'latest (main)' if doc_version == 'latest' else doc_version|e }}</option>
-  </select>
-</div>

@@ -2,16 +2,9 @@ name: Documentation
 
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Stable release tag to publish (vX.Y.Z); leave empty for main'
-        required: false
-        type: string
   push:
     branches:
       - main
-  release:
-    types: [published]
   pull_request:
 
 permissions:
@@ -23,32 +16,12 @@ concurrency:
 
 jobs:
   make_html:
-    if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ubuntu-latest
-    env:
-      SDM_DOC_VERSION: ${{ github.event.release.tag_name || inputs.release_tag || 'latest' }}
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           fetch-depth: 0
-
-      - name: Validate release tag
-        if: env.SDM_DOC_VERSION != 'latest'
-        shell: bash
-        run: |
-          if [[ ! "$SDM_DOC_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo '::error::Release documentation requires a vX.Y.Z tag'
-            exit 1
-          fi
-
-      - name: Check out documentation source
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-        with:
-          ref: ${{ env.SDM_DOC_VERSION == 'latest' && github.sha || format('refs/tags/{0}', env.SDM_DOC_VERSION) }}
-          path: .doc-source
-          fetch-depth: 0
-          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
@@ -57,14 +30,13 @@ jobs:
           activate-environment: true
 
       - name: Install package
-        working-directory: ./.doc-source
         run: |
           uv pip install --torch-backend=cpu --group=doc .
 
       - name: Build documentation
-        working-directory: ./.doc-source/docs
+        working-directory: ./docs
         run: |
-          uv run --no-project sphinx-build -M html source "$GITHUB_WORKSPACE/docs/build" -c "$GITHUB_WORKSPACE/docs/source" -W --keep-going
+          uv run --no-project sphinx-build -M html "source" "build" -W --keep-going
 
       - name: Upload documentation
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -74,43 +46,6 @@ jobs:
           retention-days: 1
 
       - name: Run doctests
-        working-directory: ./.doc-source/docs
+        working-directory: ./docs
         run: |
-          uv run --no-project sphinx-build -M doctest source "$GITHUB_WORKSPACE/docs/build" -c "$GITHUB_WORKSPACE/docs/source" -W --keep-going
-
-  publish:
-    if: github.event_name == 'push' || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    needs: make_html
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write  # gh-pages push
-    concurrency:
-      group: documentation-publish
-      cancel-in-progress: false
-
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-
-      - name: Download documentation
-        uses: actions/download-artifact@v6
-        with:
-          name: documentation
-          path: docs/build/html
-
-      - name: Check out published versions
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-        with:
-          ref: gh-pages
-          path: docs/build/site
-
-      - name: Stage documentation
-        env:
-          SDM_DOC_VERSION: ${{ github.event.release.tag_name || inputs.release_tag || 'latest' }}
-        run: python docs/publish.py docs/build/html docs/build/site "$SDM_DOC_VERSION"
-
-      - name: Push documentation to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs/build/site
-          exclude_assets: '.git,.github'
+          uv run --no-project sphinx-build -M doctest "source" "build" -W --keep-going

@@ -21,12 +21,3 @@
 #structured-data-models h1 {
   text-align: center;
 }
-
-.sdm-doc-version {
-  margin-bottom: 1rem;
-}
-
-.sdm-doc-version select {
-  color: inherit;
-  background: transparent;
-}

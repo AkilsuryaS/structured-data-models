@@ -43,13 +43,9 @@ html_theme_options = {
     "accent_color": "green",
     "github_url": "https://github.com/NVIDIA/structured-data-models",
 }
-doc_version = os.environ.get("SDM_DOC_VERSION", "latest")
-html_context = {"doc_version": doc_version}
-if doc_version != "latest":
-    html_context["source_version"] = doc_version
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
-html_js_files = ["versions.js"]
 autosummary_generate = True
 autosummary_context = {"import_module": importlib.import_module}
 autodoc_member_order = "bysource"
