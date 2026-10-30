@@ -9,8 +9,8 @@ build:
       - if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow; fi
       - git fetch --tags
     post_install:
-      - python -m pip install uv
-      - python -m uv pip install --python "$READTHEDOCS_VIRTUALENV_PATH/bin/python" --torch-backend=cpu --group=doc .
+      - pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - pip install --group doc .
 
 sphinx:
   configuration: docs/source/conf.py
