@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib
-import os
 from datetime import date
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -43,7 +42,6 @@ html_theme_options = {
     "accent_color": "green",
     "github_url": "https://github.com/NVIDIA/structured-data-models",
 }
-html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 autosummary_generate = True
